@@ -10,7 +10,6 @@ public class Main {
         File file = new File("bestRes.txt");
 
         try {
-            // Создаем файл, если он не существует
             if (!file.exists()) {
                 file.createNewFile();
                 System.out.println("Файл создан");
@@ -19,12 +18,9 @@ public class Main {
             if (scanner.hasNextInt()) {
                 bestRes = scanner.nextInt();
             }
-
         } catch (IOException e) {
             System.out.println("Ошибка при работе с файлом");
         }
-
-
         Random random = new Random();
         Scanner scanner = new Scanner(System.in);
 
@@ -32,7 +28,7 @@ public class Main {
         int attNum = 0;
         boolean flag = false;
         while (!flag) {
-            System.out.println("Введите число, если хотите увидеть количество попыток, то введите команду RESULT: ");
+            System.out.println("Введите число; если хотите увидеть количество попыток, то введите команду RESULT: ");
             if (scanner.hasNextInt()) {
                 int plCh = scanner.nextInt();
                 if (plCh == compChoice) {
