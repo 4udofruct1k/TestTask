@@ -21,6 +21,7 @@ public class Main {
         } catch (IOException e) {
             System.out.println("Ошибка при работе с файлом");
         }
+
         Random random = new Random();
         Scanner scanner = new Scanner(System.in);
 
@@ -59,6 +60,5 @@ public class Main {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
     }
 }
