@@ -12,7 +12,9 @@
     "typecheck": "tsc -b --noEmit",
     "android:sync": "npm run build && cap sync android",
     "android:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "android:release": "npm run android:sync && cd android && ./gradlew assembleRelease"
+    "android:release": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "ios:sync": "npm run build && cap sync ios",
+    "ios:open": "npm run ios:sync && cap open ios"
   },
   "dependencies": {
     "@capacitor/app": "^7.1.2",
@@ -27,6 +29,7 @@
   "devDependencies": {
     "@capacitor/android": "^7.6.9",
     "@capacitor/cli": "^7.6.9",
+    "@capacitor/ios": "^7.6.9",
     "@types/node": "^22.20.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
