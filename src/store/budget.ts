@@ -7,9 +7,11 @@
 
 import { create } from 'zustand';
 import { addMonths, compareMonth, monthKeyOf } from '../domain/dates';
+import { normalizeCategoryName } from '../domain/categories';
 import { createInitialDocument } from '../domain/defaults';
 import type {
   BudgetDocument,
+  Category,
   Contribution,
   DateStr,
   Expense,
@@ -94,6 +96,19 @@ interface BudgetState {
   endFixedItem(id: string, month: MonthKey): void;
   /** «Исправить ошибку» — стирает позицию вместе с прошлым. Отдельное действие с предупреждением (3.3) */
   eraseFixedItem(id: string): void;
+
+  addCategory(input: {
+    name: string;
+    kind: Kind;
+    essential: boolean;
+    defaultFlow: Flow;
+    icon: string;
+    color: string;
+  }): void;
+  updateCategory(id: string, patch: Partial<Pick<Category, 'name' | 'icon' | 'color' | 'essential' | 'defaultFlow'>>): void;
+  /** Удалять нельзя: на категорию ссылается история. Вместо этого архив (1.2) */
+  archiveCategory(id: string): void;
+  restoreCategory(id: string): void;
 
   addGoal(input: { title: string; targetAmount: Money; deadline?: MonthKey }): void;
   addContribution(goalId: string, month: MonthKey, amount: Money, note?: string): void;
@@ -335,6 +350,58 @@ export const useBudget = create<BudgetState>()((set, get) => {
         }),
         'Позиция стёрта вместе с прошлым',
       );
+    },
+
+    // ----------------------------------------------------- категории
+
+    addCategory(input) {
+      patchDoc((doc) => {
+        const category: Category = {
+          id: makeId(),
+          name: normalizeCategoryName(input.name),
+          kind: input.kind,
+          essential: input.essential,
+          defaultFlow: input.defaultFlow,
+          icon: input.icon,
+          color: input.color,
+          archived: false,
+          sortOrder: doc.categories.reduce((max, c) => Math.max(max, c.sortOrder), 0) + 1,
+        };
+        return { ...doc, categories: [...doc.categories, category] };
+      });
+    },
+
+    updateCategory(id, patch) {
+      patchDoc((doc) => ({
+        ...doc,
+        categories: doc.categories.map((category) =>
+          category.id === id
+            ? {
+                ...category,
+                ...patch,
+                // kind неизменяем после создания (1.2, инвариант 5)
+                ...(patch.name !== undefined ? { name: normalizeCategoryName(patch.name) } : {}),
+              }
+            : category,
+        ),
+      }));
+    },
+
+    archiveCategory(id) {
+      patchDoc(
+        (doc) => ({
+          ...doc,
+          categories: doc.categories.map((c) => (c.id === id ? { ...c, archived: true } : c)),
+        }),
+        'Категория убрана',
+      );
+    },
+
+    restoreCategory(id) {
+      patchDoc((doc) => ({
+        ...doc,
+        categories: doc.categories.map((c) => (c.id === id ? { ...c, archived: false } : c)),
+      }));
     },
 
     // ---------------------------------------------------------- цели

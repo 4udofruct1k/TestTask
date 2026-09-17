@@ -9,6 +9,7 @@
 export * from './context';
 export * from './fixed';
 export * from './expenses';
+export * from './breakdown';
 export * from './summary';
 export * from './dynamics';
 export * from './forecast';

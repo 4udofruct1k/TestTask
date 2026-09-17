@@ -9,6 +9,7 @@ import { TopBar } from '../components/TopBar';
 import { Sheet } from '../components/Sheet';
 import { IconChevron } from '../icons';
 import { PRESETS, ROLES } from '../palette';
+import { CategoriesSheet } from './CategoriesSheet';
 import { ColorsSheet } from './ColorsSheet';
 import { activeCategories, days as daysWord, months as monthsWord, monthTitleLower } from '../format';
 import type { BackupInfo } from '../../storage';
@@ -183,31 +184,6 @@ function NumberSheet({
       <button className="save" disabled={!valid} onClick={() => { onSave(parsed); onClose(); }}>
         Сохранить
       </button>
-    </Sheet>
-  );
-}
-
-/** Категории с их видом потока по умолчанию (3.8). */
-function CategoriesSheet({ open, onClose }: { open: boolean; onClose(): void }): JSX.Element {
-  const doc = useBudget((s) => s.doc)!;
-  return (
-    <Sheet open={open} title="Категории" onClose={onClose}>
-      {doc.categories
-        .filter((c) => !c.archived)
-        .map((category) => (
-          <div className="sub-i" key={category.id}>
-            <span className="sub-n">
-              {category.icon} {category.name}
-              <span className="sub-d">
-                {category.kind === 'INCOME' ? 'доход' : category.defaultFlow === 'ROUTINE' ? 'рутина' : 'разовое'}
-              </span>
-            </span>
-          </div>
-        ))}
-      <p className="hint">
-        Вид потока подставляется при вводе автоматически и переопределяется в самой операции:
-        обычный обед в кафе — рутина, день рождения в том же кафе — разовое.
-      </p>
     </Sheet>
   );
 }

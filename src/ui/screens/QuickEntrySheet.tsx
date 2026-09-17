@@ -33,6 +33,7 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
   const [note, setNote] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+  const [allChips, setAllChips] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -43,6 +44,7 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
     setNote('');
     setNoteOpen(false);
     setConfirmDuplicate(false);
+    setAllChips(false);
   }, [open, initialFlow, today]);
 
   /** Чипы категорий по частоте за 30 дней. */
@@ -59,6 +61,15 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
   }, [doc, today]);
 
   const category = chips.find((c) => c.id === categoryId) ?? null;
+
+  // Первыми идут восемь самых частых, остальные — по кнопке «Ещё». Иначе
+  // своя категория, у которой ещё нет истории, не показывается никогда
+  const head = chips.slice(0, 8);
+  const visibleChips = allChips
+    ? chips
+    : category && !head.includes(category)
+      ? [...head, category]
+      : head;
   const amount = parseAmount(raw);
   const valid = amount !== null && amount > 0 && category !== null;
 
@@ -102,7 +113,7 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
       />
 
       <div className="chips">
-        {chips.slice(0, 8).map((c) => (
+        {visibleChips.map((c) => (
           <button
             key={c.id}
             className={`chip${c.id === categoryId ? ' sel' : ''}`}
@@ -111,6 +122,11 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
             {c.icon} {c.name}
           </button>
         ))}
+        {chips.length > head.length && (
+          <button className="chip chip-more" onClick={() => setAllChips(!allChips)}>
+            {allChips ? 'Свернуть' : 'Ещё'}
+          </button>
+        )}
       </div>
 
       <div className="flowtog" role="group" aria-label="Вид траты">

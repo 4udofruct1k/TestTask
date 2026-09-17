@@ -4,3 +4,4 @@ export * from './PaceChart';
 export * from './StackChart';
 export * from './OneOffChart';
 export * from './RunwayChart';
+export * from './DonutChart';

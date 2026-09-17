@@ -17,6 +17,7 @@ import {
   isMonthKey,
   monthKeyOfIso,
 } from './dates';
+import { MAX_CATEGORY_NAME } from './categories';
 import { isMoney } from './money';
 import {
   CURRENT_SCHEMA_VERSION,
@@ -98,7 +99,6 @@ export interface ValidationResult {
   fatal: Fatal[];
 }
 
-const MAX_CATEGORY_NAME = 40;
 const MAX_NOTE = 200;
 const FALLBACK_CATEGORY_NAME = 'Прочее';
 /** Нейтральные значения оформления из палитры 3.9 — когда в файле их нет. */
