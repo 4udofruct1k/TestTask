@@ -25,7 +25,7 @@ const PANELS: { id: Panel; title: string; subtitle: string; ghost: boolean }[] =
   { id: 'routine', title: 'Рутинная трата', subtitle: 'Продукты, транспорт, кофе', ghost: false },
   { id: 'monthly', title: 'Постоянный платёж', subtitle: 'Аренда, связь, подписки', ghost: true },
   { id: 'spread', title: 'Годовой платёж', subtitle: 'Страховка, налог — разложится по месяцам', ghost: true },
-  { id: 'contribution', title: 'Взнос в цель', subtitle: 'Отложить на конкретное', ghost: true },
+  { id: 'contribution', title: 'В копилку', subtitle: 'Отложить на конкретное', ghost: true },
 ];
 
 export function ExpensesScreen(): JSX.Element {

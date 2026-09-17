@@ -1,5 +1,5 @@
 /**
- * Взнос в цель. Взнос — не трата: net он не уменьшает (1.7).
+ * Взнос в копилку. Взнос — не трата: net он не уменьшает (1.7).
  */
 
 import { useEffect, useState, type JSX } from 'react';
@@ -40,16 +40,16 @@ export function ContributionForm({ open, onClose, goalId }: Props): JSX.Element 
 
   if (active.length === 0) {
     return (
-      <Sheet open={open} title="Взнос в цель" onClose={onClose}>
-        <p className="hint">Сначала заведите цель на экране «Накопления».</p>
+      <Sheet open={open} title="В копилку" onClose={onClose}>
+        <p className="hint">Сначала заведите копилку на экране «Накопления».</p>
       </Sheet>
     );
   }
 
   return (
-    <Sheet open={open} title="Взнос в цель" onClose={onClose}>
+    <Sheet open={open} title="В копилку" onClose={onClose}>
       <div className="field">
-        <label htmlFor="cgoal">Цель</label>
+        <label htmlFor="cgoal">Копилка</label>
         <select id="cgoal" value={selected} onChange={(e) => setSelected(e.target.value)}>
           {active.map((goal) => (
             <option key={goal.id} value={goal.id}>
@@ -66,9 +66,8 @@ export function ContributionForm({ open, onClose, goalId }: Props): JSX.Element 
 
       {exceeds && amount !== null && (
         <p className="hint">
-          Взносов за месяц выйдет больше, чем осталось от этого месяца
-          ({formatRub(monthSummary(doc, month, today).net)}). Это не ошибка: деньги берутся
-          из накопленного за прошлые месяцы.
+          Больше, чем осталось от этого месяца ({formatRub(monthSummary(doc, month, today).net)}).
+          Это нормально: деньги берутся из накопленного раньше.
         </p>
       )}
 

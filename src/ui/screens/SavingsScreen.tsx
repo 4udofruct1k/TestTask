@@ -4,13 +4,16 @@
  * Место, где видно скопившиеся деньги. Модель и раньше переносила остаток
  * месяца в накопления — `net` каждого месяца и есть то, что от него
  * осталось, — но кучу было негде посмотреть: стартовая сумма участвовала
- * только в запасе прочности, а взносы в цели жили отдельным экраном.
+ * только в запасе прочности, а копилки жили отдельным экраном.
  *
  * Здесь же правятся цель по накоплению и стартовая сумма: обе про эту кучу,
  * и искать их в настройках незачем.
  *
- * Просроченная цель не удаляется и не прячется: показывается
+ * Просроченная копилка не удаляется и не прячется: показывается
  * с непройденной датой и предложением сдвинуть срок.
+ *
+ * «Цель по накоплению» в месяц и копилка — разные вещи, и называться
+ * одинаково они больше не должны: раньше обе были «целью».
  */
 
 import { useState, type JSX } from 'react';
@@ -77,26 +80,26 @@ export function SavingsScreen(): JSX.Element {
           {/* Сколько скопилось всего */}
           <div className="card">
             <div className="card-h">
-              <div className="card-t">Накоплено по данным учёта</div>
+              <div className="card-t">Накоплено</div>
             </div>
             <div className="detail-num">{formatRub(ledger.total)}</div>
             <div className="detail-lab">
               {ledger.earmarked > 0
-                ? `из них ${formatRub(ledger.earmarked)} отложено в цели, свободно ${formatRub(ledger.free)}`
-                : 'ни в одну цель пока не откладывали'}
+                ? `в копилках ${formatRub(ledger.earmarked)} · свободно ${formatRub(ledger.free)}`
+                : 'копилок пока нет'}
             </div>
 
             {/* Строка сразу и объясняет, и правится: вторым пунктом ниже она была бы дублем */}
             <button className="sub-i sub-i-btn" style={{ marginTop: 12 }} onClick={() => setDialog('balance')}>
               <span className="sub-n">
-                Было к началу учёта
+                Было к началу
                 <span className="sub-d">изменить</span>
               </span>
               <span className="sub-v">{formatRub(ledger.startingBalance)}</span>
             </button>
             <div className="sub-i">
               <span className="sub-n">
-                Отложено за закрытые месяцы
+                За прошлые месяцы
                 <span className="sub-d">{monthsWord(ledger.months.filter((m) => !m.current).length)}</span>
               </span>
               <span className={`sub-v${ledger.closed < 0 ? ' negative' : ''}`}>
@@ -105,24 +108,15 @@ export function SavingsScreen(): JSX.Element {
             </div>
             <div className="sub-i">
               <span className="sub-n">
-                В этом месяце пока
-                <span className="sub-d">до конца месяца изменится</span>
+                В этом месяце
+                <span className="sub-d">ещё идёт</span>
               </span>
               <span className={`sub-v${ledger.current < 0 ? ' negative' : ''}`}>
                 {formatRub(ledger.current)}
               </span>
             </div>
 
-            <p className="hint">
-              Это не остаток на счетах: приложение не знает про ваши счета и не делает вид, что знает.
-              Здесь сложено то, что осталось от каждого месяца.
-            </p>
-            {ledger.earmarked > 0 && (
-              <p className="hint">
-                Деньги, отложенные в цели, лежат здесь же: взнос ничего не тратит, он только
-                закрепляет сумму за целью. Поэтому она входит в общую, а не вычитается из неё.
-              </p>
-            )}
+            <p className="hint">По данным учёта, а не по счетам в банке.</p>
           </div>
 
           {/* Настройки самой кучи */}
@@ -164,15 +158,15 @@ export function SavingsScreen(): JSX.Element {
 
           {/* Цели-копилки */}
           <div className="card-h" style={{ marginTop: 6 }}>
-            <div className="card-t">Цели</div>
-            {ledger.earmarked > 0 && <div className="card-v">отложено {formatRub(ledger.earmarked)}</div>}
+            <div className="card-t">Копилки</div>
+            {ledger.earmarked > 0 && <div className="card-v">{formatRub(ledger.earmarked)}</div>}
           </div>
 
           {active.length === 0 && (
             <div className="empty" style={{ padding: '14px 4px' }}>
-              <b>Целей пока нет</b>
-              Цель — это конкретная сумма на конкретное: новый компьютер, поездка. Взнос ничего
-              не тратит: деньги остаются в накоплениях, просто закрепляются за целью.
+              <b>Копилок пока нет</b>
+              Копилка — сумма на конкретное: новый компьютер, поездка. Деньги остаются
+              в накоплениях.
             </div>
           )}
 
@@ -234,18 +228,18 @@ export function SavingsScreen(): JSX.Element {
 
           {contributed > net && contributed > 0 && (
             <p className="hint" style={{ padding: '0 2px' }}>
-              Взносов за {monthTitleLower(month)} — {formatRub(contributed)}, а осталось от месяца{' '}
-              {formatRub(net)}. Это не ошибка: взнос покрыт накоплениями прошлых месяцев.
+              В копилки за {monthTitleLower(month)} ушло {formatRub(contributed)} — больше, чем
+              осталось от месяца. Это нормально: деньги взяты из накопленного раньше.
             </p>
           )}
 
           <button className="link" onClick={() => setCreating(true)}>
-            Новая цель <span>накопить на конкретное</span>
+            Новая копилка <span>накопить на конкретное</span>
           </button>
         </div>
       </div>
 
-      <Sheet open={creating} title="Новая цель" onClose={() => setCreating(false)}>
+      <Sheet open={creating} title="Новая копилка" onClose={() => setCreating(false)}>
         <div className="field">
           <label htmlFor="gtitle">Название</label>
           <input id="gtitle" value={title} maxLength={40} placeholder="Новый ПК" onChange={(e) => setTitle(e.target.value)} />
@@ -325,7 +319,7 @@ export function SavingsScreen(): JSX.Element {
   );
 }
 
-/** Экран цели: график взносов по месяцам, фактический темп против требуемого. */
+/** Экран копилки: график взносов по месяцам, фактический темп против требуемого. */
 function GoalDetail({
   goal,
   onClose,
@@ -379,7 +373,7 @@ function GoalDetail({
         Внести
       </button>
       <button className="sub-more" onClick={() => { archiveGoal(goal.id); onClose(); }}>
-        Убрать из активных — взносы останутся в истории
+        Убрать копилку — взносы останутся в истории
       </button>
     </Sheet>
   );
