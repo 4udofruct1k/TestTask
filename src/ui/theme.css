@@ -65,7 +65,14 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /* Приложение не веб-страница: двойной тап не зумит, выделение не тянется */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
+
+input, textarea { -webkit-user-select: text; user-select: text; }
 
 .app {
   position: relative;

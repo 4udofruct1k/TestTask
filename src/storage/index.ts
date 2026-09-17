@@ -6,3 +6,4 @@ export * from './backups';
 export * from './migrations';
 export * from './repository';
 export * from './browser-files';
+export * from './capacitor-files';

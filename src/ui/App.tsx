@@ -6,6 +6,7 @@ import { useEffect, useState, type JSX } from 'react';
 import { useBudget } from '../store/budget';
 import { applyTheme, useUi } from '../store/ui';
 import { BudgetRepository } from '../storage';
+import { applyStatusBar } from '../platform';
 import { Drawer } from './components/Drawer';
 import { UndoBar } from './components/UndoBar';
 import { CalendarScreen } from './screens/CalendarScreen';
@@ -34,6 +35,7 @@ export function App({ repository }: { repository: BudgetRepository }): JSX.Eleme
 
   useEffect(() => {
     applyTheme(theme);
+    void applyStatusBar(theme);
   }, [theme]);
 
   useEffect(() => {

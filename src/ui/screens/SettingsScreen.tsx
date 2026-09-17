@@ -14,6 +14,7 @@ import { AmountChoiceSheet } from '../components/AmountChoiceSheet';
 import { IconChevron } from '../icons';
 import { activeCategories, days as daysWord, months as monthsWord, monthTitleLower } from '../format';
 import type { BackupInfo } from '../../storage';
+import { exportDocument } from '../../platform';
 
 type Dialog = 'target' | 'balance' | 'firstMonth' | 'forecastDay' | 'window' | 'categories' | 'transfer' | 'backups' | 'onboarding' | null;
 
@@ -307,14 +308,7 @@ function TransferSheet({
     const repo = currentRepository();
     if (!repo) return;
     const text = await repo.exportText(doc);
-    const blob = new Blob([text], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = repo.exportFileName();
-    link.click();
-    URL.revokeObjectURL(url);
-    setMessage('Файл выгружен. Держите его там же, где храните важное.');
+    setMessage(await exportDocument(repo.exportFileName(), text));
   };
 
   const importFile = async (file: File): Promise<void> => {
