@@ -4,6 +4,7 @@ import { App } from './ui/App';
 import { BudgetRepository, systemClock } from './storage';
 import { createFiles, isNative, lifecycle } from './platform';
 import { APP_VERSION } from './version';
+import { applyPalette, loadPalette } from './ui/palette';
 import './ui/fonts.css';
 import './ui/theme.css';
 
@@ -33,6 +34,8 @@ function registerServiceWorker(): void {
 }
 
 async function start(): Promise<void> {
+  // До первой отрисовки, иначе экран мигнёт цветами по умолчанию
+  applyPalette(loadPalette());
   if (import.meta.env.DEV) {
     const { applyDevFlags } = await import('./dev');
     await applyDevFlags(files);

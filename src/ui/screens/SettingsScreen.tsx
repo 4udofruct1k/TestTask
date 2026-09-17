@@ -12,11 +12,13 @@ import { TopBar } from '../components/TopBar';
 import { Sheet } from '../components/Sheet';
 import { AmountChoiceSheet } from '../components/AmountChoiceSheet';
 import { IconChevron } from '../icons';
+import { PRESETS, ROLES } from '../palette';
+import { ColorsSheet } from './ColorsSheet';
 import { activeCategories, days as daysWord, months as monthsWord, monthTitleLower } from '../format';
 import type { BackupInfo } from '../../storage';
 import { exportDocument } from '../../platform';
 
-type Dialog = 'target' | 'balance' | 'firstMonth' | 'forecastDay' | 'window' | 'categories' | 'transfer' | 'backups' | 'onboarding' | null;
+type Dialog = 'target' | 'balance' | 'firstMonth' | 'forecastDay' | 'window' | 'categories' | 'colors' | 'transfer' | 'backups' | 'onboarding' | null;
 
 export function SettingsScreen(): JSX.Element {
   const doc = useBudget((s) => s.doc)!;
@@ -25,7 +27,10 @@ export function SettingsScreen(): JSX.Element {
   const correctMonthlyTarget = useBudget((s) => s.correctMonthlyTarget);
   const updateSettings = useBudget((s) => s.updateSettings);
   const replaceDocument = useBudget((s) => s.replaceDocument);
-  const { go, setOnboarding } = useUi();
+  const { go, setOnboarding, palette } = useUi();
+  const paletteName =
+    PRESETS.find((preset) => ROLES.every((role) => preset.palette[role.id] === palette[role.id]))?.title ??
+    'свои';
 
   const [dialog, setDialog] = useState<Dialog>(null);
   const month = monthKeyOf(today);
@@ -39,6 +44,7 @@ export function SettingsScreen(): JSX.Element {
     { title: 'Прогноз показывать', value: `с ${doc.settings.forecastMinDay}-го числа`, dialog: 'forecastDay' },
     { title: 'Окно среднего по разовым', value: monthsWord(doc.settings.oneOffWindow), dialog: 'window' },
     { title: 'Категории', value: activeCategories(doc.categories.filter((c) => !c.archived).length), dialog: 'categories' },
+    { title: 'Цвета', value: paletteName, dialog: 'colors' },
     { title: 'Экспорт и импорт', value: 'файл на устройство', dialog: 'transfer' },
     { title: 'Восстановление из снимка', value: 'суточные копии', dialog: 'backups' },
     { title: 'Пройти первый запуск заново', value: 'зарплата, платежи, цель', dialog: 'onboarding' },
@@ -142,6 +148,7 @@ export function SettingsScreen(): JSX.Element {
       />
 
       <CategoriesSheet open={dialog === 'categories'} onClose={() => setDialog(null)} />
+      <ColorsSheet open={dialog === 'colors'} onClose={() => setDialog(null)} />
       <TransferSheet open={dialog === 'transfer'} onClose={() => setDialog(null)} onImported={replaceDocument} />
       <BackupsSheet open={dialog === 'backups'} onClose={() => setDialog(null)} onRestored={replaceDocument} />
     </section>

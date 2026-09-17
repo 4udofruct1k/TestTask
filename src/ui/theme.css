@@ -17,6 +17,10 @@
   --warn-b: #C2701A;
   --short-a: #E2554A;
   --short-b: #9E2A22;
+  /* Разряженные части шкалы. Задаются палитрой вместе с парами градиентов */
+  --green-empty: #0A3822;
+  --warn-empty: #3E2609;
+  --short-empty: #3E120F;
 
   --paper: #F1F4F1;
   --card: #FFFFFF;
@@ -128,11 +132,11 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 }
 .hero:active { filter: brightness(.95); }
 
-.hero--SAFE { --hero-empty: #0A3822; --hero-a: var(--green-a); --hero-b: var(--green-b); }
+.hero--SAFE { --hero-empty: var(--green-empty); --hero-a: var(--green-a); --hero-b: var(--green-b); }
 /* Осталось подошло к цели вплотную */
-.hero--NEAR { --hero-empty: #3E2609; --hero-a: var(--warn-a); --hero-b: var(--warn-b); }
+.hero--NEAR { --hero-empty: var(--warn-empty); --hero-a: var(--warn-a); --hero-b: var(--warn-b); }
 /* Осталось меньше цели */
-.hero--SHORT { --hero-empty: #3E120F; --hero-a: var(--short-a); --hero-b: var(--short-b); }
+.hero--SHORT { --hero-empty: var(--short-empty); --hero-a: var(--short-a); --hero-b: var(--short-b); }
 
 /* Градиент лежит на всю ширину и только подрезается справа: иначе при
    убывании он сжимался бы вместе с заливкой и менял цвет на месте.
@@ -432,3 +436,38 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .negative { color: var(--alarm); }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ------------------------------------------------------- редактор цветов */
+
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.swatch {
+  border: 1.5px solid var(--line); background: var(--card); color: inherit;
+  border-radius: var(--r-row); padding: 8px 10px 8px 8px; font: inherit; font-size: 12px;
+  font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;
+}
+.swatch[aria-pressed='true'] { border-color: var(--blue); background: rgba(28, 107, 255, .07); }
+.swatch i { width: 34px; height: 20px; border-radius: 7px; display: block; flex: 0 0 auto; }
+
+.colorrow {
+  display: flex; align-items: center; gap: 12px; padding: 12px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.colorrow:last-of-type { border-bottom: 0; }
+.colorrow-txt { flex: 1; min-width: 0; }
+.colorrow-t { display: block; font-size: 13px; font-weight: 700; }
+.colorrow-s { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+.colorrow input[type='color'] {
+  width: 46px; height: 34px; padding: 0; border: 1px solid var(--line);
+  border-radius: 10px; background: transparent; cursor: pointer; flex: 0 0 auto;
+}
+
+/* Живой пример: те же градиенты, что у блока бюджета */
+.preview { display: flex; gap: 8px; margin-top: 12px; }
+.preview span {
+  flex: 1; height: 44px; border-radius: 12px; display: grid; place-items: center;
+  color: #fff; font-size: 11px; font-weight: 700;
+}
+.preview .p-money { background: linear-gradient(152deg, var(--green-b), var(--green-a)); }
+.preview .p-warn { background: linear-gradient(152deg, var(--warn-b), var(--warn-a)); }
+.preview .p-short { background: linear-gradient(152deg, var(--short-b), var(--short-a)); }
+.preview .p-add { background: var(--blue); }

@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import type { MonthKey } from '../domain/types';
+import { applyPalette, DEFAULT_PALETTE, loadPalette, savePalette, type Palette, type PaletteRole } from '../ui/palette';
 
 export type Screen = 'home' | 'expenses' | 'goals' | 'dashboards' | 'dashboard' | 'calendar' | 'settings';
 export type ExpensesTab = 'add' | 'history';
@@ -33,6 +34,8 @@ interface UiState {
   filter: HistoryFilter;
   month: MonthKey | null;
   theme: Theme;
+  /** Цвета интерфейса. Хранятся рядом с темой: это оформление, не данные учёта */
+  palette: Palette;
   /** Онбординг идёт. Держится отдельно от статуса документа: первый же шаг
       создаёт документ, и по статусу экран бы схлопнулся на середине (3.11) */
   onboarding: boolean;
@@ -45,6 +48,9 @@ interface UiState {
   setMonth(month: MonthKey): void;
   setOnboarding(value: boolean): void;
   toggleTheme(): void;
+  setPaletteRole(role: PaletteRole, color: string): void;
+  setPalette(palette: Palette): void;
+  resetPalette(): void;
 }
 
 export const useUi = create<UiState>()((set, get) => ({
@@ -55,6 +61,7 @@ export const useUi = create<UiState>()((set, get) => ({
   filter: 'all',
   month: null,
   theme: readTheme(),
+  palette: loadPalette(),
   onboarding: false,
 
   go: (screen) => set({ screen, drawerOpen: false }),
@@ -75,5 +82,24 @@ export const useUi = create<UiState>()((set, get) => ({
       // приватный режим — тема просто не запомнится
     }
     set({ theme });
+  },
+
+  setPaletteRole: (role, color) => {
+    const palette: Palette = { ...get().palette, [role]: color.toUpperCase() };
+    applyPalette(palette);
+    savePalette(palette);
+    set({ palette });
+  },
+
+  setPalette: (palette) => {
+    applyPalette(palette);
+    savePalette(palette);
+    set({ palette });
+  },
+
+  resetPalette: () => {
+    applyPalette(DEFAULT_PALETTE);
+    savePalette(DEFAULT_PALETTE);
+    set({ palette: DEFAULT_PALETTE });
   },
 }));
