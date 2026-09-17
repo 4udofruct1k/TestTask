@@ -22,6 +22,8 @@ interface Props {
   effectiveMonth: MonthKey;
   /** Месяц записи, которую правит «исправить ошибку» */
   currentPeriodMonth: MonthKey;
+  /** Пояснение под полем суммы, если у позиции есть особенность */
+  hint?: string;
   onForward(amount: Money): void;
   onCorrect(amount: Money): void;
   onClose(): void;
@@ -33,6 +35,7 @@ export function AmountChoiceSheet({
   current,
   effectiveMonth,
   currentPeriodMonth,
+  hint,
   onForward,
   onCorrect,
   onClose,
@@ -54,6 +57,7 @@ export function AmountChoiceSheet({
       <div className="field">
         <label htmlFor="acamount">Сумма</label>
         <input id="acamount" inputMode="decimal" value={raw} onChange={(e) => setRaw(e.target.value)} />
+        {hint && <p className="hint">{hint}</p>}
       </div>
 
       <button className="choice" aria-pressed={meaning === 'FORWARD'} onClick={() => setMeaning('FORWARD')}>

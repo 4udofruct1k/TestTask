@@ -54,6 +54,7 @@ export type FixCode =
   | 'CLAMPED_END_MONTH'
   | 'DROPPED_PAY_DAY'
   | 'DROPPED_PAY_MONTH'
+  | 'DROPPED_TAX_PERCENT'
   | 'FIXED_KIND_FROM_CATEGORY'
   | 'DEDUPED_OVERRIDE'
   | 'DROPPED_ORPHAN_OVERRIDE'
@@ -356,7 +357,31 @@ export function validateDocument(
       categoryId: string;
       endMonth?: string;
       note?: string;
+      taxPercent?: number;
     };
+
+    // Удержание применимо только к доходу и только целыми процентами.
+    // Кривое значение убирается: отсутствие поля означает «вычета нет»,
+    // то есть починка ничего не теряет, кроме самой ошибки.
+    const taxPercent = raw['taxPercent'];
+    if (taxPercent !== undefined && taxPercent !== null) {
+      if (kind !== 'INCOME') {
+        fix('DROPPED_TAX_PERCENT', `${path}.taxPercent`, 'С расхода налог не удерживают, поле убрано');
+      } else if (
+        typeof taxPercent !== 'number' ||
+        !Number.isInteger(taxPercent) ||
+        taxPercent < 1 ||
+        taxPercent > 99
+      ) {
+        fix(
+          'DROPPED_TAX_PERCENT',
+          `${path}.taxPercent`,
+          `Ставка удержания вне 1..99 (${String(taxPercent)}), вычет выключен`,
+        );
+      } else {
+        base.taxPercent = taxPercent;
+      }
+    }
 
     const note = raw['note'];
     if (typeof note === 'string' && note !== '') {

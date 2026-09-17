@@ -23,7 +23,10 @@ export type Kind = 'INCOME' | 'EXPENSE';
 export type Flow = 'ROUTINE' | 'ONE_OFF';
 
 /** Версия схемы документа. Растёт на единицу, см. 4.6. */
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
+
+/** Ставка НДФЛ по умолчанию. Подставляется в переключатель, но ничего не включает. */
+export const DEFAULT_TAX_PERCENT = 13;
 
 // ---------------------------------------------------------------- 1.2
 
@@ -70,6 +73,12 @@ export interface FixedItemBase {
   /** последний месяц действия включительно */
   endMonth?: MonthKey;
   note?: string;
+  /**
+   * Удержание налога с этой позиции, целые проценты 1..99.
+   * Поля нет — вычета нет: сумма позиции и есть то, что приходит.
+   * Применимо только при kind === 'INCOME'.
+   */
+  taxPercent?: number;
 }
 
 /** Сумма, действующая с месяца fromMonth и до следующей записи. */

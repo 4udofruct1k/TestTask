@@ -5,7 +5,7 @@
 import { useState, type JSX } from 'react';
 import { monthKeyOf } from '../../domain/dates';
 import { formatRub } from '../../domain/money';
-import { activeAmountPeriod, activeSpreadPeriod, amountAt, wasActiveBefore } from '../../engine';
+import { activeAmountPeriod, activeSpreadPeriod, amountAt, grossAmountAt, wasActiveBefore } from '../../engine';
 import { useBudget } from '../../store/budget';
 import { Sheet } from '../components/Sheet';
 import { AmountChoiceSheet } from '../components/AmountChoiceSheet';
@@ -35,6 +35,7 @@ export function FixedItemCard({ itemId, onClose }: Props): JSX.Element {
 
   const category = doc.categories.find((c) => c.id === item.categoryId);
   const share = amountAt(item, month);
+  const grossShare = grossAmountAt(item, month);
   const monthlyPeriod = activeAmountPeriod(item, month);
   const spreadPeriod = activeSpreadPeriod(item, month);
   const periodMonth = monthlyPeriod?.fromMonth ?? spreadPeriod?.fromMonth ?? month;
@@ -54,10 +55,27 @@ export function FixedItemCard({ itemId, onClose }: Props): JSX.Element {
         </div>
 
         {item.mode === 'MONTHLY' ? (
-          <div className="sub-i">
-            <span className="sub-n">Сумма в месяц</span>
-            <span className="sub-v">{share === null ? 'не действует' : formatRub(share)}</span>
-          </div>
+          <>
+            {item.taxPercent !== undefined && grossShare !== null && (
+              <>
+                <div className="sub-i">
+                  <span className="sub-n">Начислено</span>
+                  <span className="sub-v">{formatRub(grossShare)}</span>
+                </div>
+                <div className="sub-i">
+                  <span className="sub-n">
+                    Удержано
+                    <span className="sub-d">{item.taxPercent}%</span>
+                  </span>
+                  <span className="sub-v">{formatRub(grossShare - (share ?? 0))}</span>
+                </div>
+              </>
+            )}
+            <div className="sub-i">
+              <span className="sub-n">{item.taxPercent === undefined ? 'Сумма в месяц' : 'К выплате'}</span>
+              <span className="sub-v">{share === null ? 'не действует' : formatRub(share)}</span>
+            </div>
+          </>
         ) : (
           <>
             <div className="sub-i">

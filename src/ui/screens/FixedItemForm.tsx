@@ -20,10 +20,12 @@ const PRESETS: { label: string; months: number }[] = [
 interface Props {
   open: boolean;
   mode: 'MONTHLY' | 'SPREAD';
+  /** С каким направлением открыть форму. По умолчанию расход */
+  initialKind?: Kind;
   onClose(): void;
 }
 
-export function FixedItemForm({ open, mode, onClose }: Props): JSX.Element {
+export function FixedItemForm({ open, mode, initialKind = 'EXPENSE', onClose }: Props): JSX.Element {
   const doc = useBudget((s) => s.doc)!;
   const today = useBudget((s) => s.today);
   const addFixedMonthly = useBudget((s) => s.addFixedMonthly);
@@ -31,7 +33,7 @@ export function FixedItemForm({ open, mode, onClose }: Props): JSX.Element {
   const month = monthKeyOf(today);
 
   const [title, setTitle] = useState('');
-  const [kind, setKind] = useState<Kind>('EXPENSE');
+  const [kind, setKind] = useState<Kind>(initialKind);
   const [categoryId, setCategoryId] = useState('');
   const [raw, setRaw] = useState('');
   const [fromMonth, setFromMonth] = useState<MonthKey>(month);
@@ -43,7 +45,7 @@ export function FixedItemForm({ open, mode, onClose }: Props): JSX.Element {
   useEffect(() => {
     if (!open) return;
     setTitle('');
-    setKind('EXPENSE');
+    setKind(initialKind);
     setCategoryId('');
     setRaw('');
     setFromMonth(month);
@@ -51,7 +53,7 @@ export function FixedItemForm({ open, mode, onClose }: Props): JSX.Element {
     setCustomMonths('');
     setPayMonth(month);
     setPayDay('');
-  }, [open, month]);
+  }, [open, month, initialKind]);
 
   const categories = doc.categories.filter((c) => !c.archived && (mode === 'SPREAD' ? c.kind === 'EXPENSE' : c.kind === kind));
   const amount = parseAmount(raw);
@@ -85,7 +87,7 @@ export function FixedItemForm({ open, mode, onClose }: Props): JSX.Element {
           id="ftitle"
           value={title}
           maxLength={40}
-          placeholder={mode === 'MONTHLY' ? 'Аренда' : 'Страховка'}
+          placeholder={mode === 'SPREAD' ? 'Страховка' : initialKind === 'INCOME' ? 'Зарплата' : 'Аренда'}
           onChange={(e) => setTitle(e.target.value)}
         />
       </div>

@@ -21,7 +21,7 @@ import {
 import { BACKUP_DIR, DATA_FILE, TMP_FILE, preMigrationPath } from '../src/storage/paths';
 import { monthSummary } from '../src/engine';
 import { validateDocument } from '../src/domain/validate';
-import type { BudgetDocument } from '../src/domain/types';
+import { CURRENT_SCHEMA_VERSION, type BudgetDocument } from '../src/domain/types';
 import { emptyDoc, expense, monthly, R } from './fixtures';
 
 const APP_VERSION = '1.0.0';
@@ -102,9 +102,9 @@ describe('К1. Обрыв на записи', () => {
 });
 
 describe('К2. Файл из будущего', () => {
-  it('schemaVersion 4 при поддержке 3 → отказ, документ на диске не изменён', async () => {
+  it('schemaVersion выше поддерживаемой → отказ, документ на диске не изменён', async () => {
     const files = new MemoryFiles();
-    const future = { ...emptyDoc(), schemaVersion: 4 };
+    const future = { ...emptyDoc(), schemaVersion: CURRENT_SCHEMA_VERSION + 1 };
     const text = serialize(wrap(future as BudgetDocument, '2026-03-16T10:00:00Z', APP_VERSION));
     await files.write(DATA_FILE, text);
 
@@ -113,8 +113,8 @@ describe('К2. Файл из будущего', () => {
 
     expect(result.status).toBe('FROM_FUTURE');
     if (result.status === 'FROM_FUTURE') {
-      expect(result.fileVersion).toBe(4);
-      expect(result.supported).toBe(3);
+      expect(result.fileVersion).toBe(CURRENT_SCHEMA_VERSION + 1);
+      expect(result.supported).toBe(CURRENT_SCHEMA_VERSION);
     }
     expect(files.peek(DATA_FILE)).toBe(text);
     repo.dispose();
@@ -182,8 +182,8 @@ describe('К3. Миграция 2→3', () => {
     expect(items.every((i) => i['mode'] === 'MONTHLY')).toBe(true);
     expect(result.doc['goals']).toEqual([]);
     expect((result.doc['settings'] as Record<string, unknown>)['targets']).toEqual([]);
-    expect(result.doc['schemaVersion']).toBe(3);
-    expect(result.applied).toEqual([3]);
+    expect(result.doc['schemaVersion']).toBe(CURRENT_SCHEMA_VERSION);
+    expect(result.applied).toEqual([3, 4]);
   });
 
   it('суммы месяцев до и после миграции совпадают', () => {
@@ -224,7 +224,7 @@ describe('К3. Миграция 2→3', () => {
 
     const result = migrate(v1);
     if (!result.ok) throw new Error('миграция не прошла');
-    expect(result.applied).toEqual([2, 3]);
+    expect(result.applied).toEqual([2, 3, 4]);
 
     const items = result.doc['fixedItems'] as Record<string, unknown>[];
     // Дата внутри месяца и подтверждение уходят вместе с первой моделью
@@ -435,7 +435,7 @@ describe('запись и жизненный цикл', () => {
     expect(envelope['savedAt']).toBe('2026-03-16T18:42:11Z');
     expect(envelope['appVersion']).toBe(APP_VERSION);
     expect(envelope['schemaVersion']).toBeUndefined();
-    expect((envelope['doc'] as Record<string, unknown>)['schemaVersion']).toBe(3);
+    expect((envelope['doc'] as Record<string, unknown>)['schemaVersion']).toBe(CURRENT_SCHEMA_VERSION);
     repo.dispose();
   });
 

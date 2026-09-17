@@ -8,6 +8,7 @@ import { useState, type JSX } from 'react';
 import { addMonths, compareMonth, daysInMonth, dayOfMonth, monthKeyOf } from '../../domain/dates';
 import { formatAmount, formatRub } from '../../domain/money';
 import {
+  fixedBlock,
   hasEnoughHistory,
   monthForecast,
   monthSummary,
@@ -24,6 +25,7 @@ import { useUi } from '../../store/ui';
 import { dayTitle, days as daysWord, monthTitle, purchases, positions, spendings } from '../format';
 import { TopBar } from '../components/TopBar';
 import { ExpandableRow } from '../components/ExpandableRow';
+import { IncomeSheet } from './IncomeSheet';
 import type { BudgetDocument } from '../../domain/types';
 
 export function HomeScreen(): JSX.Element {
@@ -34,6 +36,7 @@ export function HomeScreen(): JSX.Element {
   const month = selected ?? currentMonth;
 
   const summary = monthSummary(doc, month, today);
+  const block = fixedBlock(doc, month);
   const forecast = monthForecast(doc, month, today);
   const status = targetStatus(doc, month, today);
   const fixed = resolveFixed(doc, month);
@@ -49,20 +52,24 @@ export function HomeScreen(): JSX.Element {
     () => canGoBack && setMonth(addMonths(month, -1)),
   );
 
+  const [incomeOpen, setIncomeOpen] = useState(false);
+
   return (
     <section className="pane">
       <TopBar title={monthTitle(month)} sub={month === currentMonth ? dayTitle(today) : undefined} />
       <div className="scroll" {...swipe}>
         <div className="body">
-          {/* 1. Бюджет месяца: крупно весь доход до вычетов */}
-          <div className="hero">
+          {/* 1. Бюджет месяца. Тап открывает доход: сумму правят здесь же */}
+          <button className="hero" onClick={() => setIncomeOpen(true)} aria-label="Изменить доход месяца">
             <div className="hero-label">Бюджет месяца</div>
             <div className="hero-num">{formatRub(summary.totalIncome)}</div>
             <div className="hero-foot">
               <span>Свободные {formatAmount(summary.free)}</span>
               {status ? <span>Цель {formatAmount(status.target)}</span> : <span>Цель не задана</span>}
+              {/* Удержание показывается, только когда оно включено */}
+              {block.taxWithheld > 0 && <span>Удержано {formatAmount(block.taxWithheld)}</span>}
             </div>
-          </div>
+          </button>
 
           {/* 2. Три микро-окна */}
           <div className="micro">
@@ -224,6 +231,8 @@ export function HomeScreen(): JSX.Element {
           )}
         </div>
       </div>
+
+      <IncomeSheet open={incomeOpen} month={month} onClose={() => setIncomeOpen(false)} />
 
       {/* 5. Кнопка добавления */}
       <div className="cta-slot">

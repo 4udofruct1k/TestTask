@@ -84,6 +84,8 @@ interface BudgetState {
   changeFixedAmount(id: string, fromMonth: MonthKey, amount: Money): void;
   /** «Исправить ошибку» — правка действующей записи, пересчитает закрытые месяцы */
   correctFixedAmount(id: string, fromMonth: MonthKey, amount: Money): void;
+  /** Включить или снять удержание налога с позиции дохода */
+  setFixedTaxPercent(id: string, percent: number | null): void;
   /** Пропустить платёж в одном месяце */
   skipFixedMonth(id: string, month: MonthKey): void;
   /** Разовое отклонение суммы в одном месяце */
@@ -280,6 +282,20 @@ export const useBudget = create<BudgetState>()((set, get) => {
             ...item,
             amounts: item.amounts.map((p) => (p.fromMonth === fromMonth ? { ...p, amount } : p)),
           };
+        }),
+      );
+    },
+
+    setFixedTaxPercent(id, percent) {
+      patchDoc((doc) =>
+        withFixedItem(doc, id, (item) => {
+          if (item.kind !== 'INCOME') return item;
+          if (percent === null) {
+            const next = { ...item };
+            delete next.taxPercent;
+            return next;
+          }
+          return { ...item, taxPercent: percent };
         }),
       );
     },

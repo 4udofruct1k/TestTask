@@ -19,6 +19,7 @@ export type Migration = (doc: Raw) => Raw;
 export const MIGRATIONS: Record<number, Migration> = {
   1: migrate1to2,
   2: migrate2to3,
+  3: migrate3to4,
 };
 
 export type MigrateResult =
@@ -159,6 +160,18 @@ function migrate2to3(doc: Raw): Raw {
     goals: asArray(doc['goals']),
     settings,
   };
+}
+
+/**
+ * 3 → 4. Необязательное удержание налога на позиции дохода.
+ *
+ * Преобразовывать нечего: поля taxPercent в старых документах нет,
+ * а его отсутствие и означает «вычета нет». Миграция существует ради
+ * версии: файл, написанный новой сборкой, старая открыть не должна —
+ * иначе она молча покажет доход до удержания и соврёт на 13%.
+ */
+function migrate3to4(doc: Raw): Raw {
+  return { ...doc };
 }
 
 function asRecord(value: unknown): Raw {

@@ -97,6 +97,9 @@ export function HistoryTab({ month }: { month: MonthKey }): JSX.Element {
                           </span>
                           <span className="e-s">
                             {item.isReserve ? 'доля годового платежа' : 'каждый месяц'}
+                            {item.tax > 0
+                              ? ` · начислено ${formatAmount(item.gross)}, удержано ${formatAmount(item.tax)}`
+                              : ''}
                             {item.overridden ? ' · в этом месяце иначе' : ''}
                           </span>
                         </span>

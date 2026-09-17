@@ -49,7 +49,7 @@ android/       проект Capacitor
 ```
 npm install
 npm run dev          # http://localhost:5173
-npm test             # 210 тестов
+npm test             # 232 теста
 npm run typecheck
 ```
 
@@ -111,6 +111,7 @@ Android не поставит APK с другой подписью поверх 
 - `tests/storage.test.ts` — К1…К6 из 4.10;
 - `tests/engine-pitfalls.test.ts` — медиана против среднего, остаток цикла SPREAD,
   ставка накопления за период;
+- `tests/income-tax.test.ts` — необязательное удержание налога и миграция 3→4;
 - `tests/dates.test.ts`, `tests/money.test.ts`, `tests/validate.test.ts` — домен;
 - `tests/rules.test.ts` — сторож жёстких правил.
 

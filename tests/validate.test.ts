@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validateDocument } from '../src/domain/validate';
 import type { FatalCode, FixCode } from '../src/domain/validate';
+import { CURRENT_SCHEMA_VERSION } from '../src/domain/types';
 import { emptyDoc, R } from './fixtures';
 
 const codes = (list: { code: string }[]): string[] => list.map((x) => x.code);
@@ -38,7 +39,7 @@ describe('нечинимое (4.7) — загрузка останавливае
   });
 
   it('schemaVersion из будущего', () => {
-    const doc = { ...emptyDoc(), schemaVersion: 4 };
+    const doc = { ...emptyDoc(), schemaVersion: CURRENT_SCHEMA_VERSION + 1 };
     expectFatal(doc, 'SCHEMA_FROM_FUTURE');
   });
 
