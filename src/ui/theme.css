@@ -109,7 +109,10 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .hero {
   border-radius: var(--r-hero); padding: 20px 20px 18px;
   background: linear-gradient(152deg, var(--green-a) 0%, var(--green-b) 100%); color: #fff;
+  /* Блок кликабельный: за ним правка дохода */
+  display: block; width: 100%; border: 0; text-align: left; font: inherit; cursor: pointer;
 }
+.hero:active { filter: brightness(.95); }
 .hero-label { font-size: 12.5px; font-weight: 600; opacity: .86; margin-bottom: 5px; }
 .hero-num { font-size: 40px; font-weight: 900; letter-spacing: -1.6px; line-height: 1; }
 .hero-foot { display: flex; gap: 16px; margin-top: 13px; font-size: 12px; font-weight: 600; opacity: .88; flex-wrap: wrap; }
@@ -179,10 +182,11 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .drawer {
   position: absolute; top: 0; left: 0; bottom: 0; width: 70%; max-width: 250px; z-index: 9;
   background: #07100C; color: #F0F5F1; transform: translateX(-102%);
-  transition: transform .24s cubic-bezier(.3, .8, .35, 1);
+  transition: transform .24s cubic-bezier(.3, .8, .35, 1), visibility .24s;
   padding: 22px 14px; display: flex; flex-direction: column; gap: 4px;
+  visibility: hidden; pointer-events: none;
 }
-.drawer.on { transform: translateX(0); }
+.drawer.on { transform: translateX(0); visibility: visible; pointer-events: auto; }
 .drawer-h { font-size: 12px; font-weight: 600; color: #71847A; padding: 0 10px 14px; }
 .nav {
   display: flex; align-items: center; gap: 13px; padding: 12px; border-radius: var(--r-row);
@@ -297,10 +301,15 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .qsheet {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 12; background: var(--card);
   border-radius: 26px 26px 0 0; padding: 16px 16px 18px; transform: translateY(103%);
-  transition: transform .24s cubic-bezier(.3, .8, .35, 1); box-shadow: 0 -10px 30px rgba(6, 20, 12, .18);
+  transition: transform .24s cubic-bezier(.3, .8, .35, 1), visibility .24s;
+  box-shadow: 0 -10px 30px rgba(6, 20, 12, .18);
   max-height: 88%; overflow-y: auto;
+  /* Закрытая шторка не должна зависеть от того, хватило ли сдвига на её
+     собственную высоту: 103% перекрывают край всего на пару пикселей,
+     и любое смещение раскладки выпускает её наружу. */
+  visibility: hidden; pointer-events: none;
 }
-.qsheet.on { transform: translateY(0); }
+.qsheet.on { transform: translateY(0); visibility: visible; pointer-events: auto; }
 .grip { width: 38px; height: 4px; border-radius: 99px; background: var(--line); margin: 0 auto 14px; }
 .sheet-h { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
 .amount { font-size: 34px; font-weight: 900; letter-spacing: -1.3px; color: var(--blue); }

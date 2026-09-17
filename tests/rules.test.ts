@@ -28,6 +28,11 @@ function sources(dir: string): string[] {
 
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
 
+/** Блочные комментарии CSS: иначе они прилипают к селектору следующего правила. */
+function stripCssComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
 /** Комментарии выкидываются: в них Date и запрещённые импорты упоминаются законно. */
 function stripComments(code: string): string {
   return code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
@@ -82,5 +87,42 @@ describe('правило 4 — слои не смотрят наверх', () =>
       }
     }
     expect(bad).toEqual([]);
+  });
+});
+
+/**
+ * Что уезжает за экран сдвигом, обязано прятаться и по видимости.
+ *
+ * Сдвиг на 103% собственной высоты перекрывает край на пару пикселей,
+ * и любое смещение раскладки — клавиатура, соседняя открытая шторка —
+ * выпускает закрытый элемент обратно на экран. Проверяется по стилям,
+ * потому что вёрстку тестами на JSDOM не поймать.
+ */
+describe('закрытые шторки не показываются краем', () => {
+  it('каждое правило со сдвигом за экран гасит visibility', () => {
+    const css = stripCssComments(read('src/ui/theme.css'));
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+    const offending: string[] = [];
+
+    for (const [, selectorRaw = '', body = ''] of rules) {
+      const selector = selectorRaw.trim();
+      // Сдвиг на сто с лишним процентов — это «увести за край»
+      if (!/transform:\s*translate[XY]\(-?1\d\d(\.\d+)?%\)/.test(body)) continue;
+      if (!/visibility:\s*hidden/.test(body)) offending.push(selector);
+    }
+
+    expect(offending).toEqual([]);
+  });
+
+  it('у каждого такого элемента есть открытое состояние с visibility: visible', () => {
+    const css = stripCssComments(read('src/ui/theme.css'));
+    const hidden = [...css.matchAll(/([^{}]+)\{([^{}]*visibility:\s*hidden[^{}]*)\}/g)]
+      .map(([, selector = '']) => selector.trim())
+      .filter((selector) => /^\.(qsheet|drawer|undo)$/.test(selector));
+
+    expect(hidden.sort()).toEqual(['.drawer', '.qsheet', '.undo']);
+    for (const selector of hidden) {
+      expect(css).toMatch(new RegExp(`\\${selector}\\.on\\s*\\{[^{}]*visibility:\\s*visible`));
+    }
   });
 });
