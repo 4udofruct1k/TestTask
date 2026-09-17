@@ -83,6 +83,10 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   display: flex;
   flex-direction: column;
   background: var(--paper);
+  /* Вырез и полоска домой на айфоне: без этого шапка уезжает под чёлку,
+     а кнопка добавления — под индикатор. На экранах без выреза отступы нулевые */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }

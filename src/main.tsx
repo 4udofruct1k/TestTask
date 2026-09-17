@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './ui/App';
 import { BudgetRepository, systemClock } from './storage';
-import { createFiles, lifecycle } from './platform';
+import { createFiles, isNative, lifecycle } from './platform';
 import { APP_VERSION } from './version';
 import './ui/fonts.css';
 import './ui/theme.css';
@@ -19,11 +19,25 @@ const repository = new BudgetRepository({
 const root = document.getElementById('root');
 if (!root) throw new Error('Нет корневого элемента');
 
+/**
+ * Офлайн для веб-версии: страница на «Домой» обязана открываться без сети.
+ * В приложении под Capacitor не нужен — файлы и так на устройстве.
+ */
+function registerServiceWorker(): void {
+  if (isNative() || !import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register(new URL('sw.js', document.baseURI).href).catch(() => {
+      // Без сервис-воркера приложение работает, просто требует сети на первый заход
+    });
+  });
+}
+
 async function start(): Promise<void> {
   if (import.meta.env.DEV) {
     const { applyDevFlags } = await import('./dev');
     await applyDevFlags(files);
   }
+  registerServiceWorker();
   createRoot(root!).render(
     <StrictMode>
       <App repository={repository} />
