@@ -31,6 +31,16 @@ export function accumulated(doc: BudgetDocument, today: DateStr): Money {
   return sum;
 }
 
+/** Накопленное на конец месяца: стартовая сумма плюс net с firstMonth по month. */
+export function accumulatedAt(doc: BudgetDocument, month: MonthKey, today: DateStr): Money {
+  let sum = doc.settings.startingBalance;
+  for (const m of accountedMonths(doc, today)) {
+    if (compareMonth(m, month) > 0) break;
+    sum += monthSummary(doc, m, today).net;
+  }
+  return sum;
+}
+
 export function runway(doc: BudgetDocument, month: MonthKey, today: DateStr): Runway {
   const summary = monthSummary(doc, month, today);
   const analysis = oneOffAnalysis(doc, month, today, doc.settings.oneOffWindow);
