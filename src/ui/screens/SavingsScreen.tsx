@@ -82,8 +82,8 @@ export function SavingsScreen(): JSX.Element {
             <div className="detail-num">{formatRub(ledger.total)}</div>
             <div className="detail-lab">
               {ledger.earmarked > 0
-                ? `помечено в цели ${formatRub(ledger.earmarked)}, свободно ${formatRub(ledger.free)}`
-                : 'ничего не помечено в цели'}
+                ? `из них ${formatRub(ledger.earmarked)} отложено в цели, свободно ${formatRub(ledger.free)}`
+                : 'ни в одну цель пока не откладывали'}
             </div>
 
             {/* Строка сразу и объясняет, и правится: вторым пунктом ниже она была бы дублем */}
@@ -117,6 +117,12 @@ export function SavingsScreen(): JSX.Element {
               Это не остаток на счетах: приложение не знает про ваши счета и не делает вид, что знает.
               Здесь сложено то, что осталось от каждого месяца.
             </p>
+            {ledger.earmarked > 0 && (
+              <p className="hint">
+                Деньги, отложенные в цели, лежат здесь же: взнос ничего не тратит, он только
+                закрепляет сумму за целью. Поэтому она входит в общую, а не вычитается из неё.
+              </p>
+            )}
           </div>
 
           {/* Настройки самой кучи */}
@@ -159,14 +165,14 @@ export function SavingsScreen(): JSX.Element {
           {/* Цели-копилки */}
           <div className="card-h" style={{ marginTop: 6 }}>
             <div className="card-t">Цели</div>
-            {ledger.earmarked > 0 && <div className="card-v">{formatRub(ledger.earmarked)}</div>}
+            {ledger.earmarked > 0 && <div className="card-v">отложено {formatRub(ledger.earmarked)}</div>}
           </div>
 
           {active.length === 0 && (
             <div className="empty" style={{ padding: '14px 4px' }}>
               <b>Целей пока нет</b>
-              Цель — это конкретная сумма на конкретное: новый компьютер, поездка. Взнос помечает
-              деньги в накоплениях, а не тратит их.
+              Цель — это конкретная сумма на конкретное: новый компьютер, поездка. Взнос ничего
+              не тратит: деньги остаются в накоплениях, просто закрепляются за целью.
             </div>
           )}
 

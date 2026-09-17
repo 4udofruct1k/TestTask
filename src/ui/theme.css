@@ -207,7 +207,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .sub-d { color: var(--muted); font-size: 11px; margin-left: 6px; font-weight: 500; }
 .sub-v { margin-left: auto; font-weight: 700; flex: 0 0 auto; }
 .sub-i-btn {
-  width: 100%; border: 0; background: transparent; color: inherit; font: inherit;
+  width: 100%; border: 0; background: transparent; color: inherit;
+  /* Только семейство: размер строки задаёт .sub-i, и сокращённый font его перебивал */
+  font-family: inherit;
   text-align: left; cursor: pointer;
 }
 .sub-i-btn .sub-v { color: var(--blue); }

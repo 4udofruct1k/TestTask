@@ -66,8 +66,9 @@ export function ContributionForm({ open, onClose, goalId }: Props): JSX.Element 
 
       {exceeds && amount !== null && (
         <p className="hint">
-          Взносов за месяц выйдет больше, чем накопление месяца ({formatRub(monthSummary(doc, month, today).net)}).
-          Это не ошибка: деньги пришли из накоплений прошлых месяцев.
+          Взносов за месяц выйдет больше, чем осталось от этого месяца
+          ({formatRub(monthSummary(doc, month, today).net)}). Это не ошибка: деньги берутся
+          из накопленного за прошлые месяцы.
         </p>
       )}
 
