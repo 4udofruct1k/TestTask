@@ -125,10 +125,14 @@ export function SavingsScreen(): JSX.Element {
               <span className="row-txt">
                 <span className="row-t">Цель по накоплению</span>
                 <span className="row-s">
-                  {target === null ? 'не задана' : `${formatRub(target)} в месяц`}
+                  {target === null
+                    ? 'не задана'
+                    : target === 0
+                      ? 'ноль — в этом месяце не откладываю'
+                      : `${formatRub(target)} в месяц`}
                 </span>
               </span>
-              <span className="row-v">{target === null ? '' : formatAmount(target)}</span>
+              <span className="row-v">{target === null || target === 0 ? '' : formatAmount(target)}</span>
             </button>
           </div>
 
@@ -276,6 +280,8 @@ export function SavingsScreen(): JSX.Element {
           current={target}
           effectiveMonth={month}
           currentPeriodMonth={activeTargetMonth}
+          hint="Ноль — это тоже ответ: потолок трат и дневной остаток пропадут, месяц будет считаться без цели."
+          allowZero
           onForward={(value) => setMonthlyTarget(month, value)}
           onCorrect={(value) => correctMonthlyTarget(activeTargetMonth, value)}
           onClose={() => setDialog(null)}
@@ -285,7 +291,9 @@ export function SavingsScreen(): JSX.Element {
           open={dialog === 'target'}
           title="Цель по накоплению"
           label="Сколько откладывать каждый месяц"
+          hint="Ноль — это тоже ответ: приложение перестанет считать потолок трат и не будет больше спрашивать про цель."
           initial={0}
+          allowZero
           onSave={(value) => setMonthlyTarget(month, value)}
           onClose={() => setDialog(null)}
         />

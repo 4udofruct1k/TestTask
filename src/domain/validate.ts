@@ -647,6 +647,26 @@ function checkPositiveMoney(
   return true;
 }
 
+function checkNonNegativeMoney(
+  value: unknown,
+  path: string,
+  fail: (code: FatalCode, path: string, message: string) => void,
+): value is Money {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    fail('FRACTIONAL_AMOUNT', path, `Сумма нечитаема: ${String(value)}`);
+    return false;
+  }
+  if (!Number.isInteger(value)) {
+    fail('FRACTIONAL_AMOUNT', path, `Дробная сумма: ${value}`);
+    return false;
+  }
+  if (value < 0) {
+    fail('NON_POSITIVE_AMOUNT', path, `Сумма отрицательна: ${value}`);
+    return false;
+  }
+  return true;
+}
+
 function takeArray(
   doc: Record<string, unknown>,
   key: string,
@@ -857,7 +877,9 @@ function normalizeTargets(
       fail('INVALID_MONTH', `${p}.fromMonth`, `Месяц цели нечитаем: ${String(fromMonth)}`);
       return;
     }
-    if (!checkPositiveMoney(entry['amount'], `${p}.amount`, fail)) return;
+    // Ноль — законная цель: «в этом месяце не откладываю» (1.6). Запись
+    // при этом остаётся, и прошлые месяцы сохраняют свою цель
+    if (!checkNonNegativeMoney(entry['amount'], `${p}.amount`, fail)) return;
     if (byMonth.has(fromMonth)) fix('DEDUPED_TARGETS', p, `Дубль цели за ${fromMonth}, взята последняя`);
     byMonth.set(fromMonth, { fromMonth, amount: entry['amount'] as Money });
   });

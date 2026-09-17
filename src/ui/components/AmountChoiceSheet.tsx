@@ -24,6 +24,8 @@ interface Props {
   currentPeriodMonth: MonthKey;
   /** Пояснение под полем суммы, если у позиции есть особенность */
   hint?: string;
+  /** Ноль допустим: например, цель по накоплению «в этом месяце не откладываю» */
+  allowZero?: boolean;
   onForward(amount: Money): void;
   onCorrect(amount: Money): void;
   onClose(): void;
@@ -36,6 +38,7 @@ export function AmountChoiceSheet({
   effectiveMonth,
   currentPeriodMonth,
   hint,
+  allowZero,
   onForward,
   onCorrect,
   onClose,
@@ -50,7 +53,7 @@ export function AmountChoiceSheet({
   }, [open, current]);
 
   const amount = parseAmount(raw);
-  const valid = amount !== null && amount > 0;
+  const valid = amount !== null && (allowZero ? amount >= 0 : amount > 0);
 
   return (
     <Sheet open={open} title={title} onClose={onClose}>

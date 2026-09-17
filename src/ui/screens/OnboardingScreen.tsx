@@ -74,7 +74,8 @@ export function OnboardingScreen({ repeat, onDone }: Props): JSX.Element {
   const finishTarget = (): void => {
     ensureDocument();
     const amount = parseAmount(target);
-    if (amount !== null && amount > 0) setMonthlyTarget(month, amount);
+    // Ноль сохраняется как цель: это сказанное вслух «не откладываю», а не пропуск
+    if (amount !== null && amount >= 0) setMonthlyTarget(month, amount);
     onDone();
   };
 
@@ -149,6 +150,7 @@ export function OnboardingScreen({ repeat, onDone }: Props): JSX.Element {
               <p className="card-p">
                 Сколько хочется откладывать каждый месяц. Из неё считается потолок трат и дневной
                 остаток. Это ориентир, а не денежная операция: в накопление она не входит.
+                Можно пропустить или поставить ноль — тогда потолка трат не будет.
               </p>
               <div className="field">
                 <label htmlFor="otarget">Сумма в месяц</label>

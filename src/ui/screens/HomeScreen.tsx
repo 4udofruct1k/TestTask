@@ -79,7 +79,13 @@ export function HomeScreen(): JSX.Element {
               <div className="hero-num">{formatRub(gauge.left)}</div>
               <div className="hero-foot">
                 <span>Весь бюджет {formatAmount(gauge.total)}</span>
-                {status ? <span>Цель {formatAmount(status.target)}</span> : <span>Цель не задана</span>}
+                {gauge.target === null ? (
+                  <span>Цель не задана</span>
+                ) : gauge.target === 0 ? (
+                  <span>Без цели</span>
+                ) : (
+                  <span>Цель {formatAmount(gauge.target)}</span>
+                )}
                 {/* Удержание показывается, только когда оно включено */}
                 {block.taxWithheld > 0 && <span>Удержано {formatAmount(block.taxWithheld)}</span>}
               </div>
@@ -107,8 +113,9 @@ export function HomeScreen(): JSX.Element {
             </div>
           </div>
 
-          {/* 3. До цели */}
-          {status ? (
+          {/* 3. До цели. Нулевая цель — сказанное вслух «не откладываю»:
+              ни потолка трат, ни уговоров его завести */}
+          {status && status.target > 0 ? (
             <div className="card">
               <div className="card-h">
                 <div className="card-t">До цели</div>
@@ -127,7 +134,7 @@ export function HomeScreen(): JSX.Element {
               </div>
               <Hint doc={doc} month={month} today={today} />
             </div>
-          ) : (
+          ) : gauge.target === 0 ? null : (
             <div className="card">
               <div className="card-h">
                 <div className="card-t">Цель по накоплению</div>

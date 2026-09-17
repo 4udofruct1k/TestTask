@@ -2,12 +2,17 @@
  * Шторка быстрого ввода. Раздел 3.3.
  *
  * Типичная трата вносится двумя действиями: сумма и чип категории.
+ *
+ * Той же шторкой вносится разовый доход — продали что-то, вернули долг,
+ * премия мимо зарплаты. Отдельной сущности для него нет: это операция
+ * с категорией направления INCOME (1.3). Переключателя вида потока
+ * у дохода нет — у него поток не определён (1.3, инвариант 6).
  */
 
 import { useEffect, useMemo, useState, type JSX } from 'react';
 import { flowToStore } from '../../domain/flow';
 import { formatAmountExact, parseAmount } from '../../domain/money';
-import type { Flow } from '../../domain/types';
+import type { Flow, Kind } from '../../domain/types';
 import { useBudget } from '../../store/budget';
 import { Sheet } from '../components/Sheet';
 import { dayTitle } from '../format';
@@ -15,12 +20,14 @@ import { shiftDays } from '../clock';
 
 interface Props {
   open: boolean;
-  /** Предустановленный вид потока: с какой панели пришли */
+  /** Трата или доход: от этого зависят чипы, заголовок и наличие переключателя */
+  kind: Kind;
+  /** Предустановленный вид потока: с какой панели пришли. У дохода не используется */
   initialFlow: Flow;
   onClose(): void;
 }
 
-export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Element {
+export function QuickEntrySheet({ open, kind, initialFlow, onClose }: Props): JSX.Element {
   const doc = useBudget((s) => s.doc)!;
   const today = useBudget((s) => s.today);
   const addExpense = useBudget((s) => s.addExpense);
@@ -45,7 +52,7 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
     setNoteOpen(false);
     setConfirmDuplicate(false);
     setAllChips(false);
-  }, [open, initialFlow, today]);
+  }, [open, initialFlow, today, kind]);
 
   /** Чипы категорий по частоте за 30 дней. */
   const chips = useMemo(() => {
@@ -56,9 +63,9 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
       counts.set(expense.categoryId, (counts.get(expense.categoryId) ?? 0) + 1);
     }
     return doc.categories
-      .filter((c) => c.kind === 'EXPENSE' && !c.archived)
+      .filter((c) => c.kind === kind && !c.archived)
       .sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.sortOrder - b.sortOrder);
-  }, [doc, today]);
+  }, [doc, today, kind]);
 
   const category = chips.find((c) => c.id === categoryId) ?? null;
 
@@ -98,7 +105,13 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
   };
 
   return (
-    <Sheet open={open} title={initialFlow === 'ONE_OFF' ? 'Разовая трата' : 'Рутинная трата'} onClose={onClose}>
+    <Sheet
+      open={open}
+      title={
+        kind === 'INCOME' ? 'Разовый доход' : initialFlow === 'ONE_OFF' ? 'Разовая трата' : 'Рутинная трата'
+      }
+      onClose={onClose}
+    >
       <input
         className="amount-input"
         inputMode="decimal"
@@ -129,14 +142,21 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
         )}
       </div>
 
-      <div className="flowtog" role="group" aria-label="Вид траты">
-        <button aria-pressed={flow === 'ROUTINE'} onClick={() => setFlow('ROUTINE')}>
-          Рутина
-        </button>
-        <button aria-pressed={flow === 'ONE_OFF'} onClick={() => setFlow('ONE_OFF')}>
-          Разовое
-        </button>
-      </div>
+      {kind === 'EXPENSE' ? (
+        <div className="flowtog" role="group" aria-label="Вид траты">
+          <button aria-pressed={flow === 'ROUTINE'} onClick={() => setFlow('ROUTINE')}>
+            Рутина
+          </button>
+          <button aria-pressed={flow === 'ONE_OFF'} onClick={() => setFlow('ONE_OFF')}>
+            Разовое
+          </button>
+        </div>
+      ) : (
+        <p className="hint">
+          Доход войдёт в бюджет этого месяца целиком. Зарплату сюда вносить не нужно — она
+          постоянный доход и считается сама.
+        </p>
+      )}
 
       <div className="field">
         <label htmlFor="qdate">Дата</label>
@@ -157,7 +177,7 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
 
       {confirmDuplicate && (
         <p className="hint">
-          Две минуты назад уже была такая же трата на {formatAmountExact(amount ?? 0)} ₽ в этой категории.
+          Две минуты назад уже была такая же запись на {formatAmountExact(amount ?? 0)} ₽ в этой категории.
           Нажмите «Сохранить» ещё раз, если это не дубль.
         </p>
       )}

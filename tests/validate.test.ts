@@ -453,3 +453,25 @@ describe('валидатор не трогает вход', () => {
     expect(item.mode === 'MONTHLY' && item.amounts[0]!.fromMonth).toBe('2026-06');
   });
 });
+
+describe('нулевая цель по накоплению', () => {
+  it('проходит загрузку как есть', () => {
+    const doc = emptyDoc();
+    doc.settings.targets = [{ fromMonth: '2026-01', amount: 0 }];
+    const res = validateDocument(doc);
+    expect(res.fatal).toEqual([]);
+    expect(res.doc!.settings.targets).toEqual([{ fromMonth: '2026-01', amount: 0 }]);
+  });
+
+  it('отрицательная цель по-прежнему не проходит', () => {
+    const doc = emptyDoc();
+    doc.settings.targets = [{ fromMonth: '2026-01', amount: -R(1000) }];
+    expectFatal(doc, 'NON_POSITIVE_AMOUNT');
+  });
+
+  it('дробная цель по-прежнему не проходит', () => {
+    const doc = emptyDoc();
+    doc.settings.targets = [{ fromMonth: '2026-01', amount: 1000.5 }];
+    expectFatal(doc, 'FRACTIONAL_AMOUNT');
+  });
+});

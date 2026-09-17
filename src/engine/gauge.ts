@@ -58,15 +58,17 @@ export function budgetGauge(doc: BudgetDocument, month: MonthKey, today: DateStr
     target,
     // Потратить больше дохода можно, но шкала ниже нуля не опускается
     fill: total > 0 ? Math.min(1, Math.max(0, left / total)) : 0,
-    // Цель больше всего дохода недостижима — риска упирается в край
-    targetMark: target !== null && total > 0 ? Math.min(1, target / total) : null,
+    // Цель больше всего дохода недостижима — риска упирается в край.
+    // Нулевая цель риски не рисует: линия у пустого края ничего не значит
+    targetMark: target !== null && target > 0 && total > 0 ? Math.min(1, target / total) : null,
     state: resolveState(left, target),
   };
 }
 
 function resolveState(left: Money, target: Money | null): GaugeState {
-  // Без цели сравнивать не с чем: красным отмечается только перерасход
-  if (target === null) return left < 0 ? 'SHORT' : 'SAFE';
+  // Без цели сравнивать не с чем: красным отмечается только перерасход.
+  // Нулевая цель — то же самое, сказанное вслух: откладывать не собираюсь
+  if (target === null || target === 0) return left < 0 ? 'SHORT' : 'SAFE';
   if (left < target) return 'SHORT';
   if (left < target * (1 + NEAR_TARGET_MARGIN)) return 'NEAR';
   return 'SAFE';

@@ -152,3 +152,36 @@ describe('риска цели на шкале', () => {
     }
   });
 });
+
+/**
+ * Нулевая цель — законный ответ «в этом месяце не откладываю» (1.6).
+ * От «цель не задана» она отличается тем, что сказана вслух: запись есть,
+ * версионность работает, прошлые месяцы сохраняют свою цель.
+ */
+describe('нулевая цель', () => {
+  it('сохраняется как цель, а не как её отсутствие', () => {
+    const doc = baseDoc(0);
+    expect(budgetGauge(doc, '2026-03', TODAY).target).toBe(0);
+  });
+
+  it('риски на шкале не рисует', () => {
+    expect(budgetGauge(baseDoc(0), '2026-03', TODAY).targetMark).toBeNull();
+  });
+
+  it('шкала зелёная, пока не ушли в минус', () => {
+    expect(budgetGauge(baseDoc(0), '2026-03', TODAY).state).toBe('SAFE');
+  });
+
+  it('шкала красная при перерасходе — как и без цели', () => {
+    const doc = baseDoc(0);
+    doc.expenses.push(expense('2026-03-10', R(90000), CAT_TECH, 'ONE_OFF'));
+    expect(budgetGauge(doc, '2026-03', TODAY).state).toBe('SHORT');
+  });
+
+  it('прошлые месяцы сохраняют прежнюю цель', () => {
+    const doc = baseDoc(R(30000));
+    doc.settings.targets.push({ fromMonth: '2026-03', amount: 0 });
+    expect(budgetGauge(doc, '2026-02', TODAY).target).toBe(R(30000));
+    expect(budgetGauge(doc, '2026-03', TODAY).target).toBe(0);
+  });
+});

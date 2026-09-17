@@ -146,7 +146,13 @@ export function HistoryTab({ month }: { month: MonthKey }): JSX.Element {
             <div key={day}>
               <div className="eday">
                 {dayTitle(day)}
-                <b>{formatRub(list.reduce((sum, e) => sum + e.amount, 0))}</b>
+                {/* Сумма дня — только траты: доход в ней складывался бы
+                    с расходом и показывал бы день дороже, чем он был */}
+                <b>
+                  {formatRub(
+                    list.reduce((sum, e) => sum + (flowOf(doc, e) === null ? 0 : e.amount), 0),
+                  )}
+                </b>
               </div>
               {list.map((expense) => {
                 const flow = flowOf(doc, expense);
@@ -171,7 +177,10 @@ export function HistoryTab({ month }: { month: MonthKey }): JSX.Element {
                         </span>
                         {note !== '' && <span className="e-s">{note}</span>}
                       </span>
-                      <span className="e-v">{formatAmount(expense.amount)}</span>
+                      <span className={`e-v${flow === null ? ' income' : ''}`}>
+                        {flow === null ? '+' : ''}
+                        {formatAmount(expense.amount)}
+                      </span>
                     </button>
                     {openRow === id && (
                       <div className="e-act">

@@ -6,7 +6,7 @@
 import { useState, type JSX } from 'react';
 import { monthKeyOf } from '../../domain/dates';
 import { formatRub } from '../../domain/money';
-import type { Flow } from '../../domain/types';
+import type { Flow, Kind } from '../../domain/types';
 import { expensesOfMonth, flowOf, resolveFixed } from '../../engine';
 import { useBudget } from '../../store/budget';
 import { useUi } from '../../store/ui';
@@ -17,12 +17,13 @@ import { FixedItemForm } from './FixedItemForm';
 import { HistoryTab } from './HistoryTab';
 import { QuickEntrySheet } from './QuickEntrySheet';
 
-type Panel = 'oneOff' | 'routine' | 'monthly' | 'spread' | 'contribution';
+type Panel = 'oneOff' | 'routine' | 'income' | 'monthly' | 'spread' | 'contribution';
 
 /** Сплошным выделены два ежедневных действия, контурным — то, что заводится раз и надолго. */
 const PANELS: { id: Panel; title: string; subtitle: string; ghost: boolean }[] = [
   { id: 'oneOff', title: 'Разовая трата', subtitle: 'То, что не повторяется изо дня в день', ghost: false },
   { id: 'routine', title: 'Рутинная трата', subtitle: 'Продукты, транспорт, кофе', ghost: false },
+  { id: 'income', title: 'Разовый доход', subtitle: 'Продали, вернули долг, премия', ghost: true },
   { id: 'monthly', title: 'Постоянный платёж', subtitle: 'Аренда, связь, подписки', ghost: true },
   { id: 'spread', title: 'Годовой платёж', subtitle: 'Страховка, налог — разложится по месяцам', ghost: true },
   { id: 'contribution', title: 'В копилку', subtitle: 'Отложить на конкретное', ghost: true },
@@ -56,7 +57,7 @@ export function ExpensesScreen(): JSX.Element {
       </div>
 
       {tab === 'add' ? (
-        // Прокрутки здесь нет: выбор из пяти пунктов не должен требовать мотания
+        // Прокрутки здесь нет: выбор из шести пунктов не должен требовать мотания
         <div className="noscroll">
           <div className="addlist">
             {PANELS.map((item) => (
@@ -81,7 +82,8 @@ export function ExpensesScreen(): JSX.Element {
       )}
 
       <QuickEntrySheet
-        open={panel === 'oneOff' || panel === 'routine'}
+        open={panel === 'oneOff' || panel === 'routine' || panel === 'income'}
+        kind={(panel === 'income' ? 'INCOME' : 'EXPENSE') as Kind}
         initialFlow={(panel === 'oneOff' ? 'ONE_OFF' : 'ROUTINE') as Flow}
         onClose={() => setPanel(null)}
       />

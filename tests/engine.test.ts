@@ -349,3 +349,27 @@ describe('К11. Разовые против среднего', () => {
     expect(a.deltaPct).toBeNull();
   });
 });
+
+describe('цель по накоплению может быть нулевой', () => {
+  it('потолок трат равен всему доходу месяца', () => {
+    const doc = emptyDoc();
+    doc.settings.firstMonth = '2026-01';
+    doc.settings.targets = [{ fromMonth: '2026-01', amount: 0 }];
+    doc.fixedItems = [
+      monthly('Зарплата', 'INCOME', 'c-salary', [{ fromMonth: '2026-01', amount: R(120000) }]),
+      monthly('Аренда', 'EXPENSE', 'c-home', [{ fromMonth: '2026-01', amount: R(35000) }]),
+    ];
+    const status = targetStatus(doc, '2026-03', '2026-03-16')!;
+    expect(status.target).toBe(0);
+    // free = 120 000 − 35 000, тратить можно всё это
+    expect(status.budget).toBe(R(85000));
+  });
+
+  it('нулевая цель отличима от незаданной', () => {
+    const doc = emptyDoc();
+    doc.settings.firstMonth = '2026-01';
+    expect(targetStatus(doc, '2026-03', '2026-03-16')).toBeNull();
+    doc.settings.targets = [{ fromMonth: '2026-01', amount: 0 }];
+    expect(targetStatus(doc, '2026-03', '2026-03-16')).not.toBeNull();
+  });
+});
