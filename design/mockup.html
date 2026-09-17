@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бюджет — прототип экранов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green-a:#22C46E; --green-b:#06834A;
+  --blue:#1C6BFF; --blue-press:#1350D8; --alarm:#D8453C;
+  --acid-green:#00D26A; --acid-red:#FF2D62;
+  --page:#E4E9E5; --page-ink:#0E1511; --page-muted:#5E6E64;
+}
+.screen{
+  --paper:#F1F4F1; --card:#FFFFFF; --ink:#0E1511; --muted:#6B7A70; --line:#DFE6E0;
+  --soft:#F8FAF9; --soft2:#F2F7F4; --bar:#E4EBE6; --track:#E7EDE8;
+  --chart-bg:#FFFFFF; --grid:rgba(14,21,17,.10); --axis:#93A099; --neu:#D5DED8;
+}
+.screen.dark{
+  --paper:#0B100D; --card:#141B17; --ink:#E8EFEA; --muted:#8E9E94; --line:#25302B;
+  --soft:#111713; --soft2:#0F1511; --bar:#1B231E; --track:#222B26;
+  --chart-bg:#141B17; --grid:rgba(232,239,234,.10); --axis:#7A8A81; --neu:#3B4840;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#0C120E;--page-ink:#E8EFEA;--page-muted:#8FA096}}
+:root[data-theme="dark"]{--page:#0C120E;--page-ink:#E8EFEA;--page-muted:#8FA096}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--page);color:var(--page-ink);font-family:"Golos Text","Segoe UI",system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;padding:20px 14px 48px}
+.wrap{max-width:420px;margin:0 auto}
+.intro{margin:0 0 18px}
+.intro h1{font-size:19px;font-weight:700;letter-spacing:-.2px;margin:0 0 6px}
+.intro p{font-size:13.5px;line-height:1.5;color:var(--page-muted);margin:0}
+.switcher{display:flex;gap:6px;margin:0 0 14px;background:rgba(127,140,132,.16);padding:4px;border-radius:12px}
+.switcher button{flex:1;border:0;border-radius:9px;padding:9px 6px;font:inherit;font-size:12.5px;font-weight:600;background:transparent;color:var(--page-muted);cursor:pointer}
+.switcher button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+.device{position:relative;width:100%;max-width:372px;margin:0 auto;background:#0A0F0C;border-radius:42px;padding:11px;box-shadow:0 18px 44px rgba(6,20,12,.30)}
+.screen{position:relative;overflow:hidden;background:var(--paper);color:var(--ink);border-radius:32px;height:min(74vh,700px);min-height:560px;display:flex;flex-direction:column}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.noscroll{flex:1;overflow:hidden}
+.pane{display:none;flex-direction:column;height:100%}
+.pane.on{display:flex}
+.sub-pane{display:none;flex-direction:column;flex:1;min-height:0}
+.sub-pane.on{display:flex}
+
+.bar{display:flex;align-items:center;gap:6px;padding:15px 16px 10px;flex:0 0 auto}
+.icbtn{width:34px;height:34px;border:0;border-radius:11px;background:transparent;cursor:pointer;display:grid;place-items:center;padding:0;color:inherit;flex:0 0 auto}
+.icbtn:active{background:rgba(127,140,132,.18)}
+.burger{display:flex;flex-direction:column;justify-content:space-between;width:16px;height:16px}
+.burger span{display:block;width:100%;height:2px;background:currentColor;border-radius:2px}
+.bar-title{font-size:15px;font-weight:600;letter-spacing:-.1px;margin-left:6px}
+.bar-sub{font-size:12px;color:var(--muted);margin-left:auto}
+
+.body{padding:0 16px 14px;display:flex;flex-direction:column;gap:11px}
+.hero{border-radius:28px;padding:20px 20px 18px;background:linear-gradient(152deg,var(--green-a) 0%,var(--green-b) 100%);color:#fff}
+.hero-label{font-size:12.5px;font-weight:600;opacity:.86;margin-bottom:5px}
+.hero-num{font-size:40px;font-weight:900;letter-spacing:-1.6px;line-height:1}
+.hero-foot{display:flex;gap:16px;margin-top:13px;font-size:12px;font-weight:600;opacity:.88}
+.micro{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mbox{background:var(--card);border-radius:16px;padding:12px 11px;border:1px solid var(--line)}
+.mbox-l{font-size:10.5px;color:var(--muted);font-weight:600;line-height:1.25;min-height:26px}
+.mbox-n{font-size:19px;font-weight:800;letter-spacing:-.6px;margin-top:3px;white-space:nowrap}
+.mbox-n.hot{color:var(--alarm)}
+.mbox-u{font-size:10px;color:var(--muted);font-weight:500;margin-top:1px}
+.card{background:var(--card);border-radius:20px;padding:15px 16px;border:1px solid var(--line)}
+.card-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+.card-t{font-size:13px;font-weight:700}
+.card-v{font-size:13px;font-weight:700}
+.card-p{font-size:12.5px;line-height:1.5;color:var(--muted);margin:0}
+.card-p b{color:var(--ink);font-weight:700}
+.card-p .hot{color:var(--alarm);font-weight:700}
+.track{height:7px;border-radius:99px;background:var(--track);overflow:hidden;position:relative;margin:2px 0 10px}
+.track i{display:block;height:100%;border-radius:99px;background:var(--green-b)}
+.track i.hot{background:var(--alarm)}
+.track u{position:absolute;top:-3px;width:2px;height:13px;background:var(--ink);opacity:.45;border-radius:2px}
+
+.rows{background:var(--card);border-radius:20px;border:1px solid var(--line);overflow:hidden}
+.grp{border-bottom:1px solid var(--line)}
+.grp:last-child{border-bottom:0}
+.row{display:flex;align-items:center;gap:11px;padding:13px 16px;width:100%;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.row-txt{flex:1;min-width:0}
+.row-t{display:block;font-size:13px;font-weight:600;line-height:1.3}
+.row-s{display:block;font-size:11px;color:var(--muted);margin-top:2px;line-height:1.3}
+.row-v{font-size:14px;font-weight:800;letter-spacing:-.3px;flex:0 0 auto}
+.chev{width:14px;color:var(--muted);transition:transform .2s;flex:0 0 auto;display:grid;place-items:center}
+.grp.open .chev{transform:rotate(90deg)}
+.sub{display:none;padding:0 16px 10px;background:var(--soft)}
+.grp.open .sub{display:block}
+.sub-i{display:flex;align-items:baseline;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.sub-i:last-child{border-bottom:0}
+.sub-n{font-weight:600}
+.sub-d{color:var(--muted);font-size:11px;margin-left:6px;font-weight:500}
+.sub-v{margin-left:auto;font-weight:700;flex:0 0 auto}
+.sub-more{width:100%;border:0;background:transparent;color:var(--blue);font:inherit;font-size:12px;font-weight:700;padding:9px 0 3px;cursor:pointer;text-align:left}
+.total{display:flex;align-items:center;gap:11px;padding:13px 16px;background:var(--soft2)}
+.total .row-v{font-size:16px}
+
+.cta-slot{flex:0 0 auto;padding:10px 16px 16px;background:linear-gradient(180deg,transparent 0%,var(--paper) 42%)}
+.cta{width:100%;height:56px;border:0;border-radius:20px;background:var(--blue);color:#fff;font:inherit;font-size:26px;font-weight:600;cursor:pointer;display:grid;place-items:center;box-shadow:0 8px 20px rgba(28,107,255,.28)}
+.cta:active{background:var(--blue-press)}
+
+.scrim{position:absolute;inset:0;background:rgba(7,16,12,.48);opacity:0;pointer-events:none;transition:opacity .22s;z-index:8}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:absolute;top:0;left:0;bottom:0;width:70%;max-width:250px;z-index:9;background:#07100C;color:#F0F5F1;transform:translateX(-102%);transition:transform .24s cubic-bezier(.3,.8,.35,1);padding:22px 14px;display:flex;flex-direction:column;gap:4px}
+.drawer.on{transform:translateX(0)}
+.drawer-h{font-size:12px;font-weight:600;color:#71847A;padding:0 10px 14px}
+.nav{display:flex;align-items:center;gap:13px;padding:12px;border-radius:14px;border:0;background:transparent;color:inherit;font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:left;width:100%}
+.nav[aria-current="true"]{background:rgba(0,210,106,.15);color:var(--acid-green)}
+
+.tabs{display:flex;gap:5px;margin:0 16px 10px;background:var(--bar);padding:4px;border-radius:14px;flex:0 0 auto}
+.tabs button{flex:1;border:0;border-radius:11px;padding:9px;font:inherit;font-size:12.5px;font-weight:600;background:transparent;color:var(--muted);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(6,20,12,.10)}
+
+.filters{display:flex;gap:6px;padding:0 16px 8px;flex-wrap:wrap;flex:0 0 auto}
+.f{border:1.5px solid var(--line);background:var(--card);color:var(--muted);border-radius:11px;padding:6px 10px;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer}
+.f[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+.elist{padding:0 16px 20px}
+.eday{display:flex;align-items:baseline;padding:13px 2px 6px;font-size:11.5px;font-weight:700;color:var(--muted)}
+.eday b{margin-left:auto;color:var(--ink)}
+.e{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:7px;overflow:hidden}
+.e.fix{border-style:dashed}
+.e-main{display:flex;align-items:center;gap:10px;padding:12px 14px;width:100%;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.e-txt{flex:1;min-width:0}
+.e-t{display:block;font-size:13px;font-weight:600;line-height:1.3}
+.e-s{display:block;font-size:11px;color:var(--muted);margin-top:2px;line-height:1.3}
+.e-v{font-size:14px;font-weight:800;flex:0 0 auto}
+.e.gone .e-v,.e.gone .e-t{text-decoration:line-through;opacity:.45}
+.tag{display:inline-block;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:6px;margin-left:6px;vertical-align:1px}
+.tag.r{background:rgba(0,210,106,.14);color:#068A47}
+.tag.o{background:rgba(255,45,98,.12);color:#D22151}
+.tag.f{background:rgba(127,140,132,.20);color:var(--muted)}
+.e-act{display:none;gap:7px;padding:0 14px 12px}
+.e.open .e-act{display:flex}
+.e-act button{flex:1;border:0;border-radius:11px;padding:10px 4px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.e-edit{background:rgba(28,107,255,.10);color:var(--blue)}
+.e-skip{background:rgba(127,140,132,.16);color:var(--muted)}
+.e-del{background:rgba(216,69,60,.10);color:var(--alarm)}
+.undo{position:absolute;left:14px;right:14px;bottom:14px;z-index:13;background:#07100C;color:#fff;border-radius:16px;padding:13px 15px;display:flex;align-items:center;gap:12px;font-size:12.5px;font-weight:600;transform:translateY(140%);transition:transform .24s;box-shadow:0 10px 26px rgba(6,20,12,.3)}
+.undo.on{transform:translateY(0)}
+.undo button{margin-left:auto;border:0;background:transparent;color:var(--acid-green);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+
+.addlist{padding:0 16px 16px;display:flex;flex-direction:column;gap:9px;height:100%}
+.add{width:100%;text-align:left;border:0;border-radius:18px;padding:14px 16px;cursor:pointer;font:inherit;background:var(--blue);color:#fff;display:flex;align-items:center;gap:13px}
+.add.ghost{background:var(--card);color:var(--blue);border:1.5px solid rgba(28,107,255,.28)}
+.add-txt{flex:1;min-width:0}
+.add-t{display:block;font-size:14px;font-weight:700;line-height:1.3}
+.add-s{display:block;font-size:11.5px;font-weight:500;opacity:.78;margin-top:2px;line-height:1.3}
+.add .ic{width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.17);display:grid;place-items:center;flex:0 0 auto}
+.add.ghost .ic{background:rgba(28,107,255,.10)}
+
+.dlist{padding:4px 16px 20px;display:flex;flex-direction:column;gap:13px}
+.dcard{position:relative;border-radius:22px;overflow:hidden;background:var(--card);border:1px solid var(--line);cursor:pointer;display:block;width:100%;padding:0;font:inherit;text-align:left}
+.dcard-art{height:158px;display:block;width:100%}
+.dcard-cap{position:absolute;left:0;right:0;bottom:0;padding:22px 16px 13px;background:linear-gradient(180deg,rgba(6,16,11,0) 0%,rgba(6,16,11,.30) 30%,rgba(6,16,11,.82) 100%)}
+.dcard-t{color:#fff;font-size:14.5px;font-weight:700;letter-spacing:-.2px}
+.dcard-s{color:rgba(255,255,255,.74);font-size:11.5px;font-weight:500;margin-top:2px}
+.detail-body{padding:6px 16px 22px;display:flex;flex-direction:column;gap:14px}
+.detail-num{font-size:34px;font-weight:900;letter-spacing:-1.2px}
+.detail-lab{font-size:12.5px;color:var(--muted);font-weight:600;margin-top:3px}
+.detail-art{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px 10px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;font-weight:600;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:middle}
+
+.qsheet{position:absolute;left:0;right:0;bottom:0;z-index:12;background:var(--card);border-radius:26px 26px 0 0;padding:16px 16px 18px;transform:translateY(103%);transition:transform .24s cubic-bezier(.3,.8,.35,1);box-shadow:0 -10px 30px rgba(6,20,12,.18)}
+.qsheet.on{transform:translateY(0)}
+.grip{width:38px;height:4px;border-radius:99px;background:var(--line);margin:0 auto 14px}
+.sheet-h{font-size:13px;font-weight:700;margin-bottom:10px}
+.amount{font-size:34px;font-weight:900;letter-spacing:-1.3px;color:var(--blue)}
+.amount span{color:var(--line)}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.chip{border:1.5px solid rgba(28,107,255,.26);color:var(--blue);background:transparent;border-radius:13px;padding:8px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.chip.sel{background:var(--blue);color:#fff;border-color:var(--blue)}
+.flowtog{display:flex;gap:6px;margin-top:12px;background:rgba(28,107,255,.10);padding:4px;border-radius:13px}
+.flowtog button{flex:1;border:0;background:transparent;border-radius:10px;padding:9px;font:inherit;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer}
+.flowtog button[aria-pressed="true"]{background:var(--blue);color:#fff}
+.save{width:100%;margin-top:13px;height:50px;border:0;border-radius:16px;background:var(--blue);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.drawer-bottom{margin-top:auto;display:flex;gap:6px;align-items:center;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
+.drawer-bottom .nav{flex:1}
+.theme{width:40px;height:40px;border:0;border-radius:13px;background:rgba(255,255,255,.07);color:#F0F5F1;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+.link{width:100%;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:12px 14px;font:inherit;font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.link span{margin-left:auto;color:var(--muted);font-weight:500;font-size:11.5px}
+.goal{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:15px 16px;margin-bottom:10px}
+.goal-h{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
+.goal-t{font-size:14px;font-weight:700}
+.goal-v{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--muted)}
+.calm{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 15px;margin-bottom:8px;display:flex;align-items:center;gap:11px}
+.calm.hit{border-color:rgba(255,45,98,.40);background:rgba(255,45,98,.05)}
+.calm-txt{flex:1;min-width:0}
+.calm-m{display:block;font-size:12.5px;font-weight:700}
+.calm-s{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.calm-v{font-size:14px;font-weight:800;flex:0 0 auto}
+.calm-v.z{color:var(--muted);font-weight:600;font-size:12px}
+.setrow{display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--line)}
+.setrow:last-child{border-bottom:0}
+.note{font-size:12px;line-height:1.55;color:var(--page-muted);margin:16px 2px 0}
+.note b{color:var(--page-ink);font-weight:700}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>Прототип экранов</h1>
+    <p>Расходы и добавление — одна страница с двумя вкладками. В истории есть и постоянные платежи.</p>
+  </div>
+  <div class="switcher" role="group" aria-label="Цель">
+    <button id="sc-ok" aria-pressed="false">Цель 15 000</button>
+    <button id="sc-bad" aria-pressed="true">Цель 30 000</button>
+  </div>
+
+  <div class="device"><div class="screen">
+    <div class="scrim" id="scrim"></div>
+    <nav class="drawer" id="drawer" aria-label="Меню">
+      <div class="drawer-h">Бюджет</div>
+      <button class="nav" data-go="home" aria-current="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.6V20h14V9.6"/><path d="M9.5 20v-5.5h5V20"/></svg>Домой</button>
+      <button class="nav" data-go="exp"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.2v9.6"/><path d="M14.4 9.6c0-1.1-1.1-1.8-2.4-1.8s-2.4.7-2.4 1.8 1.1 1.5 2.4 1.8 2.4.7 2.4 1.8-1.1 1.8-2.4 1.8-2.4-.7-2.4-1.8"/></svg>Расходы</button>
+      <button class="nav" data-go="goals"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg>Цели</button>
+      <button class="nav" data-go="dash"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="9" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="14" width="8" height="7" rx="2"/></svg>Дашборды</button>
+      <div class="drawer-bottom">
+        <button class="nav" data-go="set"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.4 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.4-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z"/></svg>Настройки</button>
+        <button class="theme" id="theme" aria-label="Тема"></button>
+      </div>
+    </nav>
+
+    <section class="pane on" id="p-home">
+      <div class="bar">
+        <button class="icbtn" data-burger aria-label="Меню"><span class="burger"><span></span><span></span><span></span></span></button>
+        <div class="bar-title">Март 2026</div><div class="bar-sub">16 марта</div>
+      </div>
+      <div class="scroll"><div class="body" id="home-body"></div></div>
+      <div class="cta-slot"><button class="cta" id="cta">+</button></div>
+    </section>
+
+    <section class="pane" id="p-exp">
+      <div class="bar">
+        <button class="icbtn" data-burger aria-label="Меню"><span class="burger"><span></span><span></span><span></span></span></button>
+        <button class="icbtn" data-home aria-label="На главную"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="bar-title">Расходы</div><div class="bar-sub" id="exp-sum"></div>
+      </div>
+      <div class="tabs" role="group">
+        <button id="tb-add" aria-pressed="true">Добавить</button>
+        <button id="tb-hist" aria-pressed="false">История</button>
+      </div>
+      <div class="sub-pane on" id="t-add"><div class="noscroll"><div class="addlist" id="addlist"></div></div></div>
+      <div class="sub-pane" id="t-hist">
+        <div class="filters" id="filters">
+          <button class="f" data-f="all" aria-pressed="true">Все</button>
+          <button class="f" data-f="f" aria-pressed="false">Постоянные</button>
+          <button class="f" data-f="r" aria-pressed="false">Рутина</button>
+          <button class="f" data-f="o" aria-pressed="false">Разовые</button>
+        </div>
+        <div class="scroll"><div class="elist" id="elist"></div></div>
+      </div>
+      <div class="undo" id="undo"><span id="undo-t">Трата удалена</span><button id="undo-b">Вернуть</button></div>
+    </section>
+
+    <section class="pane" id="p-goals">
+      <div class="bar">
+        <button class="icbtn" data-burger aria-label="Меню"><span class="burger"><span></span><span></span><span></span></span></button>
+        <button class="icbtn" data-home aria-label="На главную"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="bar-title">Цели</div>
+      </div>
+      <div class="scroll"><div class="elist" id="glist"></div></div>
+    </section>
+
+    <section class="pane" id="p-cal">
+      <div class="bar">
+        <button class="icbtn" id="cal-back" aria-label="Назад"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="bar-title">Календарь годовых</div>
+      </div>
+      <div class="scroll"><div class="elist" id="callist"></div></div>
+    </section>
+
+    <section class="pane" id="p-set">
+      <div class="bar">
+        <button class="icbtn" data-burger aria-label="Меню"><span class="burger"><span></span><span></span><span></span></span></button>
+        <button class="icbtn" data-home aria-label="На главную"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="bar-title">Настройки</div>
+      </div>
+      <div class="scroll"><div class="elist"><div class="rows" id="setlist"></div></div></div>
+    </section>
+
+    <section class="pane" id="p-dash">
+      <div class="bar">
+        <button class="icbtn" data-burger aria-label="Меню"><span class="burger"><span></span><span></span><span></span></span></button>
+        <button class="icbtn" data-home aria-label="На главную"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="bar-title">Дашборды</div>
+      </div>
+      <div class="scroll"><div class="dlist" id="dlist"></div></div>
+    </section>
+
+    <section class="pane" id="p-detail">
+      <div class="bar">
+        <button class="icbtn" id="back" aria-label="К списку"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="bar-title" id="detail-title"></div>
+      </div>
+      <div class="scroll"><div class="detail-body" id="detail-body"></div></div>
+    </section>
+
+    <div class="qsheet" id="qsheet">
+      <div class="grip"></div>
+      <div class="sheet-h" id="qtitle">Рутинная трата</div>
+      <div class="amount">1 240<span> ₽</span></div>
+      <div class="chips"><button class="chip sel">Продукты</button><button class="chip">Кафе</button><button class="chip">Транспорт</button><button class="chip">Здоровье</button><button class="chip">ещё</button></div>
+      <div class="flowtog" role="group"><button aria-pressed="true">Рутина</button><button aria-pressed="false">Разовое</button></div>
+      <button class="save" id="qsave">Сохранить</button>
+    </div>
+  </div></div>
+  <p class="note"><b>Что смотреть:</b> вкладки на странице расходов и понятна ли разница между «Пропустить» и «Удалить» у постоянного платежа.</p>
+</div>
+
+<script>
+const F=n=>new Intl.NumberFormat('ru-RU').format(Math.round(n)).replace(/\u00A0/g,' ');
+const pl=(n,a,b,c)=>{const m=n%100,d=n%10;return n+' '+(m>=11&&m<=14?c:d===1?a:d>=2&&d<=4?b:c)};
+const BASE={income:120000,day:16,days:31,hist:1180,month:3};
+const FIXED=[
+ {id:'f1',t:'Аренда',cat:'Жильё',v:32000},{id:'f2',t:'Подписки',cat:'Подписки',v:1600},
+ {id:'f3',t:'Связь',cat:'Связь',v:800},{id:'f4',t:'Интернет',cat:'Связь',v:700},
+ {id:'f5',t:'Страховка',cat:'Страховка',v:1200,res:1,year:14400,payM:3,s:'14 400 ₽ в год, доля месяца'},
+ {id:'f6',t:'Налог',cat:'Налог',v:700,res:1,year:8400,payM:11,s:'8 400 ₽ в год, доля месяца'}];
+const MON=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const GOALS=[{t:'Новый ПК',target:300000,saved:128000,left:9},{t:'Поездка летом',target:90000,saved:74500,left:4}];
+const RAW=[
+ [16,'Продукты',1240,'r'],[16,'Кафе',620,'r'],[15,'Транспорт',180,'r'],[15,'Продукты',2310,'r'],
+ [14,'Кафе',540,'r'],[14,'Транспорт',180,'r'],[13,'Продукты',1890,'r'],[13,'Здоровье',890,'r'],
+ [12,'Кафе',760,'r'],[12,'Транспорт',180,'r'],[11,'Продукты',2450,'r'],[10,'Кафе',480,'r'],
+ [10,'Транспорт',360,'r'],[9,'Продукты',1720,'r'],[9,'Наушники',8400,'o'],[8,'Кафе',1340,'r'],
+ [7,'Продукты',2080,'r'],[7,'Транспорт',180,'r'],[6,'Кафе',690,'r'],[5,'Продукты',2640,'r'],
+ [5,'Транспорт',180,'r'],[5,'Подарок',2600,'o'],[4,'Кафе',520,'r'],[3,'Продукты',1950,'r'],
+ [3,'Транспорт',180,'r'],[3,'Футболка',1000,'o'],[2,'Кафе',830,'r'],[1,'Продукты',2210,'r'],
+ [1,'Транспорт',180,'r'],[1,'Здоровье',1620,'r']];
+let items=RAW.map((x,i)=>({id:'v'+i,d:x[0],cat:x[1],v:x[2],f:x[3]}));
+let skipped={}, ended={}, goal=30000, filter='all', trash=null, timer=null;
+
+const liveFixed=()=>FIXED.filter(x=>!skipped[x.id]&&!ended[x.id]);
+const fixedTotal=()=>liveFixed().reduce((s,x)=>s+x.v,0);
+const reserve=()=>liveFixed().filter(x=>x.res).reduce((s,x)=>s+x.v,0);
+const sum=f=>items.filter(x=>x.f===f).reduce((s,x)=>s+x.v,0);
+
+function calc(){
+  const fixed=fixedTotal(),free=BASE.income-fixed,routine=sum('r'),oneoff=sum('o'),spent=routine+oneoff;
+  const pace=routine/BASE.day,forecast=pace*BASE.days+oneoff,budget=free-goal;
+  const remaining=budget-spent,daysLeft=BASE.days-BASE.day+1;
+  return {fixed,free,routine,oneoff,spent,pace,forecast,budget,remaining,daysLeft,rest:free-spent,
+   allow:remaining/daysLeft,over:forecast>budget,gap:forecast-budget,save:(pace-BASE.hist)*daysLeft,
+   monthCost:fixed+spent,fill:Math.max(0,Math.min(100,spent/budget*100)),mark:BASE.day/BASE.days*100};
+}
+const CH='<span class="chev"><svg width="7" height="12" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></span>';
+
+function subList(f){
+  const l=items.filter(x=>x.f===f).sort((a,b)=>b.d-a.d);
+  const head=l.slice(0,6).map(x=>`<div class="sub-i"><span class="sub-n">${x.cat}<span class="sub-d">${x.d} мар</span></span><span class="sub-v">${F(x.v)}</span></div>`).join('');
+  const more=l.length>6?`<button class="sub-more" data-all="${f}">Ещё ${l.length-6} — открыть историю</button>`:'';
+  return `<div class="sub">${head||'<div class="sub-i">Пусто</div>'}${more}</div>`;
+}
+function home(){
+  const c=calc();
+  const hint=c.over
+   ?`По такому темпу месяц закроется на <b>${F(c.forecast)} ₽</b> при потолке ${F(c.budget)} ₽. Мимо цели на <span class="hot">${F(c.gap)} ₽</span>. Чтобы вернуться — <b>${F(c.allow)} ₽ в день</b> оставшиеся ${c.daysLeft} дней.`
+   :(c.save>0?`Цель закрываешь. Но обычно у тебя выходит <b>${F(BASE.hist)} ₽ в день</b>, а сейчас ${F(c.pace)} ₽. Вернёшься к обычному темпу — отложишь на <b>${F(c.save)} ₽</b> больше.`
+    :`Идёшь с запасом. Можно держать до <b>${F(c.allow)} ₽ в день</b> и всё равно закрыть цель.`);
+  const fixSub=`<div class="sub">${liveFixed().map(x=>`<div class="sub-i"><span class="sub-n">${x.t}${x.s?`<span class="sub-d">${x.s}</span>`:''}</span><span class="sub-v">${F(x.v)}</span></div>`).join('')}</div>`;
+  const nr=items.filter(x=>x.f==='r').length,no=items.filter(x=>x.f==='o').length;
+  document.getElementById('home-body').innerHTML=`
+   <div class="hero"><div class="hero-label">Бюджет месяца</div><div class="hero-num">${F(BASE.income)} ₽</div>
+     <div class="hero-foot"><span>Свободные ${F(c.free)}</span><span>Цель ${F(goal)}</span></div></div>
+   <div class="micro">
+     <div class="mbox"><div class="mbox-l">Остаток</div><div class="mbox-n">${F(c.rest)}</div><div class="mbox-u">из ${F(c.free)}</div></div>
+     <div class="mbox"><div class="mbox-l">Трачу в день</div><div class="mbox-n${c.over?' hot':''}">${F(c.pace)}</div><div class="mbox-u">обычно ${F(BASE.hist)}</div></div>
+     <div class="mbox"><div class="mbox-l">Разовые</div><div class="mbox-n">${F(c.oneoff)}</div><div class="mbox-u">за месяц</div></div></div>
+   <div class="card"><div class="card-h"><div class="card-t">До цели</div><div class="card-v">${F(c.remaining)} ₽</div></div>
+     <div class="track"><i class="${c.over?'hot':''}" style="width:${c.fill}%"></i><u style="left:${c.mark}%"></u></div>
+     <p class="card-p">${hint}</p></div>
+   <div class="rows">
+     <div class="grp"><button class="row">${CH}<span class="row-txt"><span class="row-t">Постоянные</span><span class="row-s">${pl(liveFixed().length,'позиция','позиции','позиций')}, резерв ${F(reserve())}</span></span><span class="row-v">${F(c.fixed)}</span></button>${fixSub}</div>
+     <div class="grp"><button class="row">${CH}<span class="row-txt"><span class="row-t">Рутина</span><span class="row-s">${pl(nr,'трата','траты','трат')} за ${BASE.day} дней</span></span><span class="row-v">${F(c.routine)}</span></button>${subList('r')}</div>
+     <div class="grp"><button class="row">${CH}<span class="row-txt"><span class="row-t">Разовые</span><span class="row-s">${pl(no,'покупка','покупки','покупок')}</span></span><span class="row-v">${F(c.oneoff)}</span></button>${subList('o')}</div>
+     <div class="total"><span class="row-txt"><span class="row-t">Потрачено всего</span><span class="row-s">с постоянными</span></span><span class="row-v">${F(c.monthCost)}</span></div>
+   </div>`;
+  document.querySelectorAll('.grp .row').forEach(b=>b.onclick=()=>b.parentElement.classList.toggle('open'));
+  document.querySelectorAll('[data-all]').forEach(b=>b.onclick=e=>{e.stopPropagation();setFilter(b.dataset.all);go('exp');tab('hist')});
+}
+
+/* ---- история ---- */
+function pool(){
+  const fx=liveFixed().map(x=>({id:x.id,cat:x.cat,t:x.t,v:x.v,f:'f',s:x.s,year:x.year}));
+  const vs=items.map(x=>({id:x.id,cat:x.cat,t:x.cat,v:x.v,f:x.f,d:x.d}));
+  return [...fx,...vs].filter(x=>filter==='all'||x.f===filter);
+}
+const NAME={f:'постоянное',r:'рутина',o:'разовое'};
+function eCard(x){
+  const sub=x.f==='f'?(x.s||'каждый месяц'):x.d+' марта';
+  const acts=x.f==='f'
+   ?`<button class="e-edit">Изменить</button><button class="e-skip" data-skip="${x.id}">Пропустить</button><button class="e-del" data-del="${x.id}">Удалить</button>`
+   :`<button class="e-edit">Изменить</button><button class="e-del" data-del="${x.id}">Удалить</button>`;
+  return `<div class="e ${x.f==='f'?'fix':''}" data-id="${x.id}"><button class="e-main"><span class="e-txt"><span class="e-t">${x.t}<span class="tag ${x.f}">${NAME[x.f]}</span></span><span class="e-s">${sub}</span></span><span class="e-v">${F(x.v)}</span></button>
+   <div class="e-act">${acts}</div></div>`;
+}
+function expenses(){
+  const l=pool();
+  document.getElementById('exp-sum').textContent=F(l.reduce((s,x)=>s+x.v,0))+' ₽';
+  let h='';
+  const fx=l.filter(x=>x.f==='f');
+  if(fx.length){h+=`<div class="eday">Постоянные за месяц<b>${F(fx.reduce((s,x)=>s+x.v,0))} ₽</b></div>`+fx.map(eCard).join('');
+    if(fx.some(x=>x.year))h+=`<button class="link" id="to-cal">Календарь годовых<span>когда уйдут целиком</span></button>`}
+  const vs=l.filter(x=>x.f!=='f').sort((a,b)=>b.d-a.d);
+  let day=null;
+  vs.forEach(x=>{if(x.d!==day){day=x.d;const ds=vs.filter(y=>y.d===day).reduce((s,y)=>s+y.v,0);
+      h+=`<div class="eday">${day} марта<b>${F(ds)} ₽</b></div>`}h+=eCard(x)});
+  document.getElementById('elist').innerHTML=h||'<div class="eday">Пусто</div>';
+  document.querySelectorAll('.e-main').forEach(b=>b.onclick=()=>{
+    const p=b.parentElement,was=p.classList.contains('open');
+    document.querySelectorAll('.e').forEach(e=>e.classList.remove('open'));if(!was)p.classList.add('open')});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>del(b.dataset.del));
+  document.querySelectorAll('[data-skip]').forEach(b=>b.onclick=()=>skip(b.dataset.skip));
+  const tc=document.getElementById('to-cal');if(tc)tc.onclick=()=>{calendar();go('cal')};
+}
+
+/* ---- календарь годовых ---- */
+function calendar(){
+  const ys=liveFixed().filter(x=>x.year);
+  let h=`<div class="eday">Ближайшие 12 месяцев<b>${F(ys.reduce((a,x)=>a+x.year,0))} ₽</b></div>`;
+  for(let k=0;k<12;k++){
+    const m=(BASE.month-1+k)%12, yr=2026+Math.floor((BASE.month-1+k)/12);
+    const hit=ys.filter(x=>x.payM===m+1);
+    const t=hit.reduce((a,x)=>a+x.year,0);
+    h+=`<div class="calm ${hit.length?'hit':''}"><span class="calm-txt"><span class="calm-m">${MON[m]} ${yr}</span>
+      <span class="calm-s">${hit.length?hit.map(x=>x.t).join(', ')+' — списание целиком':'ничего крупного'}</span></span>
+      <span class="calm-v ${hit.length?'':'z'}">${hit.length?F(t)+' ₽':'—'}</span></div>`;
+  }
+  h+=`<p class="card-p" style="padding:6px 2px 0">В бюджете эти платежи уже учтены долями по ${F(liveFixed().filter(x=>x.year).reduce((a,x)=>a+x.v,0))} ₽ в месяц. Календарь нужен, чтобы день списания не застал врасплох — приложение показывает долю, а с карты уйдёт вся сумма.</p>`;
+  document.getElementById('callist').innerHTML=h;
+}
+
+/* ---- цели ---- */
+function goals(){
+  document.getElementById('glist').innerHTML=GOALS.map(g=>{
+    const pct=Math.min(100,g.saved/g.target*100), need=(g.target-g.saved)/g.left;
+    return `<div class="goal"><div class="goal-h"><span class="goal-t">${g.t}</span><span class="goal-v">${F(g.saved)} из ${F(g.target)}</span></div>
+     <div class="track"><i style="width:${pct}%"></i></div>
+     <p class="card-p">Осталось <b>${F(g.target-g.saved)} ₽</b>. Чтобы успеть за ${pl(g.left,'месяц','месяца','месяцев')}, нужно по <b>${F(need)} ₽</b> в месяц.</p></div>`;
+  }).join('')+`<button class="link" style="color:var(--blue)">Внести в цель<span>из свободных денег</span></button>`;
+}
+
+/* ---- настройки ---- */
+const SET=[['Цель по накоплению','30 000 ₽ в месяц'],['Стартовая сумма','215 000 ₽'],['Первый месяц учёта','октябрь 2025'],
+ ['Прогноз показывать','с 5-го числа'],['Окно среднего по разовым','6 месяцев'],['Категории','15 активных'],['Экспорт и импорт','файл на устройство']];
+document.getElementById('setlist').innerHTML=SET.map(x=>`<div class="setrow"><span class="row-txt"><span class="row-t">${x[0]}</span><span class="row-s">${x[1]}</span></span>${CH}</div>`).join('');
+function flash(t){document.getElementById('undo-t').textContent=t;expenses();home();
+  const u=document.getElementById('undo');u.classList.add('on');
+  clearTimeout(timer);timer=setTimeout(()=>u.classList.remove('on'),4500)}
+function skip(id){skipped[id]=1;trash={skip:id};flash('Платёж пропущен в марте')}
+function del(id){
+  if(id[0]==='f'){ended[id]=1;trash={end:id};flash('Платёж отключён с марта')}
+  else{const i=items.findIndex(x=>x.id===id);if(i<0)return;trash={item:items[i],pos:i};items.splice(i,1);flash('Трата удалена')}
+}
+document.getElementById('undo-b').onclick=()=>{
+  if(trash){
+    if(trash.skip)delete skipped[trash.skip];
+    else if(trash.end)delete ended[trash.end];
+    else items.splice(trash.pos,0,trash.item);
+    trash=null;expenses();home()}
+  document.getElementById('undo').classList.remove('on')};
+function setFilter(f){filter=f;document.querySelectorAll('.f').forEach(x=>x.setAttribute('aria-pressed',x.dataset.f===f))}
+document.querySelectorAll('.f').forEach(b=>b.onclick=()=>{setFilter(b.dataset.f);expenses()});
+
+/* ---- графики ---- */
+const G='#00D26A',R='#FF2D62';
+const CS=()=>getComputedStyle(document.querySelector('.screen'));
+let NEU,GRID,TXT,BG;
+function palette(){const c=CS();NEU=c.getPropertyValue('--neu').trim();GRID=c.getPropertyValue('--grid').trim();
+  TXT=c.getPropertyValue('--axis').trim();BG=c.getPropertyValue('--chart-bg').trim()}
+const svg=(w,h,i)=>`<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${i}</svg>`;
+function bars(w,h,vals,labels,lab){
+  const m=Math.max(...vals.map(Math.abs)),pad=14,bw=(w-pad*2)/vals.length,zero=h*.60;
+  let o=`<rect width="${w}" height="${h}" fill="${BG}"/><line x1="${pad}" y1="${zero}" x2="${w-pad}" y2="${zero}" stroke="${GRID}"/>`;
+  vals.forEach((v,i)=>{const bh=Math.abs(v)/m*(h*.40),x=pad+i*bw+bw*.22,bwid=bw*.56,y=v>=0?zero-bh:zero;
+    o+=`<rect x="${x}" y="${y}" width="${bwid}" height="${Math.max(bh,2)}" rx="3" fill="${v>=0?G:R}" opacity="${i===vals.length-1?.5:1}"/>`;
+    if(lab)o+=`<text x="${x+bwid/2}" y="${h-4}" fill="${TXT}" font-size="9" font-family="Golos Text,sans-serif" text-anchor="middle">${labels[i]}</text>`});
+  return svg(w,h,o)}
+function line(w,h){
+  const now=[0,3.1,5.4,6,9.2,11.8,12.4,15.1,17.9,19.4,22,23.1,25.8,26.4,27.9,28.4];
+  const prev=[0,2.2,4.1,5.9,7.2,9.4,11,12.1,13.9,15.8,16.9,18.4,20.1,21.2,23,24.1,25.9,27.2,28.8,30.1,31.4,33,34.2,36.1,37.4,38.9,40.2,41.6,43,44.1,45.3];
+  const m=46,pad=12,px=(i,n)=>pad+i/(n-1)*(w-pad*2),py=v=>h-16-v/m*(h-30);
+  let o=`<rect width="${w}" height="${h}" fill="${BG}"/>`;
+  for(let k=1;k<4;k++)o+=`<line x1="${pad}" y1="${16+k*(h-30)/4}" x2="${w-pad}" y2="${16+k*(h-30)/4}" stroke="${GRID}"/>`;
+  o+=`<polyline fill="none" stroke="${NEU}" stroke-width="1.8" stroke-dasharray="3 4" points="${prev.map((v,i)=>px(i,prev.length)+','+py(v)).join(' ')}"/>`;
+  o+=`<polyline fill="none" stroke="${G}" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round" points="${now.map((v,i)=>px(i,prev.length)+','+py(v)).join(' ')}"/>`;
+  o+=`<circle cx="${px(15,prev.length)}" cy="${py(28.4)}" r="4" fill="${G}"/><circle cx="${px(8,prev.length)}" cy="${py(17.9)}" r="3.4" fill="${R}"/>`;
+  return svg(w,h,o)}
+function stack(w,h,lab){
+  const d=[[37,26,4],[37,29,18],[37,24,0],[37,31,9],[37,27,22],[37,28,12]],L=['окт','ноя','дек','янв','фев','мар'];
+  const m=90,pad=14,bw=(w-pad*2)/6,col=[NEU,G,R],bot=lab?16:8;
+  let o=`<rect width="${w}" height="${h}" fill="${BG}"/>`;
+  d.forEach((s,i)=>{let acc=0;s.forEach((v,j)=>{const bh=v/m*(h-bot-14),y=h-bot-acc-bh;
+    o+=`<rect x="${pad+i*bw+bw*.2}" y="${y}" width="${bw*.6}" height="${bh}" fill="${col[j]}" opacity="${j===2?.88:1}"/>`;acc+=bh});
+    if(lab)o+=`<text x="${pad+i*bw+bw*.5}" y="${h-4}" fill="${TXT}" font-size="9" font-family="Golos Text,sans-serif" text-anchor="middle">${L[i]}</text>`});
+  return svg(w,h,o)}
+function oneoffs(w,h,lab){
+  const v=[0,24,3.5,41,0,12],L=['окт','ноя','дек','янв','фев','мар'],avg=13.4,m=44,pad=14,bw=(w-pad*2)/6,bot=lab?16:8;
+  let o=`<rect width="${w}" height="${h}" fill="${BG}"/>`;
+  v.forEach((x,i)=>{const bh=x/m*(h-bot-14);
+    o+=`<rect x="${pad+i*bw+bw*.24}" y="${h-bot-bh}" width="${bw*.52}" height="${Math.max(bh,2)}" rx="3" fill="${x>avg?R:G}"/>`;
+    if(lab)o+=`<text x="${pad+i*bw+bw*.5}" y="${h-4}" fill="${TXT}" font-size="9" font-family="Golos Text,sans-serif" text-anchor="middle">${L[i]}</text>`});
+  const ay=h-bot-avg/m*(h-bot-14);
+  o+=`<line x1="${pad}" y1="${ay}" x2="${w-pad}" y2="${ay}" stroke="${TXT}" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  return svg(w,h,o)}
+function runway(w,h){
+  const v=[3.1,3.4,3.2,3.8,4.1,4.2],m=5,pad=14,bw=(w-pad*2)/6;
+  let o=`<rect width="${w}" height="${h}" fill="${BG}"/>`;
+  v.forEach((x,i)=>{const bh=x/m*(h-40);o+=`<rect x="${pad+i*bw+bw*.24}" y="${h-14-bh}" width="${bw*.52}" height="${bh}" rx="3" fill="${G}" opacity="${.3+i*.14}"/>`});
+  o+=`<text x="${pad}" y="28" fill="${CS().getPropertyValue('--ink').trim()}" font-size="20" font-weight="800" font-family="Golos Text,sans-serif">4,2 месяца</text>`;
+  return svg(w,h,o)}
+const DASH=[
+ {id:'save',t:'Накопление по месяцам',s:'Растёшь или стоишь на месте',n:'+42 600 ₽',lab:'в марте, по данным на сегодня',art:(w,h,l)=>bars(w,h,[41.2,12.8,-6.4,38.9,44.1,42.6],['окт','ноя','дек','янв','фев','мар'],l),leg:[['Плюс',G],['Минус',R]]},
+ {id:'pace',t:'Темп месяца',s:'Рутина по дням против прошлого месяца',n:'1 775 ₽',lab:'в день, февраль шёл по 1 460',art:(w,h)=>line(w,h),leg:[['Март',G],['Февраль',NEU],['Разовые',R]]},
+ {id:'struct',t:'Структура трат',s:'Постоянные, рутина и разовые',n:'77 400 ₽',lab:'стоимость марта на сегодня',art:(w,h,l)=>stack(w,h,l),leg:[['Постоянные',NEU],['Рутина',G],['Разовые',R]]},
+ {id:'oneoff',t:'Разовые и среднее',s:'Месяцы против скользящего среднего',n:'13 400 ₽',lab:'обычный месяц по разовым',art:(w,h,l)=>oneoffs(w,h,l),leg:[['Ниже среднего',G],['Выше',R]]},
+ {id:'runway',t:'Запас прочности',s:'На сколько хватит накопленного',n:'4,2 месяца',lab:'при типичном месяце в 89 000 ₽',art:(w,h)=>runway(w,h),leg:[['Запас',G]]}];
+function dash(){
+  palette();
+  document.getElementById('dlist').innerHTML=DASH.map(d=>`<button class="dcard" data-open="${d.id}"><div class="dcard-art">${d.art(330,158,false)}</div><div class="dcard-cap"><div class="dcard-t">${d.t}</div><div class="dcard-s">${d.s}</div></div></button>`).join('');
+  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>detail(b.dataset.open))}
+function detail(id){
+  const d=DASH.find(x=>x.id===id);
+  document.getElementById('detail-title').textContent=d.t;
+  document.getElementById('detail-body').innerHTML=`<div><div class="detail-num">${d.n}</div><div class="detail-lab">${d.lab}</div></div>
+   <div class="detail-art">${d.art(320,210,true)}</div>
+   <div class="legend">${d.leg.map(l=>`<span><i style="background:${l[1]}"></i>${l[0]}</span>`).join('')}</div>
+   <p class="card-p">${d.s}. Период переключается сверху: месяц, квартал, год.</p>`;
+  go('detail')}
+const ADD=[{t:'Разовая трата',s:'То, что не повторяется изо дня в день',g:0,q:1},{t:'Рутинная трата',s:'Продукты, транспорт, кофе',g:0,q:1},
+ {t:'Постоянный платёж',s:'Аренда, связь, подписки',g:1},{t:'Годовой платёж',s:'Страховка, налог — разложится по месяцам',g:1},{t:'Взнос в цель',s:'Отложить на конкретное',g:1}];
+document.getElementById('addlist').innerHTML=ADD.map((a,i)=>`<button class="add ${a.g?'ghost':''}" data-q="${a.q?i:''}"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="add-txt"><span class="add-t">${a.t}</span><span class="add-s">${a.s}</span></span></button>`).join('');
+
+const drawer=document.getElementById('drawer'),scrim=document.getElementById('scrim'),qsheet=document.getElementById('qsheet');
+function open(v){drawer.classList.toggle('on',v);scrim.classList.toggle('on',v)}
+function qopen(v,t){qsheet.classList.toggle('on',v);scrim.classList.toggle('on',v);if(t)document.getElementById('qtitle').textContent=t}
+function tab(n){
+  document.getElementById('t-add').classList.toggle('on',n==='add');
+  document.getElementById('t-hist').classList.toggle('on',n==='hist');
+  document.getElementById('tb-add').setAttribute('aria-pressed',n==='add');
+  document.getElementById('tb-hist').setAttribute('aria-pressed',n==='hist');
+  if(n==='hist')expenses();else document.getElementById('exp-sum').textContent='';
+}
+function go(n){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-'+n).classList.add('on');
+  document.querySelectorAll('.nav').forEach(b=>b.setAttribute('aria-current',b.dataset.go===n?'true':'false'));
+  drawer.classList.remove('on');qsheet.classList.remove('on');scrim.classList.remove('on');
+}
+document.getElementById('tb-add').onclick=()=>tab('add');
+document.getElementById('tb-hist').onclick=()=>tab('hist');
+document.querySelectorAll('[data-burger]').forEach(b=>b.onclick=()=>open(true));
+document.querySelectorAll('[data-home]').forEach(b=>b.onclick=()=>go('home'));
+scrim.onclick=()=>{drawer.classList.remove('on');qsheet.classList.remove('on');scrim.classList.remove('on')};
+document.querySelectorAll('.nav').forEach(b=>b.onclick=()=>{if(b.dataset.go==='exp')tab('add');go(b.dataset.go)});
+document.getElementById('back').onclick=()=>go('dash');
+document.getElementById('cal-back').onclick=()=>go('exp');
+const SUN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>';
+const MOON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>';
+const scr=document.querySelector('.screen'),thBtn=document.getElementById('theme');
+function theme(){const d=scr.classList.contains('dark');thBtn.innerHTML=d?SUN:MOON;palette();dash();expenses();home()}
+thBtn.onclick=()=>{scr.classList.toggle('dark');theme()};
+document.getElementById('cta').onclick=()=>{tab('add');go('exp')};
+document.getElementById('qsave').onclick=()=>go('home');
+document.querySelectorAll('[data-q]').forEach(b=>{if(b.dataset.q!=='')b.onclick=()=>qopen(true,ADD[+b.dataset.q].t)});
+const bOk=document.getElementById('sc-ok'),bBad=document.getElementById('sc-bad');
+function scen(g){goal=g;bOk.setAttribute('aria-pressed',g===15000);bBad.setAttribute('aria-pressed',g===30000);home()}
+bOk.onclick=()=>scen(15000);bBad.onclick=()=>scen(30000);
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('sel'));c.classList.add('sel')});
+document.querySelectorAll('.flowtog button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.flowtog button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true')});
+palette();home();dash();goals();theme();
+</script>
+</body>
+</html>
