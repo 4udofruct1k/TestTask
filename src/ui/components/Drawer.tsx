@@ -4,12 +4,12 @@
 
 import type { JSX } from 'react';
 import { useUi, type Screen } from '../../store/ui';
-import { IconCoin, IconDash, IconHome, IconMoon, IconSettings, IconSun, IconTarget } from '../icons';
+import { IconCoin, IconDash, IconHome, IconMoon, IconSettings, IconSun, IconVault } from '../icons';
 
 const ITEMS: { screen: Screen; label: string; icon: JSX.Element }[] = [
   { screen: 'home', label: 'Домой', icon: <IconHome /> },
   { screen: 'expenses', label: 'Расходы', icon: <IconCoin /> },
-  { screen: 'goals', label: 'Цели', icon: <IconTarget /> },
+  { screen: 'savings', label: 'Накопления', icon: <IconVault /> },
   { screen: 'dashboards', label: 'Дашборды', icon: <IconDash /> },
 ];
 

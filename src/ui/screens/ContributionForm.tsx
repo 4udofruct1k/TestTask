@@ -41,7 +41,7 @@ export function ContributionForm({ open, onClose, goalId }: Props): JSX.Element 
   if (active.length === 0) {
     return (
       <Sheet open={open} title="Взнос в цель" onClose={onClose}>
-        <p className="hint">Сначала заведите цель на экране «Цели».</p>
+        <p className="hint">Сначала заведите цель на экране «Накопления».</p>
       </Sheet>
     );
   }

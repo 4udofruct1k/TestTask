@@ -206,6 +206,12 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .sub-n { font-weight: 600; }
 .sub-d { color: var(--muted); font-size: 11px; margin-left: 6px; font-weight: 500; }
 .sub-v { margin-left: auto; font-weight: 700; flex: 0 0 auto; }
+.sub-i-btn {
+  width: 100%; border: 0; background: transparent; color: inherit; font: inherit;
+  text-align: left; cursor: pointer;
+}
+.sub-i-btn .sub-v { color: var(--blue); }
+
 .sub-more {
   width: 100%; border: 0; background: transparent; color: var(--blue); font: inherit;
   font-size: 12px; font-weight: 700; padding: 9px 0 3px; cursor: pointer; text-align: left;

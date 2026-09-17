@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import type { MonthKey } from '../domain/types';
 import { applyPalette, DEFAULT_PALETTE, loadPalette, savePalette, type Palette, type PaletteRole } from '../ui/palette';
 
-export type Screen = 'home' | 'expenses' | 'goals' | 'dashboards' | 'dashboard' | 'calendar' | 'settings';
+export type Screen = 'home' | 'expenses' | 'savings' | 'dashboards' | 'dashboard' | 'calendar' | 'settings';
 export type ExpensesTab = 'add' | 'history';
 export type HistoryFilter = 'all' | 'fixed' | 'routine' | 'oneOff';
 export type Theme = 'light' | 'dark';

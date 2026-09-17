@@ -1,5 +1,13 @@
 /**
- * Цели. Раздел 3.7.
+ * Накопления. Раздел 3.7.
+ *
+ * Место, где видно скопившиеся деньги. Модель и раньше переносила остаток
+ * месяца в накопления — `net` каждого месяца и есть то, что от него
+ * осталось, — но кучу было негде посмотреть: стартовая сумма участвовала
+ * только в запасе прочности, а взносы в цели жили отдельным экраном.
+ *
+ * Здесь же правятся цель по накоплению и стартовая сумма: обе про эту кучу,
+ * и искать их в настройках незачем.
  *
  * Просроченная цель не удаляется и не прячется: показывается
  * с непройденной датой и предложением сдвинуть срок.
@@ -9,47 +17,156 @@ import { useState, type JSX } from 'react';
 import { addMonths, monthKeyOf } from '../../domain/dates';
 import { formatAmount, formatRub, parseAmount } from '../../domain/money';
 import type { SavingsGoal } from '../../domain/types';
-import { contributionsOfMonth, goalProgress, isOverdue, monthSummary } from '../../engine';
+import {
+  contributionsOfMonth,
+  goalProgress,
+  isOverdue,
+  monthSummary,
+  savingsLedger,
+  targetAt,
+} from '../../engine';
 import { useBudget } from '../../store/budget';
 import { useUi } from '../../store/ui';
 import { TopBar } from '../components/TopBar';
 import { Sheet } from '../components/Sheet';
+import { AmountSheet } from '../components/AmountSheet';
+import { AmountChoiceSheet } from '../components/AmountChoiceSheet';
+import { ExpandableRow } from '../components/ExpandableRow';
 import { BarsChart, DETAIL_H } from '../charts';
-import { months as monthsWord, monthGenitive, monthShort, monthTitleLower } from '../format';
+import { months as monthsWord, monthGenitive, monthShort, monthTitle, monthTitleLower } from '../format';
 import { ContributionForm } from './ContributionForm';
 
-export function GoalsScreen(): JSX.Element {
+type Dialog = 'target' | 'balance' | null;
+
+export function SavingsScreen(): JSX.Element {
   const doc = useBudget((s) => s.doc)!;
   const today = useBudget((s) => s.today);
   const addGoal = useBudget((s) => s.addGoal);
+  const setMonthlyTarget = useBudget((s) => s.setMonthlyTarget);
+  const correctMonthlyTarget = useBudget((s) => s.correctMonthlyTarget);
+  const updateSettings = useBudget((s) => s.updateSettings);
   const { go } = useUi();
 
   const [creating, setCreating] = useState(false);
   const [contributing, setContributing] = useState<string | null>(null);
   const [opened, setOpened] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
 
   const [title, setTitle] = useState('');
   const [raw, setRaw] = useState('');
   const [deadline, setDeadline] = useState('');
 
   const month = monthKeyOf(today);
+  const ledger = savingsLedger(doc, today);
+  const target = targetAt(doc, month);
+  const activeTargetMonth =
+    [...doc.settings.targets].reverse().find((t) => t.fromMonth <= month)?.fromMonth ?? month;
+
   const active = doc.goals.filter((goal) => !goal.archived);
   const contributed = contributionsOfMonth(doc.goals, month);
   const net = monthSummary(doc, month, today).net;
 
   const amount = parseAmount(raw);
-  const goal = active.find((g) => g.id === opened) ?? null;
+  const goalToOpen = active.find((g) => g.id === opened) ?? null;
 
   return (
     <section className="pane">
-      <TopBar title="Цели" onBack={() => go('home')} />
+      <TopBar title="Накопления" onBack={() => go('home')} />
       <div className="scroll">
-        <div className="elist">
+        <div className="body">
+          {/* Сколько скопилось всего */}
+          <div className="card">
+            <div className="card-h">
+              <div className="card-t">Накоплено по данным учёта</div>
+            </div>
+            <div className="detail-num">{formatRub(ledger.total)}</div>
+            <div className="detail-lab">
+              {ledger.earmarked > 0
+                ? `помечено в цели ${formatRub(ledger.earmarked)}, свободно ${formatRub(ledger.free)}`
+                : 'ничего не помечено в цели'}
+            </div>
+
+            {/* Строка сразу и объясняет, и правится: вторым пунктом ниже она была бы дублем */}
+            <button className="sub-i sub-i-btn" style={{ marginTop: 12 }} onClick={() => setDialog('balance')}>
+              <span className="sub-n">
+                Было к началу учёта
+                <span className="sub-d">изменить</span>
+              </span>
+              <span className="sub-v">{formatRub(ledger.startingBalance)}</span>
+            </button>
+            <div className="sub-i">
+              <span className="sub-n">
+                Отложено за закрытые месяцы
+                <span className="sub-d">{monthsWord(ledger.months.filter((m) => !m.current).length)}</span>
+              </span>
+              <span className={`sub-v${ledger.closed < 0 ? ' negative' : ''}`}>
+                {formatRub(ledger.closed)}
+              </span>
+            </div>
+            <div className="sub-i">
+              <span className="sub-n">
+                В этом месяце пока
+                <span className="sub-d">до конца месяца изменится</span>
+              </span>
+              <span className={`sub-v${ledger.current < 0 ? ' negative' : ''}`}>
+                {formatRub(ledger.current)}
+              </span>
+            </div>
+
+            <p className="hint">
+              Это не остаток на счетах: приложение не знает про ваши счета и не делает вид, что знает.
+              Здесь сложено то, что осталось от каждого месяца.
+            </p>
+          </div>
+
+          {/* Настройки самой кучи */}
+          <div className="rows">
+            <button className="setrow" onClick={() => setDialog('target')}>
+              <span className="row-txt">
+                <span className="row-t">Цель по накоплению</span>
+                <span className="row-s">
+                  {target === null ? 'не задана' : `${formatRub(target)} в месяц`}
+                </span>
+              </span>
+              <span className="row-v">{target === null ? '' : formatAmount(target)}</span>
+            </button>
+          </div>
+
+          {/* Помесячно: что каждый месяц добавил в кучу */}
+          {ledger.months.length > 0 && (
+            <div className="rows">
+              <ExpandableRow
+                title="По месяцам"
+                subtitle={`${monthsWord(ledger.months.length)} учёта`}
+                value={formatAmount(ledger.total - ledger.startingBalance)}
+              >
+                {ledger.months.map((entry) => (
+                  <div className="sub-i" key={entry.month}>
+                    <span className="sub-n">
+                      {monthTitle(entry.month)}
+                      {entry.current && <span className="sub-d">идёт</span>}
+                    </span>
+                    <span className={`sub-v${entry.net < 0 ? ' negative' : ''}`}>
+                      {entry.net > 0 ? '+' : ''}
+                      {formatAmount(entry.net)}
+                    </span>
+                  </div>
+                ))}
+              </ExpandableRow>
+            </div>
+          )}
+
+          {/* Цели-копилки */}
+          <div className="card-h" style={{ marginTop: 6 }}>
+            <div className="card-t">Цели</div>
+            {ledger.earmarked > 0 && <div className="card-v">{formatRub(ledger.earmarked)}</div>}
+          </div>
+
           {active.length === 0 && (
-            <div className="empty">
+            <div className="empty" style={{ padding: '14px 4px' }}>
               <b>Целей пока нет</b>
-              Цель — это конкретная сумма на конкретное: новый компьютер, поездка.
-              Взнос в цель не считается тратой.
+              Цель — это конкретная сумма на конкретное: новый компьютер, поездка. Взнос помечает
+              деньги в накоплениях, а не тратит их.
             </div>
           )}
 
@@ -111,7 +228,7 @@ export function GoalsScreen(): JSX.Element {
 
           {contributed > net && contributed > 0 && (
             <p className="hint" style={{ padding: '0 2px' }}>
-              Взносов за {monthTitleLower(month)} — {formatRub(contributed)}, а накопление месяца{' '}
+              Взносов за {monthTitleLower(month)} — {formatRub(contributed)}, а осталось от месяца{' '}
               {formatRub(net)}. Это не ошибка: взнос покрыт накоплениями прошлых месяцев.
             </p>
           )}
@@ -151,8 +268,53 @@ export function GoalsScreen(): JSX.Element {
         </button>
       </Sheet>
 
-      <GoalDetail goal={goal} onClose={() => setOpened(null)} onContribute={() => { setOpened(null); setContributing(goal?.id ?? null); }} />
-      <ContributionForm open={contributing !== null} goalId={contributing ?? undefined} onClose={() => setContributing(null)} />
+      {/* Цель по накоплению правится тем же диалогом, что и постоянная позиция (3.4) */}
+      {target !== null ? (
+        <AmountChoiceSheet
+          open={dialog === 'target'}
+          title="Цель по накоплению"
+          current={target}
+          effectiveMonth={month}
+          currentPeriodMonth={activeTargetMonth}
+          onForward={(value) => setMonthlyTarget(month, value)}
+          onCorrect={(value) => correctMonthlyTarget(activeTargetMonth, value)}
+          onClose={() => setDialog(null)}
+        />
+      ) : (
+        <AmountSheet
+          open={dialog === 'target'}
+          title="Цель по накоплению"
+          label="Сколько откладывать каждый месяц"
+          initial={0}
+          onSave={(value) => setMonthlyTarget(month, value)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+
+      <AmountSheet
+        open={dialog === 'balance'}
+        title="Было к началу учёта"
+        label="Сколько уже было накоплено"
+        hint="Эта сумма лежит в основании кучи. Приложение не знает про ваши счета — цифру задаёте вы."
+        initial={ledger.startingBalance}
+        allowZero
+        onSave={(value) => updateSettings({ startingBalance: value })}
+        onClose={() => setDialog(null)}
+      />
+
+      <GoalDetail
+        goal={goalToOpen}
+        onClose={() => setOpened(null)}
+        onContribute={() => {
+          setOpened(null);
+          setContributing(goalToOpen?.id ?? null);
+        }}
+      />
+      <ContributionForm
+        open={contributing !== null}
+        goalId={contributing ?? undefined}
+        onClose={() => setContributing(null)}
+      />
     </section>
   );
 }

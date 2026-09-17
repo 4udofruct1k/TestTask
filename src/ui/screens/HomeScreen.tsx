@@ -134,7 +134,7 @@ export function HomeScreen(): JSX.Element {
               </div>
               <p className="card-p">
                 Задайте, сколько хочется откладывать каждый месяц, — появится потолок трат и дневной остаток.{' '}
-                <button className="sub-more" onClick={() => go('settings')}>
+                <button className="sub-more" onClick={() => go('savings')}>
                   Задать цель
                 </button>
               </p>

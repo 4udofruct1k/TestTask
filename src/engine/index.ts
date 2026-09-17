@@ -18,4 +18,5 @@ export * from './goals';
 export * from './calendar';
 export * from './oneoff';
 export * from './runway';
+export * from './savings';
 export * from './period';

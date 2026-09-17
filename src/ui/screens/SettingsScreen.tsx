@@ -3,14 +3,10 @@
  */
 
 import { useEffect, useState, type JSX } from 'react';
-import { monthKeyOf } from '../../domain/dates';
-import { formatAmountExact, formatRub, parseAmount } from '../../domain/money';
-import { targetAt } from '../../engine';
 import { currentRepository, useBudget } from '../../store/budget';
 import { useUi } from '../../store/ui';
 import { TopBar } from '../components/TopBar';
 import { Sheet } from '../components/Sheet';
-import { AmountChoiceSheet } from '../components/AmountChoiceSheet';
 import { IconChevron } from '../icons';
 import { PRESETS, ROLES } from '../palette';
 import { ColorsSheet } from './ColorsSheet';
@@ -18,13 +14,10 @@ import { activeCategories, days as daysWord, months as monthsWord, monthTitleLow
 import type { BackupInfo } from '../../storage';
 import { exportDocument } from '../../platform';
 
-type Dialog = 'target' | 'balance' | 'firstMonth' | 'forecastDay' | 'window' | 'categories' | 'colors' | 'transfer' | 'backups' | 'onboarding' | null;
+type Dialog = 'firstMonth' | 'forecastDay' | 'window' | 'categories' | 'colors' | 'transfer' | 'backups' | 'onboarding' | null;
 
 export function SettingsScreen(): JSX.Element {
   const doc = useBudget((s) => s.doc)!;
-  const today = useBudget((s) => s.today);
-  const setMonthlyTarget = useBudget((s) => s.setMonthlyTarget);
-  const correctMonthlyTarget = useBudget((s) => s.correctMonthlyTarget);
   const updateSettings = useBudget((s) => s.updateSettings);
   const replaceDocument = useBudget((s) => s.replaceDocument);
   const { go, setOnboarding, palette } = useUi();
@@ -33,13 +26,8 @@ export function SettingsScreen(): JSX.Element {
     'свои';
 
   const [dialog, setDialog] = useState<Dialog>(null);
-  const month = monthKeyOf(today);
-  const target = targetAt(doc, month);
-  const activeTargetMonth = [...doc.settings.targets].reverse().find((t) => t.fromMonth <= month)?.fromMonth ?? month;
 
   const rows: { title: string; value: string; dialog: Dialog }[] = [
-    { title: 'Цель по накоплению', value: target === null ? 'не задана' : `${formatRub(target)} в месяц`, dialog: 'target' },
-    { title: 'Стартовая сумма', value: formatRub(doc.settings.startingBalance), dialog: 'balance' },
     { title: 'Первый месяц учёта', value: monthTitleLower(doc.settings.firstMonth), dialog: 'firstMonth' },
     { title: 'Прогноз показывать', value: `с ${doc.settings.forecastMinDay}-го числа`, dialog: 'forecastDay' },
     { title: 'Окно среднего по разовым', value: monthsWord(doc.settings.oneOffWindow), dialog: 'window' },
@@ -80,40 +68,6 @@ export function SettingsScreen(): JSX.Element {
         </div>
       </div>
 
-      {/* Цель по накоплению правится тем же диалогом, что и постоянная позиция (3.4) */}
-      {target !== null ? (
-        <AmountChoiceSheet
-          open={dialog === 'target'}
-          title="Цель по накоплению"
-          current={target}
-          effectiveMonth={month}
-          currentPeriodMonth={activeTargetMonth}
-          onForward={(amount) => setMonthlyTarget(month, amount)}
-          onCorrect={(amount) => correctMonthlyTarget(activeTargetMonth, amount)}
-          onClose={() => setDialog(null)}
-        />
-      ) : (
-        <AmountSheet
-          open={dialog === 'target'}
-          title="Цель по накоплению"
-          label="Сколько откладывать каждый месяц"
-          initial={0}
-          onSave={(amount) => setMonthlyTarget(month, amount)}
-          onClose={() => setDialog(null)}
-        />
-      )}
-
-      <AmountSheet
-        open={dialog === 'balance'}
-        title="Стартовая сумма"
-        label="Сколько было накоплено к первому месяцу учёта"
-        hint="Приложение не знает про ваши счета. Эта цифра нужна только запасу прочности и подписывается как «по данным учёта»."
-        initial={doc.settings.startingBalance}
-        allowZero
-        onSave={(amount) => updateSettings({ startingBalance: amount })}
-        onClose={() => setDialog(null)}
-      />
-
       <MonthSheet
         open={dialog === 'firstMonth'}
         title="Первый месяц учёта"
@@ -152,47 +106,6 @@ export function SettingsScreen(): JSX.Element {
       <TransferSheet open={dialog === 'transfer'} onClose={() => setDialog(null)} onImported={replaceDocument} />
       <BackupsSheet open={dialog === 'backups'} onClose={() => setDialog(null)} onRestored={replaceDocument} />
     </section>
-  );
-}
-
-function AmountSheet({
-  open,
-  title,
-  label,
-  hint,
-  initial,
-  allowZero,
-  onSave,
-  onClose,
-}: {
-  open: boolean;
-  title: string;
-  label: string;
-  hint?: string;
-  initial: number;
-  allowZero?: boolean;
-  onSave(amount: number): void;
-  onClose(): void;
-}): JSX.Element {
-  const [raw, setRaw] = useState('');
-  useEffect(() => {
-    if (open) setRaw(initial === 0 ? '' : formatAmountExact(initial).replace(/ /g, ''));
-  }, [open, initial]);
-
-  const amount = parseAmount(raw);
-  const valid = amount !== null && (allowZero ? amount >= 0 : amount > 0);
-
-  return (
-    <Sheet open={open} title={title} onClose={onClose}>
-      <div className="field">
-        <label htmlFor="samount">{label}</label>
-        <input id="samount" inputMode="decimal" value={raw} placeholder="0" onChange={(e) => setRaw(e.target.value)} />
-      </div>
-      {hint && <p className="hint">{hint}</p>}
-      <button className="save" disabled={!valid} onClick={() => { if (amount !== null) { onSave(amount); onClose(); } }}>
-        Сохранить
-      </button>
-    </Sheet>
   );
 }
 

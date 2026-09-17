@@ -13,7 +13,7 @@ import { CalendarScreen } from './screens/CalendarScreen';
 import { DashboardDetail } from './screens/DashboardDetail';
 import { DashboardsScreen } from './screens/DashboardsScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
-import { GoalsScreen } from './screens/GoalsScreen';
+import { SavingsScreen } from './screens/SavingsScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -92,7 +92,7 @@ export function App({ repository }: { repository: BudgetRepository }): JSX.Eleme
 
       {screen === 'home' && <HomeScreen />}
       {screen === 'expenses' && <ExpensesScreen />}
-      {screen === 'goals' && <GoalsScreen />}
+      {screen === 'savings' && <SavingsScreen />}
       {screen === 'dashboards' && <DashboardsScreen />}
       {screen === 'dashboard' && <DashboardDetail />}
       {screen === 'calendar' && <CalendarScreen />}
