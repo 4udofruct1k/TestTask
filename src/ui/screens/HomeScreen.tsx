@@ -69,16 +69,20 @@ export function HomeScreen(): JSX.Element {
             onClick={() => setIncomeOpen(true)}
             aria-label="Изменить доход месяца"
           >
-            <div className="hero-label">Осталось</div>
-            <div className="hero-num">{formatRub(gauge.left)}</div>
-            <div className="hero-gauge">
-              <i style={{ width: `${gauge.fill * 100}%` }} />
-            </div>
-            <div className="hero-foot">
-              <span>Весь бюджет {formatAmount(gauge.total)}</span>
-              {status ? <span>Цель {formatAmount(status.target)}</span> : <span>Цель не задана</span>}
-              {/* Удержание показывается, только когда оно включено */}
-              {block.taxWithheld > 0 && <span>Удержано {formatAmount(block.taxWithheld)}</span>}
+            {/* Залитая часть — то, что осталось. Подрезается справа, как заряд */}
+            <div className="hero-fill" style={{ clipPath: `inset(0 ${100 - gauge.fill * 100}% 0 0)` }} />
+            {gauge.targetMark !== null && (
+              <span className="hero-target" style={{ left: `${gauge.targetMark * 100}%` }} aria-hidden="true" />
+            )}
+            <div className="hero-body">
+              <div className="hero-label">Осталось</div>
+              <div className="hero-num">{formatRub(gauge.left)}</div>
+              <div className="hero-foot">
+                <span>Весь бюджет {formatAmount(gauge.total)}</span>
+                {status ? <span>Цель {formatAmount(status.target)}</span> : <span>Цель не задана</span>}
+                {/* Удержание показывается, только когда оно включено */}
+                {block.taxWithheld > 0 && <span>Удержано {formatAmount(block.taxWithheld)}</span>}
+              </div>
             </div>
           </button>
 

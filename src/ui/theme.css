@@ -115,29 +115,49 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 
 /* ------------------------------------------------------------ главная */
 
+/* Блок бюджета — сам по себе индикатор заряда: залитая часть это то,
+   что осталось, тёмная — потраченное. Текст читается белым на обеих,
+   поэтому разряженная часть тёмная, а не бледная. */
 .hero {
+  position: relative; overflow: hidden;
   border-radius: var(--r-hero); padding: 20px 20px 18px;
-  background: linear-gradient(152deg, var(--green-a) 0%, var(--green-b) 100%); color: #fff;
+  background: var(--hero-empty); color: #fff;
   /* Блок кликабельный: за ним правка дохода */
   display: block; width: 100%; border: 0; text-align: left; font: inherit; cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
 }
 .hero:active { filter: brightness(.95); }
-/* Шкала подошла к цели вплотную */
-.hero--NEAR { background: linear-gradient(152deg, var(--warn-a) 0%, var(--warn-b) 100%); }
-/* Осталось меньше цели */
-.hero--SHORT { background: linear-gradient(152deg, var(--short-a) 0%, var(--short-b) 100%); }
 
-/* Индикатор: заливка уходит по мере того, как бюджет тратится.
-   Белым, а не цветом: цвет состояния несёт сам блок, и белое читается
-   на всех трёх градиентах одинаково. */
-.hero-gauge {
-  height: 8px; border-radius: 99px; margin-top: 14px;
-  background: rgba(255, 255, 255, .26); overflow: hidden;
+.hero--SAFE { --hero-empty: #0A3822; --hero-a: var(--green-a); --hero-b: var(--green-b); }
+/* Осталось подошло к цели вплотную */
+.hero--NEAR { --hero-empty: #3E2609; --hero-a: var(--warn-a); --hero-b: var(--warn-b); }
+/* Осталось меньше цели */
+.hero--SHORT { --hero-empty: #3E120F; --hero-a: var(--short-a); --hero-b: var(--short-b); }
+
+/* Градиент лежит на всю ширину и только подрезается справа: иначе при
+   убывании он сжимался бы вместе с заливкой и менял цвет на месте.
+   Глубокий тон слева, где стоит текст: белые подписи на нём читаются,
+   а на светлом конце расплывались бы (3.9). */
+.hero-fill {
+  position: absolute; inset: 0;
+  background: linear-gradient(152deg, var(--hero-b) 0%, var(--hero-a) 100%);
+  transition: clip-path .35s ease;
 }
-.hero-gauge i {
-  display: block; height: 100%; border-radius: 99px; background: #fff;
-  transition: width .3s ease;
+
+/* Риска цели: заливка выше неё — цель ещё закрывается, ниже — уже нет */
+.hero-target {
+  position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px;
+  /* По высоте цифры риска приглушена, чтобы не резать число пополам */
+  background: rgba(255, 255, 255, .20);
 }
+.hero-target::before,
+.hero-target::after {
+  content: ''; position: absolute; left: 0; width: 2px; height: 10px; background: #fff;
+}
+.hero-target::before { top: 0; }
+.hero-target::after { bottom: 0; }
+
+.hero-body { position: relative; }
 .hero-label { font-size: 12.5px; font-weight: 600; opacity: .86; margin-bottom: 5px; }
 .hero-num { font-size: 40px; font-weight: 900; letter-spacing: -1.6px; line-height: 1; }
 .hero-foot { display: flex; gap: 16px; margin-top: 13px; font-size: 12px; font-weight: 600; opacity: .88; flex-wrap: wrap; }

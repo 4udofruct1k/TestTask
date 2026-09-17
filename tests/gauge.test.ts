@@ -122,3 +122,33 @@ describe('граничные случаи', () => {
     expect(gauge.left).toBe(R(39000));
   });
 });
+
+describe('риска цели на шкале', () => {
+  it('стоит там, где цель относится ко всему доходу', () => {
+    const gauge = budgetGauge(baseDoc(R(30000)), '2026-03', TODAY);
+    expect(gauge.targetMark).toBeCloseTo(30000 / 120000, 9);
+  });
+
+  it('без цели риски нет', () => {
+    expect(budgetGauge(baseDoc(), '2026-03', TODAY).targetMark).toBeNull();
+  });
+
+  it('цель больше дохода — риска упирается в край', () => {
+    expect(budgetGauge(baseDoc(R(200000)), '2026-03', TODAY).targetMark).toBe(1);
+  });
+
+  it('без дохода риски нет: шкалы тоже нет', () => {
+    const doc = emptyDoc();
+    doc.settings.firstMonth = '2026-01';
+    doc.settings.targets = [{ fromMonth: '2026-01', amount: R(30000) }];
+    expect(budgetGauge(doc, '2026-03', TODAY).targetMark).toBeNull();
+  });
+
+  it('заполнение выше риски ровно тогда, когда шкала не красная', () => {
+    for (const target of [R(10000), R(30000), R(50000), R(54600), R(70000)]) {
+      const gauge = budgetGauge(baseDoc(target), '2026-03', TODAY);
+      const above = gauge.fill >= gauge.targetMark!;
+      expect(above).toBe(gauge.state !== 'SHORT');
+    }
+  });
+});

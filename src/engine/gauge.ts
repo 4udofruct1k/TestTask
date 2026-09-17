@@ -33,8 +33,13 @@ export interface BudgetGauge {
   /** total − spent. Совпадает с net месяца */
   left: Money;
   target: Money | null;
-  /** Доля незакрашенного, 0..1 */
+  /** Доля заполнения, 0..1 */
   fill: number;
+  /**
+   * Где на шкале стоит цель, 0..1. Заполнение выше риски — цель ещё
+   * закрывается, ниже — уже нет. null, если цель не задана.
+   */
+  targetMark: number | null;
   state: GaugeState;
 }
 
@@ -53,6 +58,8 @@ export function budgetGauge(doc: BudgetDocument, month: MonthKey, today: DateStr
     target,
     // Потратить больше дохода можно, но шкала ниже нуля не опускается
     fill: total > 0 ? Math.min(1, Math.max(0, left / total)) : 0,
+    // Цель больше всего дохода недостижима — риска упирается в край
+    targetMark: target !== null && total > 0 ? Math.min(1, target / total) : null,
     state: resolveState(left, target),
   };
 }
