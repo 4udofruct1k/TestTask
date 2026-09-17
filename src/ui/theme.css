@@ -12,6 +12,11 @@
   --alarm: #D8453C;
   --acid-green: #00D26A;
   --acid-red: #FF2D62;
+  /* Шкала месяца: подходим к цели и не дотягиваем до неё (3.2) */
+  --warn-a: #F2A23C;
+  --warn-b: #C2701A;
+  --short-a: #E2554A;
+  --short-b: #9E2A22;
 
   --paper: #F1F4F1;
   --card: #FFFFFF;
@@ -117,6 +122,22 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   display: block; width: 100%; border: 0; text-align: left; font: inherit; cursor: pointer;
 }
 .hero:active { filter: brightness(.95); }
+/* Шкала подошла к цели вплотную */
+.hero--NEAR { background: linear-gradient(152deg, var(--warn-a) 0%, var(--warn-b) 100%); }
+/* Осталось меньше цели */
+.hero--SHORT { background: linear-gradient(152deg, var(--short-a) 0%, var(--short-b) 100%); }
+
+/* Индикатор: заливка уходит по мере того, как бюджет тратится.
+   Белым, а не цветом: цвет состояния несёт сам блок, и белое читается
+   на всех трёх градиентах одинаково. */
+.hero-gauge {
+  height: 8px; border-radius: 99px; margin-top: 14px;
+  background: rgba(255, 255, 255, .26); overflow: hidden;
+}
+.hero-gauge i {
+  display: block; height: 100%; border-radius: 99px; background: #fff;
+  transition: width .3s ease;
+}
 .hero-label { font-size: 12.5px; font-weight: 600; opacity: .86; margin-bottom: 5px; }
 .hero-num { font-size: 40px; font-weight: 900; letter-spacing: -1.6px; line-height: 1; }
 .hero-foot { display: flex; gap: 16px; margin-top: 13px; font-size: 12px; font-weight: 600; opacity: .88; flex-wrap: wrap; }

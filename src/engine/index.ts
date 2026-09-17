@@ -13,6 +13,7 @@ export * from './summary';
 export * from './dynamics';
 export * from './forecast';
 export * from './target';
+export * from './gauge';
 export * from './goals';
 export * from './calendar';
 export * from './oneoff';

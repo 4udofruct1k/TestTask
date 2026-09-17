@@ -8,6 +8,7 @@ import { useState, type JSX } from 'react';
 import { addMonths, compareMonth, daysInMonth, dayOfMonth, monthKeyOf } from '../../domain/dates';
 import { formatAmount, formatRub } from '../../domain/money';
 import {
+  budgetGauge,
   fixedBlock,
   hasEnoughHistory,
   monthForecast,
@@ -37,12 +38,14 @@ export function HomeScreen(): JSX.Element {
 
   const summary = monthSummary(doc, month, today);
   const block = fixedBlock(doc, month);
+  const gauge = budgetGauge(doc, month, today);
   const forecast = monthForecast(doc, month, today);
   const status = targetStatus(doc, month, today);
   const fixed = resolveFixed(doc, month);
 
-  const spent = summary.routineToDate + summary.oneOffToDate;
-  // Правило красного: темп пробивает потолок до цели. Больше ничто на экране цвет не меняет
+  // Правило красного: темп пробивает потолок до цели. Цвет на экране меняют
+  // только это число и шкала бюджета, и говорят они о разном: здесь темп,
+  // там остаток от дохода
   const hot = Boolean(status && forecast?.visible && forecast.forecast > status.budget);
 
   const canGoBack = compareMonth(addMonths(month, -1), doc.settings.firstMonth) >= 0;
@@ -59,12 +62,20 @@ export function HomeScreen(): JSX.Element {
       <TopBar title={monthTitle(month)} sub={month === currentMonth ? dayTitle(today) : undefined} />
       <div className="scroll" {...swipe}>
         <div className="body">
-          {/* 1. Бюджет месяца. Тап открывает доход: сумму правят здесь же */}
-          <button className="hero" onClick={() => setIncomeOpen(true)} aria-label="Изменить доход месяца">
-            <div className="hero-label">Бюджет месяца</div>
-            <div className="hero-num">{formatRub(summary.totalIncome)}</div>
+          {/* 1. Бюджет месяца: крупно сколько осталось, под ним шкала.
+              Тап открывает доход — сумму правят здесь же */}
+          <button
+            className={`hero hero--${gauge.state}`}
+            onClick={() => setIncomeOpen(true)}
+            aria-label="Изменить доход месяца"
+          >
+            <div className="hero-label">Осталось</div>
+            <div className="hero-num">{formatRub(gauge.left)}</div>
+            <div className="hero-gauge">
+              <i style={{ width: `${gauge.fill * 100}%` }} />
+            </div>
             <div className="hero-foot">
-              <span>Свободные {formatAmount(summary.free)}</span>
+              <span>Весь бюджет {formatAmount(gauge.total)}</span>
               {status ? <span>Цель {formatAmount(status.target)}</span> : <span>Цель не задана</span>}
               {/* Удержание показывается, только когда оно включено */}
               {block.taxWithheld > 0 && <span>Удержано {formatAmount(block.taxWithheld)}</span>}
@@ -74,11 +85,9 @@ export function HomeScreen(): JSX.Element {
           {/* 2. Три микро-окна */}
           <div className="micro">
             <div className="mbox">
-              <div className="mbox-l">Остаток</div>
-              <div className={`mbox-n${summary.free - spent < 0 ? ' hot' : ''}`}>
-                {formatAmount(summary.free - spent)}
-              </div>
-              <div className="mbox-u">из {formatAmount(summary.free)}</div>
+              <div className="mbox-l">Потрачено</div>
+              <div className="mbox-n">{formatAmount(gauge.spent)}</div>
+              <div className="mbox-u">из {formatAmount(gauge.total)}</div>
             </div>
             <div className="mbox">
               <div className="mbox-l">Трачу в день</div>
