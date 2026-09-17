@@ -1,6 +1,7 @@
 /** Правка переменной операции: сумма, категория, дата, вид потока (3.3). */
 
 import { useEffect, useState, type JSX } from 'react';
+import { flowToStore } from '../../domain/flow';
 import { formatAmountExact, parseAmount } from '../../domain/money';
 import type { Expense, Flow } from '../../domain/types';
 import { useBudget } from '../../store/budget';
@@ -85,14 +86,13 @@ export function EditExpenseSheet({ expense, onClose }: Props): JSX.Element {
         disabled={!valid}
         onClick={() => {
           if (amount === null) return;
-          const defaultFlow = category?.defaultFlow;
           updateExpense(expense.id, {
             amount,
             categoryId,
             date,
             note,
             // Поле хранится, только когда подсказка категории переопределена
-            flow: isIncome || flow === defaultFlow ? undefined : flow,
+            flow: flowToStore(flow, category),
           });
           onClose();
         }}

@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useMemo, useState, type JSX } from 'react';
+import { flowToStore } from '../../domain/flow';
 import { formatAmountExact, parseAmount } from '../../domain/money';
 import type { Flow } from '../../domain/types';
 import { useBudget } from '../../store/budget';
@@ -61,10 +62,11 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
   const amount = parseAmount(raw);
   const valid = amount !== null && amount > 0 && category !== null;
 
-  // Вид потока подставляется из категории и переопределяется тапом
-  useEffect(() => {
-    if (category) setFlow(category.defaultFlow);
-  }, [category]);
+  // Вид потока берётся с панели, с которой пришли, и меняется только тапом
+  // по переключателю. Подсказка категории его не перебивает: выбор панели —
+  // заявление пользователя, а defaultFlow — догадка, и догадка тут не главнее.
+  // Иначе «разовая трата» в категории «Кафе» молча становилась бы рутиной,
+  // хотя это ровно тот случай из 1.2, ради которого поток и переопределяют.
 
   const submit = (): void => {
     if (!valid || !category) return;
@@ -72,12 +74,13 @@ export function QuickEntrySheet({ open, initialFlow, onClose }: Props): JSX.Elem
       setConfirmDuplicate(true);
       return;
     }
+    // Поле заполняется, только когда подсказка категории переопределена (1.3)
+    const stored = flowToStore(flow, category);
     addExpense({
       date,
       amount,
       categoryId: category.id,
-      // Поле заполняется, только когда подсказка категории переопределена (1.3)
-      ...(flow !== category.defaultFlow ? { flow } : {}),
+      ...(stored ? { flow: stored } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
     });
     onClose();
