@@ -27,6 +27,7 @@ import { dayTitle, days as daysWord, monthTitle, purchases, positions, spendings
 import { TopBar } from '../components/TopBar';
 import { ExpandableRow } from '../components/ExpandableRow';
 import { IncomeSheet } from './IncomeSheet';
+import { QuickEntrySheet } from './QuickEntrySheet';
 import type { BudgetDocument } from '../../domain/types';
 
 export function HomeScreen(): JSX.Element {
@@ -56,6 +57,7 @@ export function HomeScreen(): JSX.Element {
   );
 
   const [incomeOpen, setIncomeOpen] = useState(false);
+  const [earnedOpen, setEarnedOpen] = useState(false);
 
   return (
     <section className="pane">
@@ -63,22 +65,24 @@ export function HomeScreen(): JSX.Element {
       <div className="scroll" {...swipe}>
         <div className="body">
           {/* 1. Бюджет месяца: крупно сколько осталось, под ним шкала.
-              Тап открывает доход — сумму правят здесь же */}
-          <button
-            className={`hero hero--${gauge.state}`}
-            onClick={() => setIncomeOpen(true)}
-            aria-label="Изменить доход месяца"
-          >
+              Тап по числу записывает разовый доход — деньги пришли, и это
+              первое место, где их ждёшь увидеть. Зарплата правится отдельной
+              кнопкой в подвале: она про постоянный доход, а не про приход */}
+          <div className={`hero hero--${gauge.state}`}>
             {/* Залитая часть — то, что осталось. Подрезается справа, как заряд */}
             <div className="hero-fill" style={{ clipPath: `inset(0 ${100 - gauge.fill * 100}% 0 0)` }} />
             {gauge.targetMark !== null && (
               <span className="hero-target" style={{ left: `${gauge.targetMark * 100}%` }} aria-hidden="true" />
             )}
             <div className="hero-body">
-              <div className="hero-label">Осталось</div>
-              <div className="hero-num">{formatRub(gauge.left)}</div>
+              <button className="hero-tap" onClick={() => setEarnedOpen(true)} aria-label="Записать разовый доход">
+                <span className="hero-label">Осталось</span>
+                <span className="hero-num">{formatRub(gauge.left)}</span>
+              </button>
               <div className="hero-foot">
-                <span>Весь бюджет {formatAmount(gauge.total)}</span>
+                <button className="hero-chip" onClick={() => setIncomeOpen(true)}>
+                  Весь бюджет {formatAmount(gauge.total)}
+                </button>
                 {gauge.target === null ? (
                   <span>Цель не задана</span>
                 ) : gauge.target === 0 ? (
@@ -90,7 +94,7 @@ export function HomeScreen(): JSX.Element {
                 {block.taxWithheld > 0 && <span>Удержано {formatAmount(block.taxWithheld)}</span>}
               </div>
             </div>
-          </button>
+          </div>
 
           {/* 2. Три микро-окна. «Потрачено» ведёт в историю: следующий вопрос
               после «сколько» — это «на что», а он живёт там */}
@@ -261,6 +265,12 @@ export function HomeScreen(): JSX.Element {
       </div>
 
       <IncomeSheet open={incomeOpen} month={month} onClose={() => setIncomeOpen(false)} />
+      <QuickEntrySheet
+        open={earnedOpen}
+        kind="INCOME"
+        initialFlow="ROUTINE"
+        onClose={() => setEarnedOpen(false)}
+      />
 
       {/* 5. Кнопка добавления */}
       <div className="cta-slot">
