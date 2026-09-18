@@ -87,11 +87,13 @@ export function HistoryTab({ month }: { month: MonthKey }): JSX.Element {
                 </div>
                 {group.items.map((item) => {
                   const id = `f:${item.itemId}`;
+                  const icon = doc.categories.find((c) => c.id === item.categoryId)?.icon;
                   return (
                     <div className={`e fix${openRow === id ? ' open' : ''}`} key={id}>
                       <button className="e-main" onClick={() => setOpenRow(openRow === id ? null : id)}>
                         <span className="e-txt">
                           <span className="e-t">
+                            {icon && <span className="e-i">{icon}</span>}
                             {item.title}
                             {item.isReserve && <span className="tag f">годовой</span>}
                           </span>
@@ -170,6 +172,8 @@ export function HistoryTab({ month }: { month: MonthKey }): JSX.Element {
                     <button className="e-main" onClick={() => setOpenRow(openRow === id ? null : id)}>
                       <span className="e-txt">
                         <span className="e-t">
+                          {/* Значок категории: строку опознаёшь до чтения */}
+                          {category && <span className="e-i">{category.icon}</span>}
                           {category?.name ?? 'Прочее'}
                           <span className={`tag ${flow === 'ONE_OFF' ? 'o' : flow === 'ROUTINE' ? 'r' : 'f'}`}>
                             {flow === 'ONE_OFF' ? 'разовое' : flow === 'ROUTINE' ? 'рутина' : 'доход'}

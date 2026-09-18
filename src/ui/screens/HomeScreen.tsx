@@ -92,13 +92,21 @@ export function HomeScreen(): JSX.Element {
             </div>
           </button>
 
-          {/* 2. Три микро-окна */}
+          {/* 2. Три микро-окна. «Потрачено» ведёт в историю: следующий вопрос
+              после «сколько» — это «на что», а он живёт там */}
           <div className="micro">
-            <div className="mbox">
+            <button
+              className="mbox mbox-btn"
+              onClick={() => {
+                setFilter('all');
+                setTab('history');
+                go('expenses');
+              }}
+            >
               <div className="mbox-l">Потрачено</div>
               <div className="mbox-n">{formatAmount(gauge.spent)}</div>
               <div className="mbox-u">из {formatAmount(gauge.total)}</div>
-            </div>
+            </button>
             <div className="mbox">
               <div className="mbox-l">Трачу в день</div>
               <div className={`mbox-n${hot ? ' hot' : ''}`}>
