@@ -1,0 +1,4 @@
+wot-src/
+build/
+*.mtmod
+*.pyc
