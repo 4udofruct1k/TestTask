@@ -27,8 +27,13 @@ COLORS_COLOR_BLIND = {SHOT_RESULT.GREAT_PIERCED: (0xff, 0xcc, 0x33),
  SHOT_RESULT.LITTLE_PIERCED: (0xd5, 0x68, 0xe3),
  SHOT_RESULT.NOT_PIERCED: (0x60, 0x25, 0xb4)}
 
-# 2.5. Обновление
-updateInterval = 0.1
+# 2.5. Обновление. 0 — каждый кадр: BigWorld.callback(0, ...) срабатывает на следующем кадре.
+updateInterval = 0.0
+# Бюджет расчёта точек за кадр, мс. Если сетка в него не помещается, её пересчёт
+# растягивается на несколько кадров, а позиции квадратов всё равно обновляются каждый кадр.
+frameBudgetMs = 2.0
+# При обновлении каждый кадр время пишется в лог сводкой раз в statsInterval секунд.
+statsInterval = 1.0
 
 # 2.6. Управление: имя атрибута модуля Keys
 toggleKey = 'KEY_Y'
