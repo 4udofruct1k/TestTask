@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
+# Пул GUI.Simple-квадратов в clip-позициях.
 import GUI
 
-from gui.mods.armor_highlight import log, logException
-
-# Белая текстура движка (resources.xml клиента, <whiteBmp>).
-WHITE_TEXTURE = 'system/maps/col_white.dds'
+from gui.mods.armor_highlight import logException
 
 
 def _createQuad(texture, depth):
@@ -24,24 +22,51 @@ def _createQuad(texture, depth):
 
 class Overlay(object):
 
-    def __init__(self, depth):
+    def __init__(self, texture, depth, poolSize):
         self.__depth = depth
-        self.__roots = []
+        self.__quads = [ _createQuad(texture, depth) for _ in xrange(poolSize) ]
+        # Последние выставленные size и colour каждого квадрата: не трогаем GUI без изменений.
+        self.__sizes = [None] * poolSize
+        self.__colours = [None] * poolSize
+        self.__shown = 0
 
-    def addTestSquare(self, texture, x, y, sizePx, colour):
-        quad = _createQuad(texture, self.__depth)
-        self.__roots.append(quad)
-        quad.size = (sizePx, sizePx)
-        quad.position = (x, y, self.__depth)
-        quad.colour = colour
-        quad.visible = True
-        log('test square: texture=%r clip=(%.3f, %.3f) size=%dpx colour=%r depth=%.2f', texture, x, y, sizePx, colour, self.__depth)
+    def update(self, items):
+        # items: [(x, y, sizePx, (r, g, b, a)), ...] в clip-координатах.
+        count = min(len(items), len(self.__quads))
+        depth = self.__depth
+        quads = self.__quads
+        sizes = self.__sizes
+        colours = self.__colours
+        for idx in xrange(count):
+            x, y, size, colour = items[idx]
+            quad = quads[idx]
+            quad.position = (x, y, depth)
+            if sizes[idx] != size:
+                quad.size = (size, size)
+                sizes[idx] = size
+            if colours[idx] != colour:
+                quad.colour = colour
+                colours[idx] = colour
+            if idx >= self.__shown:
+                quad.visible = True
+
+        for idx in xrange(count, self.__shown):
+            quads[idx].visible = False
+
+        self.__shown = count
+
+    def hide(self):
+        if self.__shown:
+            self.update(())
 
     def destroy(self):
-        for quad in self.__roots:
+        for quad in self.__quads:
             try:
                 GUI.delRoot(quad)
             except Exception:
                 logException('Overlay.destroy')
 
-        self.__roots = []
+        self.__quads = []
+        self.__sizes = []
+        self.__colours = []
+        self.__shown = 0

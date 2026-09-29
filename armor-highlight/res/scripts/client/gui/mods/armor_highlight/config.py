@@ -38,10 +38,13 @@ statsInterval = 1.0
 # 2.6. Управление: имя атрибута модуля Keys
 toggleKey = 'KEY_Y'
 
-# Глубина GUI-корня оверлея. Меньше z — ближе к экрану. В gui/__init__.py клиента:
+# Глубина GUI-корней оверлея. Меньше z — ближе к экрану. В gui/__init__.py клиента:
 # DEPTH_OF_Battle = 0.1, DEPTH_OF_Aim = 0.6, DEPTH_OF_VehicleMarker = 0.9.
 # 0.7 — под прицелом, над маркерами техники.
 overlayDepth = 0.7
+# Текстура квадратов: белая текстура движка (resources.xml клиента, <whiteBmp>), цвет задаёт colour.
+# Если квадраты не видны, попробовать '' — GUI.Simple без текстуры.
+cellTexture = 'system/maps/col_white.dds'
 
-# Фаза 0: тестовые квадраты
-testSquareSizePx = 96
+# Ошибки в тике пишутся в лог не чаще раза в errorLogInterval секунд.
+errorLogInterval = 5.0
