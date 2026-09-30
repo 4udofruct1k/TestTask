@@ -181,12 +181,17 @@ class Highlighter(object):
         ay = int(math.floor(anchor[1] + 0.5))
         aim = aimScreen if aimScreen is not None else (_project(viewProj, aimWorld, screenW, screenH) if aimWorld is not None else None)
         if aim is not None:
-            lattice.aim = (aim[0] - ax, aim[1] - ay)
+            lattice.setAim((aim[0] - ax, aim[1] - ay))
         self.anchor = (ax, ay)
         self.rays = rays
         self.rayLength = (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH
         computeStart = timer()
-        computed = self.__compute(lattice, sampler, rays, ax, ay, screenW, screenH, (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH, settings.frameBudget)
+        # Полная проходка считает всю цель за один кадр, без бюджета: игра на это время замирает.
+        budget = config.fullPassMaxSeconds if lattice.fullPass else settings.frameBudget
+        wasDone = lattice.done
+        computed = self.__compute(lattice, sampler, rays, ax, ay, screenW, screenH, (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH, budget)
+        if lattice.fullPass and not wasDone and config.debug:
+            log('full pass: %d cells in %.2f s, done=%s', computed, timer() - computeStart, lattice.done)
         renderStart = timer()
         # Новая сетка показывается сразу, если старой картинки этой цели нет; иначе — когда готова её основная часть.
         shown = self.__shown
@@ -197,7 +202,8 @@ class Highlighter(object):
         else:
             self.__shown = shown
             rects, changed = shown.rects()
-            self.__overlay.update(rects, changed, ax, ay, screenW, screenH)
+            # Полная проходка показывается целиком сразу: квадраты создаются без ограничения на кадр.
+            self.__overlay.update(rects, changed, ax, ay, screenW, screenH, config.quadsMax if shown.fullPass else None)
         self.stats.addActive(computed, renderStart - computeStart, timer() - renderStart)
         return None
 
@@ -268,7 +274,7 @@ class Highlighter(object):
         settings = self.__settings
         aim = aimScreen if aimScreen is not None else (_project(viewProj, aimWorld, screenW, screenH) if aimWorld is not None else None)
         aim = (aim[0] - ax, aim[1] - ay) if aim is not None else ((x0 + x1) * 0.5 - ax, (y0 + y1) * 0.5 - ay)
-        lattice = Lattice(area, settings.cellLevel, config.uniformMax, config.maxRows, range(settings.gradientSteps), aim)
+        lattice = Lattice(area, settings.cellLevel, config.uniformMax, config.maxRows, range(settings.gradientSteps), aim, settings.searchLevel, settings.focusRadius, settings.fullPass)
         toCamera = cameraPos - anchorWorld
         cameraDir = toLocal.applyVector(toCamera)
         cameraDir.normalise()
@@ -329,10 +335,10 @@ class Highlighter(object):
         if lattice is None:
             return None
         overlay = self.__overlay
-        return 'cell=%dpx level=%d/%d..%d done=%s cells=%d splits=%d quads=%d/%d' % (1 << lattice.minLevel,
+        return 'cell=%dpx search=%dpx stage=%s%s done=%s cells=%d splits=%d quads=%d/%d' % (1 << lattice.minLevel,
+         1 << lattice.baseLevel,
          lattice.stage,
-         lattice.minLevel,
-         lattice.topLevel,
+         ' full pass' if lattice.fullPass else '',
          lattice.done,
          len(lattice.cache),
          lattice.splits,

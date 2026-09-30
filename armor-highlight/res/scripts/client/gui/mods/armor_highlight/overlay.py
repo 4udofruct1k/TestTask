@@ -63,7 +63,7 @@ class Overlay(object):
     def quadCount(self):
         return self.__total
 
-    def update(self, rects, rectsChanged, ax, ay, screenW, screenH):
+    def update(self, rects, rectsChanged, ax, ay, screenW, screenH, createLimit=None):
         # rects: [(значение, x0, y0, x1, y1)] в пикселях от якоря (ax, ay) — пиксели от левого верхнего угла экрана.
         anchor = (ax, ay, screenW, screenH)
         moved = anchor != self.__anchor
@@ -80,7 +80,7 @@ class Overlay(object):
                 byValue = wanted[rect[0]] = set()
             byValue.add(rect[1:])
 
-        createLeft = self.__createPerFrame
+        createLeft = self.__createPerFrame if createLimit is None else createLimit
         incomplete = False
         shown = 0
         for value, pool in self.__pools.iteritems():
