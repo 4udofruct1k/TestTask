@@ -2,9 +2,9 @@
 rem Builds max.armor-highlight_<version>.mtmod.
 rem
 rem Usage:
-rem   build.bat -v 0.1.0                          build only
-rem   build.bat -v 0.1.0 -i "D:\Games\Tanki"      build and copy to <game>\mods\<client version>\
-rem   build.bat -v 0.1.0 -i "D:\Games\Tanki" -m 1.45.0.0
+rem   build.bat -v 0.3.0                          build only
+rem   build.bat -v 0.3.0 -i "D:\Games\Tanki"      build and copy to <game>\mods\<client version>\
+rem   build.bat -v 0.3.0 -i "D:\Games\Tanki" -m 1.45.0.0
 rem                                               same, with explicit mods subfolder
 rem
 rem Python 2.7: set PYTHON27=C:\Python27\python.exe, otherwise "py -2.7" or "python" is used.
@@ -96,15 +96,22 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem --- 3. Compile with Python 2.7, keep only .pyc ---
-%PY% -m compileall -q "%BUILD%\res"
+rem --- 3. Compile with Python 2.7, keep only .pyc in res\scripts ---
+%PY% -m compileall -q "%BUILD%\res\scripts"
 if errorlevel 1 (
   echo ERROR: compileall failed
   exit /b 1
 )
-%PY% -c "import os, sys; [os.remove(os.path.join(r, f)) for r, _, fs in os.walk(sys.argv[1]) for f in fs if not f.endswith('.pyc')]" "%BUILD%\res"
+%PY% -c "import os, sys; [os.remove(os.path.join(r, f)) for r, _, fs in os.walk(sys.argv[1]) for f in fs if not f.endswith('.pyc')]" "%BUILD%\res\scripts"
 if errorlevel 1 (
   echo ERROR: failed to clean sources from build
+  exit /b 1
+)
+
+rem --- 3b. Cell textures: colours from palette.py ---
+%PY% "%ROOT%\tools\make_textures.py" "%BUILD%\res"
+if errorlevel 1 (
+  echo ERROR: texture generation failed
   exit /b 1
 )
 

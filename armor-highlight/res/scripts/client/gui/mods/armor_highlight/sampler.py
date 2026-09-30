@@ -40,19 +40,15 @@ class Sampler(object):
         self.__resolver = createShotResultResolver()
         self.__segmentDistChecked = False
 
-    def reset(self):
-        self.__segmentDistChecked = False
-
     def sample(self, rays, x, y, rayLength, target, shellDir, playerVehicleID, team, piercingMultiplier):
-        # Возвращает (hitPoint, SHOT_RESULT) или None, если в точке нет цели (укрытие, промах мимо цели).
+        # Возвращает SHOT_RESULT или None, если в точке нет цели (укрытие, промах мимо цели).
         ray, start = rays.get(x, y)
         end = start + ray.scale(rayLength)
         res = collideDynamicAndStatic(start, end, (playerVehicleID,))
         if res is None or res[1] is None or res[1].entity is not target:
             return None
         hitPoint, collData = res
-        result = self.__resolver.getShotResult(hitPoint, collData, shellDir, excludeTeam=team, piercingMultiplier=piercingMultiplier)
-        return (hitPoint, result)
+        return self.__resolver.getShotResult(hitPoint, collData, shellDir, excludeTeam=team, piercingMultiplier=piercingMultiplier)
 
     def checkSegmentDistOnce(self, rays, x, y, rayLength, target, playerVehicleID):
         # Фаза 1: один раз за бой сверить, что dist в collideSegmentExt — метры от startPoint.

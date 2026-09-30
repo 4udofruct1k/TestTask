@@ -16,8 +16,9 @@ from helpers import dependency
 from messenger import MessengerEntry
 from skeletons.gui.battle_session import IBattleSessionProvider
 
-from gui.mods.armor_highlight import config, geometry, log, logException
-from gui.mods.armor_highlight.overlay import Overlay
+from gui.mods.armor_highlight import config, geometry, log, logException, palette
+from gui.mods.armor_highlight.lattice import Lattice
+from gui.mods.armor_highlight.overlay import ALPHA_STEPS, Overlay
 from gui.mods.armor_highlight.sampler import FrameRays, Sampler
 
 _CTRL_MODE = aih_constants.CTRL_MODE_NAME
@@ -27,9 +28,28 @@ _SHOT_RESULT = aih_constants.SHOT_RESULT
 _RESULT_NAMES = ((_SHOT_RESULT.GREAT_PIERCED, 'green'),
  (_SHOT_RESULT.LITTLE_PIERCED, 'yellow'),
  (_SHOT_RESULT.NOT_PIERCED, 'red'),
- (_SHOT_RESULT.UNDEFINED, 'undef'))
+ (_SHOT_RESULT.UNDEFINED, 'undef'),
+ (None, 'empty'))
 # В Python 2 на Windows time.clock() — счётчик высокого разрешения, а time.time() шагает по ~15 мс.
 _timer = time.clock if sys.platform == 'win32' else time.time
+
+
+def _projectPx(viewProj, point, screenW, screenH):
+    # Мировая точка -> пиксели от левого верхнего угла экрана, или None, если точка за камерой.
+    clip = viewProj.applyV4Point(Math.Vector4(point.x, point.y, point.z, 1.0))
+    if clip.w <= 0.0:
+        return None
+    return ((clip.x / clip.w + 1.0) * 0.5 * screenW, (1.0 - clip.y / clip.w) * 0.5 * screenH)
+
+
+def _overlayTextures():
+    # {результат: текстура}, {результат: (r, g, b)} или None — см. config.colourMode.
+    if config.colourMode == 'tint':
+        textures = dict(((kind, config.tintTexture) for kind in config.CELL_COLORS))
+        tints = dict(((kind, palette.COLORS[name]) for kind, name in config.CELL_COLORS.iteritems()))
+        return (textures, tints)
+    textures = dict(((kind, palette.texturePath(name)) for kind, name in config.CELL_COLORS.iteritems()))
+    return (textures, None)
 
 
 class _Stats(object):
@@ -47,6 +67,7 @@ class _Stats(object):
         self.computeMax = 0.0
         self.renderSum = 0.0
         self.renderMax = 0.0
+        self.lattices = 0
 
     def addFrame(self):
         self.frames += 1
@@ -90,9 +111,10 @@ class ArmorHighlightController(object):
             self.__feedbackCtrl = feedbackCtrl
         InputHandler.g_instance.onKeyDown += self.__onKeyDown
         self.__sampler = Sampler()
-        self.__overlay = Overlay(config.cellTexture, config.overlayDepth, config.maxSamples)
+        textures, tints = _overlayTextures()
+        self.__overlay = Overlay(textures, tints, palette.OPACITY, config.fadeWithColour, config.overlayDepth, config.quadsPrecreated, config.quadsCreatePerFrame, config.quadsMaxPerColour)
         self.__callbackID = BigWorld.callback(config.updateInterval, self.__tick)
-        log('started: toggle key %s, update %s, frame budget %.1f ms', config.toggleKey, 'every frame' if config.updateInterval <= 0.0 else '%.3f s' % config.updateInterval, config.frameBudgetMs)
+        log('started: toggle key %s, update %s, frame budget %.1f ms, cell %d px, max %d cells, colour mode %s, fade %s', config.toggleKey, 'every frame' if config.updateInterval <= 0.0 else '%.3f s' % config.updateInterval, config.frameBudgetMs, config.cellPx, config.maxSamples, config.colourMode, 'on' if self.__overlay.canFade else 'off')
 
     def stop(self):
         if not self.__isStarted:
@@ -124,12 +146,8 @@ class ArmorHighlightController(object):
         self.__stats = _Stats()
         self.__lastErrorLogAt = None
         self.__suppressedErrors = 0
-        self.__resetSamples(None)
-
-    def __resetSamples(self, target):
-        self.__target = target
-        self.__samples = {}
-        self.__cursor = 0
+        self.__lattice = None
+        self.__lastSummary = None
 
     # --- события: только сохраняем состояние (2.5) ---
 
@@ -186,81 +204,84 @@ class ArmorHighlightController(object):
             self.__deactivate(reason)
             self.__logStatsIfDue()
             return
-        target, aimPos, shellDir, dist, team = ctx
+        target, aimPos, shellDir, team = ctx
         viewProj = cameras.getViewProjectionMatrix()
-        center = viewProj.applyV4Point(Math.Vector4(aimPos.x, aimPos.y, aimPos.z, 1.0))
-        if center.w <= 0.0:
+        screenW, screenH = BigWorld.screenSize()[:2]
+        aim = _projectPx(viewProj, aimPos, screenW, screenH)
+        if aim is None:
             self.__deactivate('aim point is behind the camera')
             self.__logStatsIfDue()
             return
-        if target is not self.__target:
-            self.__resetSamples(target)
-        cx = center.x / center.w
-        cy = center.y / center.w
-        # 2.2. Область и сетка
-        screenW, screenH = BigWorld.screenSize()[:2]
-        dispAngle = player.gunRotator.getCurShotDispersionAngles()[0]
-        rx, ry = geometry.circleRadiusClip(dispAngle, BigWorld.projection().fov, cameras.getScreenAspectRatio(), config.aimingCircleAdjustment, config.maxSizePercentOfWindow)
-        baseStepX = 2.0 * config.cellPx / screenW
-        baseStepY = 2.0 * config.cellPx / screenH
-        stepScale, offsets = geometry.buildGrid(rx, ry, baseStepX, baseStepY, config.maxSamples)
-        stepX = baseStepX * stepScale
-        stepY = baseStepY * stepScale
-        # 2.3. Расчёт точек в пределах бюджета кадра
+        fov = BigWorld.projection().fov
         rays = FrameRays()
+        lattice, anchorWorld = self.__prepareLattice(target, aimPos, rays.origin, fov, (screenW, screenH))
+        anchor = _projectPx(viewProj, anchorWorld, screenW, screenH)
+        if anchor is None:
+            self.__deactivate('anchor is behind the camera')
+            self.__logStatsIfDue()
+            return
+        # Якорь округляется до пикселя: края ячеек ложатся на границы пикселей, без щелей и наложений.
+        ax = int(round(anchor[0]))
+        ay = int(round(anchor[1]))
+        cell = float(lattice.cellPx)
+        # 2.2. Область: круг сведения в ячейках относительно якоря
+        dispAngle = player.gunRotator.getCurShotDispersionAngles()[0]
+        ry = geometry.circleRadiusClip(dispAngle, fov, cameras.getScreenAspectRatio(), config.aimingCircleAdjustment, config.maxSizePercentOfWindow)[1]
+        lattice.setView((aim[0] - ax) / cell - 0.5, (aim[1] - ay) / cell - 0.5, ry * screenH * 0.5 / cell)
+        # 2.3. Расчёт ячеек в пределах бюджета кадра
+        sx = 2.0 / screenW
+        sy = 2.0 / screenH
         rayLength = (aimPos - rays.origin).length + 50.0
         playerVehicleID = player.playerVehicleID
         if config.debug:
-            self.__sampler.checkSegmentDistOnce(rays, cx, cy, rayLength, target, playerVehicleID)
+            self.__sampler.checkSegmentDistOnce(rays, aim[0] * sx - 1.0, 1.0 - aim[1] * sy, rayLength, target, playerVehicleID)
         computeStart = _timer()
         budget = config.frameBudgetMs / 1000.0
-        samples = self.__samples
         sample = self.__sampler.sample
         piercingMultiplier = self.__piercingMultiplier
-        count = len(offsets)
-        cursor = self.__cursor % count
         computed = 0
-        while computed < count:
-            i, j = offsets[cursor]
-            samples[i, j] = sample(rays, cx + i * stepX, cy + j * stepY, rayLength, target, shellDir, playerVehicleID, team, piercingMultiplier)
-            cursor = (cursor + 1) % count
+        while True:
+            key = lattice.nextKey()
+            if key is None:
+                break
+            i, j = key
+            x = (ax + (i + 0.5) * cell) * sx - 1.0
+            y = 1.0 - (ay + (j + 0.5) * cell) * sy
+            lattice.store(key, sample(rays, x, y, rayLength, target, shellDir, playerVehicleID, team, piercingMultiplier))
             computed += 1
             if _timer() - computeStart >= budget:
                 break
 
-        self.__cursor = cursor
         renderStart = _timer()
-        # 2.4. Цвета и прозрачность; квадраты ставятся по мировым точкам, спроецированным в этом кадре
-        aimingFactor = geometry.aimFactor(player.getVehicleDescriptor().gun.shotDispersionAngle, dispAngle, config.fadeoffFactorWhenNotAimed)
-        alpha = geometry.alphaByte(config.opacity, geometry.alphaByDist(dist, config.alphaFullDist, config.alphaZeroDist), aimingFactor)
-        items = []
-        if alpha > 0:
-            colours = dict(((result, rgb + (alpha,)) for result, rgb in config.COLORS.iteritems()))
-            cellSize = int(round(config.cellPx * stepScale))
-            limitX = rx + stepX * 0.5
-            limitY = ry + stepY * 0.5
-            isInside = geometry.isInsideEllipse
-            for key in offsets:
-                item = samples.get(key)
-                if item is None:
-                    continue
-                point, result = item
-                colour = colours.get(result)
-                if colour is None:
-                    continue
-                clip = viewProj.applyV4Point(Math.Vector4(point.x, point.y, point.z, 1.0))
-                if clip.w <= 0.0:
-                    continue
-                x = clip.x / clip.w
-                y = clip.y / clip.w
-                if isInside(x - cx, y - cy, limitX, limitY):
-                    items.append((x, y, cellSize, colour))
-
-        self.__overlay.update(items)
+        # 2.4. Прозрачность от сведения, если оверлей умеет её менять (см. config.fadeWithColour)
+        alphaLevel = ALPHA_STEPS
+        if self.__overlay.canFade:
+            aimingFactor = geometry.aimFactor(player.getVehicleDescriptor().gun.shotDispersionAngle, dispAngle, config.fadeoffFactorWhenNotAimed)
+            alphaLevel = geometry.quantize(aimingFactor, ALPHA_STEPS)
+        if alphaLevel > 0:
+            runs, changed = lattice.runs()
+            self.__overlay.update(runs, ax, ay, lattice.cellPx, lattice.cellPx * lattice.step, screenW, screenH, alphaLevel, changed)
+        else:
+            self.__overlay.hide()
         self.__setInactiveReason(None)
         endTime = _timer()
         self.__stats.addActive(computed, renderStart - computeStart, endTime - renderStart)
-        self.__logStatsIfDue(offsets, stepScale)
+        self.__logStatsIfDue()
+
+    def __prepareLattice(self, target, aimPos, cameraPos, fov, screenSize):
+        # Сетка живёт, пока цель, зум, разрешение и масштаб цели на экране прежние. Возвращает (сетка, якорь в мире).
+        lattice = self.__lattice
+        if lattice is not None and lattice.matches(target, fov, screenSize):
+            anchorWorld = Math.Matrix(target.matrix).applyPoint(lattice.anchorLocal)
+            if lattice.scaleDrift((anchorWorld - cameraPos).length) <= config.reanchorScaleChange:
+                return (lattice, anchorWorld)
+        # Якорь — точка прицеливания в системе координат цели: так он едет вместе с целью.
+        toLocal = Math.Matrix(target.matrix)
+        toLocal.invert()
+        lattice = Lattice(target, toLocal.applyPoint(aimPos), (aimPos - cameraPos).length, fov, screenSize, config.cellPx, config.maxSamples, config.refineLevels, config.CELL_COLORS.keys())
+        self.__lattice = lattice
+        self.__stats.lattices += 1
+        return (lattice, aimPos)
 
     def __updateStillness(self, player, now):
         if player is None or not hasattr(player, 'getOwnVehicleSpeeds'):
@@ -296,8 +317,7 @@ class ArmorHighlightController(object):
         team = avatar_getter.getPlayerTeam(player)
         if target.publicInfo['team'] == team:
             return ('ally under the marker', None)
-        dist = (position - player.getOwnVehiclePosition()).length
-        if dist > config.maxDistance:
+        if config.maxDistance > 0.0 and (position - player.getOwnVehiclePosition()).length > config.maxDistance:
             return ('target is farther than maxDistance', None)
         if self.__stillSince is None or now - self.__stillSince < config.appearDelay:
             return ('own vehicle is moving', None)
@@ -305,7 +325,7 @@ class ArmorHighlightController(object):
             return ('no shell direction', None)
         shellDir = Math.Vector3(direction)
         shellDir.normalise()
-        return (None, (target, position, shellDir, dist, team))
+        return (None, (target, position, shellDir, team))
 
     def __activeMarkerType(self):
         # 2.5: серверный маркер, если он включён, иначе клиентский.
@@ -314,10 +334,17 @@ class ArmorHighlightController(object):
         return _MARKER_TYPE.CLIENT
 
     def __deactivate(self, reason):
+        if self.__lattice is not None:
+            if config.debug:
+                # Сводка по сетке для ближайшей строки stats: после сброса сетки её уже не посчитать.
+                try:
+                    self.__lastSummary = self.__describeLattice()
+                except Exception:
+                    logException('describeLattice')
+
+            self.__lattice = None
         if self.__overlay is not None:
             self.__overlay.hide()
-        if self.__target is not None:
-            self.__resetSamples(None)
         self.__setInactiveReason(reason)
 
     def __setInactiveReason(self, reason):
@@ -329,44 +356,39 @@ class ArmorHighlightController(object):
 
     # --- логирование ---
 
-    def __logStatsIfDue(self, offsets=None, stepScale=1.0):
+    def __logStatsIfDue(self):
         stats = self.__stats
         now = _timer()
         if now - stats.startedAt < config.statsInterval:
             return
         if config.debug and stats.activeFrames:
             active = float(stats.activeFrames)
-            line = 'stats %.1fs: frames=%d active=%d computed/frame=%.1f compute avg=%.2f max=%.2f ms, render avg=%.2f max=%.2f ms' % (now - stats.startedAt,
+            line = 'stats %.1fs: frames=%d active=%d computed/frame=%.1f compute avg=%.2f max=%.2f ms, render avg=%.2f max=%.2f ms, new grids=%d' % (now - stats.startedAt,
              stats.frames,
              stats.activeFrames,
              stats.computed / active,
              stats.computeSum / active * 1000.0,
              stats.computeMax * 1000.0,
              stats.renderSum / active * 1000.0,
-             stats.renderMax * 1000.0)
-            if offsets is not None:
-                line += ' | ' + self.__describeSamples(offsets, stepScale)
+             stats.renderMax * 1000.0,
+             stats.lattices)
+            summary = self.__describeLattice() if self.__lattice is not None else self.__lastSummary
+            if summary:
+                line += ' | ' + summary
             log(line)
+        self.__lastSummary = None
         stats.reset(now)
 
-    def __describeSamples(self, offsets, stepScale):
-        counts = dict(((result, 0) for result, _ in _RESULT_NAMES))
-        empty = pending = 0
-        for key in offsets:
-            if key not in self.__samples:
-                pending += 1
-                continue
-            item = self.__samples[key]
-            if item is None:
-                empty += 1
-            else:
-                counts[item[1]] = counts.get(item[1], 0) + 1
-
+    def __describeLattice(self):
+        lattice = self.__lattice
+        if lattice is None or lattice.level is None:
+            return None
+        drawn, counts, pending = lattice.summary()
         parts = [ '%s=%d' % (name, counts.get(result, 0)) for result, name in _RESULT_NAMES ]
-        return 'grid=%d cell=%dpx %s empty=%d pending=%d piercing=%s' % (len(offsets),
-         int(round(config.cellPx * stepScale)),
+        return 'cell=%dpx cells=%d quads=%d %s pending=%d piercing=%s' % (lattice.cellPx * lattice.step,
+         drawn,
+         self.__overlay.shownCount if self.__overlay is not None else 0,
          ' '.join(parts),
-         empty,
          pending,
          self.__piercingMultiplier)
 

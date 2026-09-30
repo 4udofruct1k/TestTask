@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
-# Чистая математика: радиус области, сетка, альфа. Без BigWorld и GUI — тестируется офлайн (tests/test_geometry.py).
+# Чистая математика: радиус области, уровни сетки, строки внутри круга. Без BigWorld и GUI — тестируется офлайн.
+# Координаты сетки: ячейка (i, j) — квадрат cellPx x cellPx, точка расчёта в его центре; j растёт вниз, как на экране.
+# Уровень k: ячейки с шагом 2**k, их (i, j) кратны 2**k. Ячейки крупного уровня — подмножество мелкого,
+# поэтому посчитанное на одном уровне годится и на другом.
 import math
 
-# Шаг сетки растёт такими долями базового, если точек больше maxSamples.
-_STEP_SCALE_QUANT = 0.25
+# Предел уровня: шаг 2**8 базовых ячеек заведомо больше экрана.
+MAX_LEVEL = 8
 
 
 def circleRadiusClip(dispAngle, fov, aspect, adjustment, maxSizePercent):
@@ -13,52 +16,72 @@ def circleRadiusClip(dispAngle, fov, aspect, adjustment, maxSizePercent):
     return (ry / aspect, ry)
 
 
-def _ellipseOffsets(rx, ry, stepX, stepY):
-    offsets = []
-    if rx <= 0.0 or ry <= 0.0:
-        return [(0, 0)]
-    jMax = int(ry / stepY)
-    for j in xrange(-jMax, jMax + 1):
-        v = j * stepY / ry
-        rest = 1.0 - v * v
+def gridLevel(radius, maxSamples):
+    # Наименьший уровень, на котором в круге радиуса radius (в ячейках) не больше maxSamples ячеек.
+    maxSamples = max(1, maxSamples)
+    area = math.pi * radius * radius
+    level = 0
+    while level < MAX_LEVEL and area / float(4 ** level) > maxSamples:
+        level += 1
+
+    return level
+
+
+def _ceilTo(value, step):
+    return int(math.ceil(value / float(step))) * step
+
+
+def _floorTo(value, step):
+    return int(math.floor(value / float(step))) * step
+
+
+def rowRanges(u, v, radius, step):
+    # Строки ячеек шага step, чьи центры внутри круга (u, v, radius). Всё в ячейках.
+    # Возвращает кортеж (j, iLo, iHi): i от iLo до iHi включительно с шагом step.
+    if radius <= 0.0:
+        return ()
+    rows = []
+    r2 = radius * radius
+    for j in xrange(_ceilTo(v - radius, step), _floorTo(v + radius, step) + 1, step):
+        dy = j - v
+        rest = r2 - dy * dy
         if rest < 0.0:
             continue
-        iMax = int(rx / stepX * math.sqrt(rest))
-        for i in xrange(-iMax, iMax + 1):
-            offsets.append((i, j))
+        half = math.sqrt(rest)
+        iLo = _ceilTo(u - half, step)
+        iHi = _floorTo(u + half, step)
+        if iLo <= iHi:
+            rows.append((j, iLo, iHi))
 
-    return offsets
-
-
-def buildGrid(rx, ry, baseStepX, baseStepY, maxSamples):
-    # Узлы квадратной сетки внутри эллипса (rx, ry) как целые смещения (i, j) от центра.
-    # Если узлов больше maxSamples, шаг увеличивается. Возвращает (stepScale, offsets).
-    maxSamples = max(1, maxSamples)
-    scale = 1.0
-    offsets = _ellipseOffsets(rx, ry, baseStepX, baseStepY)
-    while len(offsets) > maxSamples:
-        estimate = scale * math.sqrt(float(len(offsets)) / maxSamples)
-        scale = max(scale + _STEP_SCALE_QUANT, math.ceil(estimate / _STEP_SCALE_QUANT) * _STEP_SCALE_QUANT)
-        offsets = _ellipseOffsets(rx, ry, baseStepX * scale, baseStepY * scale)
-
-    return (scale, offsets)
+    return tuple(rows)
 
 
-def isInsideEllipse(dx, dy, rx, ry):
-    if rx <= 0.0 or ry <= 0.0:
-        return False
-    u = dx / rx
-    v = dy / ry
-    return u * u + v * v <= 1.0
+def cellCount(rows, step):
+    return sum(((iHi - iLo) // step + 1 for _, iLo, iHi in rows))
 
 
-def alphaByDist(dist, fullDist, zeroDist):
-    # 1 до fullDist, линейно до 0 к zeroDist. Раздел 2.4.
-    if dist <= fullDist:
-        return 1.0
-    if dist >= zeroDist:
-        return 0.0
-    return (zeroDist - dist) / (zeroDist - fullDist)
+def refineOrder(u, v, radius, level, extraLevels):
+    # Порядок расчёта от крупного к мелкому: сначала грубая картинка, потом детали.
+    # Возвращает (order, refresh): order — все уровни от level + extraLevels до level (с повторами),
+    # refresh — ячейки уровня level для периодического пересчёта.
+    order = []
+    refresh = []
+    for lvl in xrange(min(level + extraLevels, MAX_LEVEL), level - 1, -1):
+        step = 1 << lvl
+        cells = [ (i, j) for j, iLo, iHi in rowRanges(u, v, radius, step) for i in xrange(iLo, iHi + 1, step) ]
+        order.extend(cells)
+        if lvl == level:
+            refresh = cells
+
+    return (order, refresh)
+
+
+def keyLevel(i, j, maxLevel):
+    # Самый крупный уровень (не выше maxLevel), которому принадлежит ячейка (i, j).
+    bits = i | j
+    if bits == 0:
+        return maxLevel
+    return min((bits & -bits).bit_length() - 1, maxLevel)
 
 
 def aimFactor(baseAngle, curAngle, power):
@@ -68,6 +91,6 @@ def aimFactor(baseAngle, curAngle, power):
     return min(1.0, (baseAngle / curAngle) ** power)
 
 
-def alphaByte(opacity, distFactor, aimingFactor):
-    value = int(round(255.0 * opacity * distFactor * aimingFactor))
-    return max(0, min(255, value))
+def quantize(value, steps):
+    # value из [0, 1] -> целый уровень 0..steps.
+    return max(0, min(steps, int(round(value * steps))))
