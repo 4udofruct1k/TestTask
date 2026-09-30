@@ -14,9 +14,6 @@ LITTLE_PIERCED = 2
 GREAT_PIERCED = 3
 
 _MAX_HIT_ANGLE_BOUND = math.pi / 2.0 - 1e-05
-# Сколько калибров снаряд пролетает внутри танка после пробития основной брони. Считает сервер, в клиенте этого
-# нет; значение — из справки Wargaming (статьи о механике пробития для Blitz и консольной версии).
-INSIDE_CALIBERS = 10.0
 
 
 def probability(piercingPercent, randomization):
@@ -82,99 +79,6 @@ def evaluate(details, fullPiercingPower, shell, minPP, maxPP, shouldRicochet, pe
             jetStartDist = cDetails.dist + armor * 0.001
 
     return (result, prob, lastPercent)
-
-
-# Модули (vehicle extras) по именам: подпись у прицела. Порядок важен: gunner раньше gun, radioman раньше radio.
-_MODULE_LABELS = (('ammoBay', u'боеукладка'),
- ('engine', u'двигатель'),
- ('fuelTank', u'бак'),
- ('radioman', u'радист'),
- ('radio', u'рация'),
- ('gunner', u'наводчик'),
- ('gun', u'орудие'),
- ('turretRotator', u'погон башни'),
- ('surveyingDevice', u'приборы наблюдения'),
- ('leftTrack', u'гусеница'),
- ('rightTrack', u'гусеница'),
- ('track', u'гусеница'),
- ('wheel', u'колесо'),
- ('commander', u'командир'),
- ('driver', u'мехвод'),
- ('loader', u'заряжающий'))
-
-
-def moduleLabel(name):
-    for prefix, label in _MODULE_LABELS:
-        if name.startswith(prefix):
-            return label
-
-    return unicode(name)
-
-
-def modulesAlong(details, fullPiercingPower, shell, shouldRicochet, penetrationArmor, jetLossPPByDist):
-    # Модули на пути снаряда, до которых он может дойти (не остановлен бронёй или рикошетом): имена по порядку.
-    # Тот же проход по слоям, что в evaluate(), но не до решающего листа, а пока у снаряда есть пробитие:
-    # за пробитой бронёй он идёт дальше, к модулям внутри — если они есть в клиентской модели столкновений.
-    # Пробитие — лучший бросок (номинал + разброс): модули, которые выстрел в эту точку может задеть.
-    # После пробития основной брони (лист с уроном) снаряд летит внутри не дальше INSIDE_CALIBERS калибров.
-    names = []
-    isJet = False
-    jetStartDist = None
-    insideLimit = None
-    piercingPower = fullPiercingPower * (1.0 + shell.piercingPowerRandomization)
-    ignoredMaterials = set()
-    for cDetails in details:
-        if insideLimit is not None and cDetails.dist > insideLimit:
-            break
-        if isJet:
-            jetDist = cDetails.dist - jetStartDist
-            if jetDist > 0.0:
-                piercingPower *= 1.0 - jetDist * jetLossPPByDist
-        matInfo = cDetails.matInfo
-        if matInfo is None:
-            continue
-        if (cDetails.compName, matInfo.kind) in ignoredMaterials:
-            continue
-        extra = getattr(matInfo, 'extra', None)
-        if extra is not None and piercingPower > 0.0:
-            name = getattr(extra, 'name', None) or str(extra)
-            if name not in names:
-                names.append(name)
-        if matInfo.armor is None:
-            continue
-        hitAngleCos = cDetails.hitAngleCos if matInfo.useHitAngle else 1.0
-        if not isJet and shouldRicochet(shell, hitAngleCos, matInfo):
-            break
-        if piercingPower > 0.0:
-            piercingPower -= penetrationArmor(shell, hitAngleCos, matInfo)
-        if matInfo.collideOnceOnly:
-            ignoredMaterials.add((cDetails.compName, matInfo.kind))
-        if piercingPower <= 0.0:
-            break
-        if insideLimit is None and matInfo.vehicleDamageFactor:
-            # dist — метры, калибр — мм.
-            insideLimit = cDetails.dist + matInfo.armor * 0.001 + INSIDE_CALIBERS * shell.caliber * 0.001
-        if jetLossPPByDist > 0.0:
-            isJet = True
-            jetStartDist = cDetails.dist + matInfo.armor * 0.001
-
-    return names
-
-
-def describeLayers(details):
-    # Для лога: все слои по лучу — часть, материал, броня, модуль.
-    out = []
-    for cDetails in details:
-        matInfo = cDetails.matInfo
-        if matInfo is None:
-            out.append('%s/none' % (cDetails.compName,))
-            continue
-        extra = getattr(matInfo, 'extra', None)
-        # extra — объект с name или строка (у гусениц с индексом пары: 'leftTrack0Health').
-        extraName = (getattr(extra, 'name', None) or str(extra)) if extra is not None else None
-        out.append('%s/%s armor=%s dmg=%s extra=%s' % (cDetails.compName, matInfo.kind, matInfo.armor, matInfo.vehicleDamageFactor, extraName))
-
-    return '; '.join(out)
 
 
 # --- Для предпросмотра в ангаре: там нет боя и ванильный расчёт недоступен ---

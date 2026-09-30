@@ -14,7 +14,7 @@ from gui.mods.armor_highlight import log, logException, palette
 FILE_VERSION = 1
 LINKAGE = 'max.armor_highlight'
 # Версия шаблона окна ModsSettingsAPI: при смене ModsSettingsAPI берёт значения из шаблона — это наши текущие.
-TEMPLATE_VERSION = 9
+TEMPLATE_VERSION = 10
 # Пункты, которые в окне — ползунки по вариантам; остальные варианты — выпадающие списки.
 _STEP_SLIDERS = frozenset(('aimRadius', 'cellSize', 'gradientSteps', 'searchStep', 'focusRadius', 'prefetch'))
 # Вторая колонка окна.
@@ -91,7 +91,7 @@ ITEMS = (('enabled', 'bool', u'Подсветка', None, u'Выключено �
  ('showInArcade', 'bool', u'Показывать в аркадном режиме', None, u'Выключено — только в снайперском.'),
  ('stickyTarget', 'bool', u'Держать цель, когда прицел ушёл', None, u'Подсветка остаётся на последней цели, пока прицел не на другом противнике.'),
  ('prefetch', 'choice', u'Прогрузка танка заранее', tuple((u'выкл' if share == 0 else u'%d%%' % share for share in PREFETCH_SHARES)), u'Какая доля расчёта идёт на весь танк вне круга, от прицела наружу: при переводе прицела там уже есть картинка. FPS не меняется, круг обновляется на эту долю медленнее.'),
- ('aimInfo', 'bool', u'Подпись у прицела', None, u'Шанс пробития в точке прицеливания и модули на пути снаряда (те, что есть в клиентской модели танка).'),
+ ('aimInfo', 'bool', u'Подпись у прицела', None, u'Шанс пробития в точке прицеливания, справа от центра прицела.'),
  ('frameBudgetMs', 'int', u'Нагрузка в бою', (1, 10, 1, u' мс/кадр'), u'Всё время мода за кадр. Больше — быстрее прорисовка, ниже FPS.'),
  ('previewBudgetMs', 'int', u'Нагрузка в просмотре', (5, 50, 5, u' мс/кадр'), u'То же в ангаре.'),
  ('searchStep', 'choice', u'Шаг поиска (вся цель)', tuple((u'авто' if step is None else u'%d px' % step for step in SEARCH_STEPS)), u'Только для «вся цель, с уточнением».'),

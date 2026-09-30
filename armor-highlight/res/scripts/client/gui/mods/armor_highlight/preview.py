@@ -13,9 +13,9 @@ from helpers import dependency
 from messenger import MessengerEntry
 from skeletons.gui.shared.utils import IHangarSpace
 
-from gui.mods.armor_highlight import collision_probe, config, log, logException, palette
+from gui.mods.armor_highlight import config, log, logException, palette
 from gui.mods.armor_highlight.highlighter import Highlighter, screenResolution, timer
-from gui.mods.armor_highlight.penetration import UNDEFINED, moduleLabel
+from gui.mods.armor_highlight.penetration import UNDEFINED
 from gui.mods.armor_highlight.sampler import PreviewSampler
 
 MODS_LIST_ID = 'max.armor_highlight.view'
@@ -36,17 +36,6 @@ _SHELL_KINDS = {'ARMOR_PIERCING': u'ББ',
 # Подсказка лежит перед интерфейсом лобби (0.5), квадраты подсветки — за ним (config.overlayDepth).
 _TEXT_DEPTH = 0.45
 _TEXT_POSITION = (-0.97, 0.5)
-
-
-def modulesText(names):
-    # « · модули: гусеница, орудие» или пусто.
-    labels = []
-    for name in names:
-        label = moduleLabel(name)
-        if label not in labels:
-            labels.append(label)
-
-    return u' · модули: ' + u', '.join(labels) if labels else u''
 
 
 def _unicode(value):
@@ -236,8 +225,6 @@ class ViewMode(object):
             self.__highlighter.start()
         sampler = self.__sampler
         sampleKey = sampler.prepare(entity, shot, self.__distance, settings.gradientSteps)
-        if config.debug:
-            collision_probe.probe(entity.typeDescriptor)
         screenW, screenH = screenResolution()
         cursor = GUI.mcursor().position
         cursorPx = ((cursor[0] + 1.0) * 0.5 * screenW, (1.0 - cursor[1]) * 0.5 * screenH)
@@ -269,18 +256,16 @@ class ViewMode(object):
         if highlighter.rays is None:
             return u'Под курсором: —'
         ray, point = highlighter.rays.get(cursor[0], cursor[1])
-        end = point + ray.scale(highlighter.rayLength)
-        evaluated = self.__sampler.evaluate(point, end)
+        evaluated = self.__sampler.evaluate(point, point + ray.scale(highlighter.rayLength))
         if evaluated is None:
             return u'Под курсором: мимо танка'
         result, prob, percent = evaluated
-        modules = modulesText(self.__sampler.modules(point, end))
         if result == UNDEFINED:
-            return u'Под курсором: нет данных о броне' + modules
+            return u'Под курсором: нет данных о броне'
         if percent is None:
-            return u'Под курсором: не пробивает (рикошет или только модули)' + modules
+            return u'Под курсором: не пробивает (рикошет или только модули)'
         needed = percent / 100.0 * self.__sampler.fullPiercingPower
-        return u'Под курсором: пробитие %d%%, нужно ~%d мм' % (int(prob * 100.0 + 0.5), int(needed + 0.5)) + modules
+        return u'Под курсором: пробитие %d%%, нужно ~%d мм' % (int(prob * 100.0 + 0.5), int(needed + 0.5))
 
     def __setState(self, state):
         if state != self.__state:

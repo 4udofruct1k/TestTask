@@ -37,60 +37,6 @@ def run(details, fullPP=200.0, ricochet=NO_RICOCHET, jet=0.0):
     return pen.evaluate(details, fullPP, SHELL, MIN_PP, MAX_PP, ricochet, PLAIN_ARMOR, jet)[:2]
 
 
-class Extra(object):
-
-    def __init__(self, name):
-        self.name = name
-
-
-def modules(details, fullPP=200.0, ricochet=NO_RICOCHET):
-    return pen.modulesAlong(details, fullPP, SHELL, ricochet, PLAIN_ARMOR, 0.0)
-
-
-class ModulesTest(unittest.TestCase):
-
-    def test_outer_module_and_modules_behind_pierced_armor(self):
-        # Гусеница (экран без урона), броня 100 мм пробита, за ней двигатель — оба на пути снаряда.
-        details = [Detail(1.0, 1.0, Mat(20, damage=0.0, extra=Extra('leftTrack0Health')), 'chassis'),
-         Detail(2.0, 1.0, Mat(100), 'hull'),
-         Detail(3.0, 1.0, Mat(0, damage=0.0, extra=Extra('engineHealth')), 'hull')]
-        self.assertEqual(modules(details), ['leftTrack0Health', 'engineHealth'])
-        self.assertEqual([ pen.moduleLabel(name) for name in modules(details) ], [u'гусеница', u'двигатель'])
-
-    def test_not_pierced_armor_stops_the_shell(self):
-        details = [Detail(1.0, 1.0, Mat(300), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('ammoBayHealth')), 'hull')]
-        self.assertEqual(modules(details), [])
-
-    def test_module_behind_armor_reached_by_the_best_roll(self):
-        # 200 мм пробития против 200 мм брони: пробивает в половине выстрелов — двигатель задеть можно.
-        details = [Detail(1.0, 1.0, Mat(200), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('engineHealth')), 'hull')]
-        self.assertEqual(modules(details), ['engineHealth'])
-
-    def test_shell_travels_ten_calibres_inside(self):
-        # Калибр 100 мм: после листа 100 мм на 2 м снаряд летит до 2 + 0.1 + 1.0 м; двигатель на 3.5 м недостижим.
-        # Гусеница перед бронёй (без урона) отсчёт не начинает.
-        track = Detail(0.5, 1.0, Mat(20, damage=0.0, extra=Extra('leftTrack0Health')), 'chassis')
-        armor = Detail(2.0, 1.0, Mat(100), 'hull')
-        near = Detail(3.0, 1.0, Mat(0, damage=0.0, extra=Extra('gunner1Health')), 'hull')
-        far = Detail(3.5, 1.0, Mat(0, damage=0.0, extra=Extra('engineHealth')), 'hull')
-        self.assertEqual(modules([track, armor, near, far]), ['leftTrack0Health', 'gunner1Health'])
-
-    def test_ricochet_stops_the_shell(self):
-        details = [Detail(1.0, 0.2, Mat(50), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('gunnerHealth')), 'hull')]
-        self.assertEqual(modules(details, ricochet=lambda shell, cos, mat: cos < 0.5), [])
-
-    def test_describe_layers_names_string_extras(self):
-        # У гусениц extra — строка с индексом пары, у остальных модулей — объект с name.
-        details = [Detail(1.0, 1.0, Mat(20, damage=0.0, kind=23, extra='leftTrack0Health'), 0), Detail(2.0, 1.0, Mat(0, damage=0.0, kind=5, extra=Extra('engineHealth')), 1)]
-        self.assertEqual(pen.describeLayers(details), '0/23 armor=20 dmg=0.0 extra=leftTrack0Health; 1/5 armor=0 dmg=0.0 extra=engineHealth')
-
-    def test_labels(self):
-        self.assertEqual(pen.moduleLabel('gunner1Health'), u'наводчик')
-        self.assertEqual(pen.moduleLabel('gunHealth'), u'орудие')
-        self.assertEqual(pen.moduleLabel('radioman1Health'), u'радист')
-        self.assertEqual(pen.moduleLabel('radioHealth'), u'рация')
-
-
 class ProbabilityTest(unittest.TestCase):
 
     def test_bounds(self):

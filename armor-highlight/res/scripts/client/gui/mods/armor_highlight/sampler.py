@@ -108,9 +108,9 @@ class BattleSampler(object):
                 self.__checkVanilla(hitPoint, collision, result)
         return _valueFor(result, prob, self.__steps)
 
-    def describeAt(self, hitPoint):
+    def probabilityAt(self, hitPoint):
         # Точка прицеливания (маркер орудия на цели) и направление снаряда — как у ванильного индикатора:
-        # (вероятность пробития или None, модули на пути снаряда, слои для лога) или None без данных.
+        # вероятность пробития 0..1, None — нет данных о броне; None и без попадания.
         # Фугас с новой механикой считается по урону, а не по пробитию: подписи нет, цвета — ванильные.
         if self.__isModernHE:
             return None
@@ -124,9 +124,8 @@ class BattleSampler(object):
         fullPiercingPower *= computeDistanceFactor(shell, dist, 'pierceFactor')
         result, prob, _ = penetration.evaluate(details, fullPiercingPower, shell, self.__minPP, self.__maxPP, resolver._shouldRicochet, resolver._computePenetrationArmor, self.__jetLoss)
         if result == penetration.UNDEFINED:
-            prob = None
-        modules = penetration.modulesAlong(details, fullPiercingPower, shell, resolver._shouldRicochet, resolver._computePenetrationArmor, self.__jetLoss)
-        return (prob, modules, details)
+            return None
+        return prob
 
     def __checkVanilla(self, hitPoint, collision, result):
         vanilla = self.__resolver.getShotResult(hitPoint, collision, self.__shellDir, excludeTeam=self.__team, piercingMultiplier=self.__piercingMultiplier)
@@ -210,13 +209,6 @@ class PreviewSampler(object):
         if details is None:
             return None
         return penetration.evaluate(details, self.fullPiercingPower, self.__shell, self.__minPP, self.__maxPP, self.__shouldRicochet, self.__penetrationArmor, self.__jetLoss)
-
-    def modules(self, start, end):
-        # Модули на пути снаряда (имена) — для подписи под курсором.
-        details = self.__details(start, end)
-        if details is None:
-            return []
-        return penetration.modulesAlong(details, self.fullPiercingPower, self.__shell, self.__shouldRicochet, self.__penetrationArmor, self.__jetLoss)
 
     def sample(self, start, end):
         evaluated = self.evaluate(start, end)
