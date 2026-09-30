@@ -37,7 +37,7 @@ statsInterval = 1.0
 # В ангаре подсветка поэтому видна только там, где интерфейс лобби прозрачный, то есть на танке.
 overlayDepth = 0.7
 # Квадраты создаются по мере надобности: не больше quadsCreatePerFrame за кадр и quadsMax всего.
-quadsCreatePerFrame = 150
+quadsCreatePerFrame = 32
 quadsMax = 4000
 
 # Ошибки в тике пишутся в лог не чаще раза в errorLogInterval секунд.

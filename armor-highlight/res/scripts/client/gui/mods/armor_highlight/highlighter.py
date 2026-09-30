@@ -235,8 +235,9 @@ class Highlighter(object):
         else:
             self.__shown = shown
             rects, changed = shown.rects()
-            # Кроме уточняемой сетки всей цели, квадраты создаются без ограничения на кадр: картинка сразу целиком.
-            self.__overlay.update(rects, changed, ax, ay, screenW, screenH, config.quadsMax if shown.mode != 'adaptive' else None)
+            # Квадраты создаются не больше config.quadsCreatePerFrame за кадр: в 0.6–0.7 они создавались все сразу,
+            # и игра замирала, когда картинке требовалось много новых квадратов.
+            self.__overlay.update(rects, changed, ax, ay, screenW, screenH)
         self.stats.addActive(computed, renderStart - computeStart, timer() - renderStart)
         return None
 

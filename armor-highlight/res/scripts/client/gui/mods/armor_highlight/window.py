@@ -11,14 +11,21 @@
 # refresh(): цель на экране чуть сдвинулась (башня, угол камеры, дистанция). Картинка не пропадает: прежние
 # значения остаются на экране, а область пересчитывается заново от центра наружу. Если цель сдвинулась ещё раз,
 # пока пересчёт идёт, он всё равно доходит до края области, и только потом начинается следующий.
+#
+# Растр: у каждой плитки свои интервалы одного значения по строкам; строка области — интервалы её плиток подряд,
+# соседние одного значения сливаются; одинаковые интервалы соседних строк — в прямоугольники. Каждый
+# прямоугольник — квадрат на экране, поэтому их должно быть как можно меньше: при разрезе по плиткам
+# их выходило втрое больше.
 import math
 
 _TILE_MIN_SHIFT = 3
+# Круг перестраивается, когда прицел сдвинулся на столько пикселей: плитка 8 px, чаще незачем.
+_WINDOW_STEP_PX = 4.0
 _MISSING = object()
 
 
 class _Tile(object):
-    __slots__ = ('key', 'values', 'old', 'complete', 'cells', 'rects')
+    __slots__ = ('key', 'values', 'old', 'complete', 'cells', 'runs')
 
     def __init__(self, key):
         self.key = key
@@ -27,7 +34,8 @@ class _Tile(object):
         self.old = None
         self.complete = False
         self.cells = None
-        self.rects = None
+        # Интервалы по строкам плитки или None, если значения менялись.
+        self.runs = None
 
 
 class AimWindow(object):
@@ -51,6 +59,10 @@ class AimWindow(object):
         self.__current = None
         self.__again = False
         self.__nextArea = None
+        # Полосы плиток: y плитки -> x плиток области по порядку; строки полос с интервалами.
+        self.__bands = {}
+        self.__bandRows = {}
+        self.__dirtyBands = set()
         self.__rects = []
         self.__rectsDirty = True
         self.__updateWindow()
@@ -60,7 +72,7 @@ class AimWindow(object):
     def setAim(self, aim):
         self.__aim = aim
         last = self.__windowAim
-        if abs(aim[0] - last[0]) >= 1.0 or abs(aim[1] - last[1]) >= 1.0:
+        if abs(aim[0] - last[0]) >= _WINDOW_STEP_PX or abs(aim[1] - last[1]) >= _WINDOW_STEP_PX:
             self.__updateWindow()
 
     @property
@@ -95,6 +107,14 @@ class AimWindow(object):
         if window != self.__window:
             self.__window = window
             self.__rectsDirty = True
+            bands = {}
+            for key in window:
+                bands.setdefault(key[1], []).append(key[0])
+
+            bands = dict(((ty, tuple(sorted(xs))) for ty, xs in bands.iteritems()))
+            old = self.__bands
+            self.__dirtyBands.update((ty for ty in set(old) | set(bands) if old.get(ty) != bands.get(ty)))
+            self.__bands = bands
         tiles = self.__tiles
         todo = []
         for key in window:
@@ -145,8 +165,7 @@ class AimWindow(object):
             tile.complete = True
             if tile.old is not None:
                 tile.old = None
-                tile.rects = None
-                self.__rectsDirty = True
+                self.__tileChanged(tile)
             self.__current = None
 
     def store(self, key, value):
@@ -156,7 +175,11 @@ class AimWindow(object):
         if tile is None:
             return
         tile.values[key] = value
-        tile.rects = None
+        self.__tileChanged(tile)
+
+    def __tileChanged(self, tile):
+        tile.runs = None
+        self.__dirtyBands.add(tile.key[1])
         self.__rectsDirty = True
 
     def refresh(self, area):
@@ -232,9 +255,8 @@ class AimWindow(object):
 
     # --- растр ---
 
-    def __tileRects(self, tile):
-        # Прямоугольники одной плитки: интервалы одного значения в строке, одинаковые интервалы соседних строк
-        # сливаются. Между плитками не сливаются — плитка перестраивается отдельно.
+    def __tileRuns(self, tile):
+        # Интервалы одного значения в каждой строке плитки: кортеж на строку, (x0, x1, значение).
         values = tile.values
         old = tile.old or {}
         drawable = self.drawable
@@ -243,11 +265,10 @@ class AimWindow(object):
         tx, ty = tile.key
         x0, y0, x1, y1 = self.area
         xs = [ x for x in xrange(tx, tx + size, step) if x + step > x0 and x < x1 ]
-        rects = []
-        opened = {}
+        rows = []
         for y in xrange(ty, ty + size, step):
             if y + step <= y0 or y >= y1:
-                opened = {}
+                rows.append(())
                 continue
             runs = []
             start = end = value = None
@@ -266,33 +287,66 @@ class AimWindow(object):
 
             if value is not None:
                 runs.append((start, end, value))
-            current = {}
-            for run in runs:
-                idx = opened.get(run)
-                if idx is None:
-                    idx = len(rects)
-                    rects.append([run[2], run[0], y, run[1], y + step])
-                else:
-                    rects[idx][4] = y + step
-                current[run] = idx
+            rows.append(tuple(runs))
 
-            opened = current
+        return rows
 
-        return [ tuple(rect) for rect in rects ]
+    def __buildBand(self, ty, xs):
+        # Строки полосы: интервалы плиток подряд, стыкующиеся интервалы одного значения сливаются.
+        tiles = self.__tiles
+        rows = [ [] for _ in xrange((1 << self.tileShift) >> self.minLevel) ]
+        for tx in xs:
+            tile = tiles[tx, ty]
+            if tile.runs is None:
+                tile.runs = self.__tileRuns(tile)
+            for row, runs in zip(rows, tile.runs):
+                for run in runs:
+                    if row and row[-1][1] == run[0] and row[-1][2] == run[2]:
+                        row[-1] = (row[-1][0], run[1], run[2])
+                    else:
+                        row.append(run)
+
+        return [ tuple(row) for row in rows ]
 
     def rects(self):
         # [(value, x0, y0, x1, y1)] в пикселях от якоря и признак, что список изменился с прошлого вызова.
         if not self.__rectsDirty:
             return (self.__rects, False)
         self.__rectsDirty = False
-        tiles = self.__tiles
-        rects = []
-        for key in sorted(self.__window):
-            tile = tiles[key]
-            if tile.rects is None:
-                tile.rects = self.__tileRects(tile)
-            rects.extend(tile.rects)
+        bands = self.__bands
+        bandRows = self.__bandRows
+        for ty in self.__dirtyBands:
+            xs = bands.get(ty)
+            if xs:
+                bandRows[ty] = self.__buildBand(ty, xs)
+            else:
+                bandRows.pop(ty, None)
 
+        self.__dirtyBands.clear()
+        step = 1 << self.minLevel
+        rects = []
+        opened = {}
+        lastY = None
+        for ty in sorted(bandRows):
+            y = ty
+            for runs in bandRows[ty]:
+                if lastY is None or y != lastY + step:
+                    opened = {}
+                current = {}
+                for run in runs:
+                    idx = opened.get(run)
+                    if idx is None:
+                        idx = len(rects)
+                        rects.append([run[2], run[0], y, run[1], y + step])
+                    else:
+                        rects[idx][4] = y + step
+                    current[run] = idx
+
+                opened = current
+                lastY = y
+                y += step
+
+        rects = [ tuple(rect) for rect in rects ]
         if rects == self.__rects:
             return (self.__rects, False)
         self.__rects = rects

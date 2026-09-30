@@ -128,6 +128,15 @@ class AimWindowTest(unittest.TestCase):
         bad = [ xy for xy, value in cells.items() if value != tank(xy[0] & ~1, xy[1] & ~1) ]
         self.assertEqual(bad, [])
 
+    def test_uniform_armour_is_few_rects(self):
+        # Каждый прямоугольник — квадрат на экране. Однородная броня в круге — полосы по 8 строк
+        # (у каждой своя ширина круга), а не по прямоугольнику на плитку.
+        window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 60)
+        run(window, lambda x, y: 3)
+        rects = window.rects()[0]
+        self.assertLessEqual(len(rects), 16)
+        self.assertEqual(sum(((x1 - x0) * (y1 - y0) for _, x0, y0, x1, y1 in rects)), len(coverage(rects)))
+
     def test_rects_changed_flag(self):
         window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 30)
         run(window, tank)
