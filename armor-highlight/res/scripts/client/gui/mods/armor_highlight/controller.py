@@ -14,7 +14,7 @@ from messenger import MessengerEntry
 from skeletons.gui.battle_session import IBattleSessionProvider
 
 from gui.mods.armor_highlight import config, log, logException, penetration
-from gui.mods.armor_highlight.aiminfo import AimInfo
+from gui.mods.armor_highlight.aimpanel import AimPanel, Row
 from gui.mods.armor_highlight.highlighter import Highlighter, timer
 from gui.mods.armor_highlight.sampler import BattleSampler
 
@@ -23,17 +23,45 @@ _MARKER_TYPE = aih_constants.GUN_MARKER_TYPE
 _MARKER_FLAG = aih_constants.GUN_MARKER_FLAG
 _SNIPER_MODES = frozenset((_CTRL_MODE.SNIPER, _CTRL_MODE.DUAL_GUN))
 _ARCADE_MODES = frozenset((_CTRL_MODE.ARCADE,))
+# Фугас с новой механикой: ванильный результат по урону -> (заполнение полоски, подпись).
+_MODERN_HE = {penetration.GREAT_PIERCED: (1.0, u'100%'),
+ penetration.LITTLE_PIERCED: (0.5, u'урон'),
+ penetration.NOT_PIERCED: (0.0, u'0%')}
+_shellIcons = {}
 
 
-
-def _resultText(result, prob):
-    # Шанс пробития для подписи или None — нет данных о броне. prob None — фугас с новой механикой:
-    # ванильный результат по урону (пробьёт — 100%, урон без гарантии пробития, не пробьёт — 0%).
+def _resultBar(result, prob):
+    # (заполнение полоски 0..1 или None, подпись) для слота; None — нет данных о броне.
     if result == penetration.UNDEFINED:
         return None
     if prob is None:
-        return {penetration.GREAT_PIERCED: u'100%', penetration.LITTLE_PIERCED: u'урон'}.get(result, u'0%')
-    return u'%d%%' % int(prob * 100.0 + 0.5)
+        return _MODERN_HE.get(result, (0.0, u'0%'))
+    return (prob, u'%d%%' % int(prob * 100.0 + 0.5))
+
+
+def _shellIcon(shell):
+    # Иконка снаряда, как на панели расходников (consumables_panel._addShellSlot): battle_ammo/<iconName>.
+    # backport.image отдаёт 'img://...' или '../maps/...'; в путь ресурса — как web_client_api/common.sanitizeResPath.
+    name = getattr(shell, 'iconName', None)
+    if not name:
+        return None
+    if name not in _shellIcons:
+        path = None
+        try:
+            from gui.impl import backport
+            from gui.impl.gen import R
+            path = backport.image(R.images.gui.maps.icons.ammopanel.battle_ammo.dyn(name)())
+            if path.startswith('img://'):
+                path = path[len('img://'):]
+            if path.startswith('..'):
+                path = 'gui' + path[2:]
+        except Exception:
+            logException('shell icon %s' % name)
+
+        _shellIcons[name] = path or None
+        log('shell icon %s: %s', name, _shellIcons[name])
+    return _shellIcons[name]
+
 
 class ArmorHighlightController(object):
     __gunMarkersFlags = aih_global_binding.bindRO(aih_global_binding.BINDING_ID.GUN_MARKERS_FLAGS)
@@ -44,7 +72,7 @@ class ArmorHighlightController(object):
         self.__isStarted = False
         self.__callbackID = None
         self.__highlighter = Highlighter(settings)
-        self.__aimInfo = AimInfo()
+        self.__aimPanel = AimPanel()
         self.__sampler = None
         self.__crosshairCtrl = None
         self.__feedbackCtrl = None
@@ -68,6 +96,7 @@ class ArmorHighlightController(object):
         self.__settings.addListener(self.__onSettingsChanged)
         self.__sampler = BattleSampler(config.debug)
         self.__highlighter.start()
+        self.__aimPanel.setColours(self.__settings.gradientSteps, *self.__settings.colours())
         self.__callbackID = BigWorld.callback(config.updateInterval, self.__tick)
         log('started in battle: %s', self.__settings.describe())
 
@@ -87,7 +116,7 @@ class ArmorHighlightController(object):
         InputHandler.g_instance.onKeyDown -= self.__onKeyDown
         self.__settings.removeListener(self.__onSettingsChanged)
         self.__highlighter.stop()
-        self.__aimInfo.destroy()
+        self.__aimPanel.destroy()
         self.__sampler = None
         self.__resetBattleState()
         log('stopped in battle')
@@ -137,6 +166,7 @@ class ArmorHighlightController(object):
         try:
             if self.__isStarted:
                 self.__highlighter.start()
+                self.__aimPanel.setColours(self.__settings.gradientSteps, *self.__settings.colours())
         except Exception:
             logException('onSettingsChanged')
 
@@ -177,29 +207,34 @@ class ArmorHighlightController(object):
         self.__logStatsIfDue()
 
     def __updateAimInfo(self, player, aimWorld):
-        # Подпись у прицела: шанс пробития в точке прицеливания текущим снарядом, с зажатым Alt — всеми снарядами
-        # орудия, по строке на снаряд (номер, тип, шанс), текущий отмечен.
+        # Панель у прицела: слот текущего снаряда, с зажатым Alt — слоты всех снарядов орудия (номер клавиши,
+        # иконка, полоска шанса, процент), текущий в рамке.
         highlighter = self.__highlighter
+        panel = self.__aimPanel
         if aimWorld is None or not self.__settings.aimInfo or highlighter.aimPx is None:
-            self.__aimInfo.hide()
+            panel.hide()
             return
         vDesc = player.getVehicleDescriptor()
         allShells = BigWorld.isKeyDown(Keys.KEY_LALT) or BigWorld.isKeyDown(Keys.KEY_RALT)
         shots = vDesc.gun.shots if allShells else (vDesc.shot,)
         results = self.__sampler.resultsAt(aimWorld, shots)
         if results is None:
-            self.__aimInfo.hide()
+            panel.hide()
             return
-        if allShells:
-            current = vDesc.activeGunShotIndex
-            lines = [ u'%s%d %s  %s' % (u'> ' if idx == current else u'   ', idx + 1, penetration.SHELL_KINDS.get(shot.shell.kind, unicode(shot.shell.kind)), _resultText(*result) or u'—') for idx, (shot, result) in enumerate(zip(shots, results)) ]
-            text = u'\n'.join(lines)
-        else:
-            text = _resultText(*results[0])
-        if text is None:
-            self.__aimInfo.hide()
+        current = vDesc.activeGunShotIndex
+        rows = []
+        for idx, (shot, result) in enumerate(zip(shots, results)):
+            bar = _resultBar(*result)
+            if bar is None and not allShells:
+                break
+            fill, text = bar if bar is not None else (None, u'—')
+            shell = shot.shell
+            rows.append(Row(u'%d' % (idx + 1) if allShells else None, _shellIcon(shell), penetration.SHELL_KINDS.get(shell.kind, unicode(shell.kind)), fill, text, allShells and idx == current))
+
+        if not rows:
+            panel.hide()
             return
-        self.__aimInfo.show(text, highlighter.aimPx, highlighter.screen)
+        panel.show(rows, highlighter.aimPx, highlighter.screen)
 
     def __updateStillness(self, player, now):
         if player is None or not hasattr(player, 'getOwnVehicleSpeeds'):
@@ -266,7 +301,7 @@ class ArmorHighlightController(object):
 
     def __hide(self, reason):
         self.__highlighter.reset()
-        self.__aimInfo.hide()
+        self.__aimPanel.hide()
         self.__setInactiveReason(reason)
 
     def __deactivate(self, reason):
