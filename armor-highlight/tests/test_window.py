@@ -134,8 +134,28 @@ class AimWindowTest(unittest.TestCase):
             keys.append(key)
 
         self.assertGreater(len(keys), 10)
-        self.assertLess(len(keys), 60)
+        self.assertLess(len(keys), 100)
         self.assertGreater(len(coverage(window.rects()[0])), 0.9 * math.pi * 60 * 60)
+
+    def test_nothing_spills_outside_silhouette(self):
+        # Прицел у края танка: пока круг считается, за контуром ничего не рисуется, кроме неуточнённых блоков
+        # основы (не дальше шага основы от контура). Крупные блоки первого прохода за контур не выливаются.
+        aim = (140.0, 60.0)
+        window = AimWindow(1, LEVELS, aim, 80, 2500, 3)
+        step = window.stepPx
+        outside = lambda x, y: max(0, x - 149, y - 74, -150 - x, -75 - y)
+        for _ in range(200):
+            window.setAim(aim)
+            run(window, tank, 1, 40)
+            cells = coverage(window.rects()[0])
+            spill = [ xy for xy in cells if tank(*xy) is None and outside(*xy) >= step ]
+            self.assertEqual(spill, [])
+            if window.done:
+                break
+
+        self.assertTrue(window.done)
+        settle(window, tank, 1)
+        self.assertEqual([ xy for xy in coverage(window.rects()[0]) if tank(*xy) is None ], [])
 
     def test_exact_after_first_pass(self):
         aim = (-20.0, 10.0)

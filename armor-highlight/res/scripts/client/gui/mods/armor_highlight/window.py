@@ -9,11 +9,13 @@
 # основа крупнее ячейки из настроек.
 # Порядок расчёта (как в 0.3.0):
 #   1. Непосчитанные блоки области — от уровня level + coarseLevels к основе, в каждом уровне от центра. Круг сразу
-#      закрашен грубо: пока блок не посчитан, рисуется значение ближайшего посчитанного крупного блока над ним.
+#      закрашен грубо: пока блок не посчитан, рисуется значение ближайшего посчитанного крупного блока над ним —
+#      только если тот внутри силуэта (все его соседи тоже на цели), иначе цвет вылился бы за контур танка.
 #   2. Круг пересчёта, снова и снова: сначала уточнение, затем каждый блок основы. Блок, у которого хоть один из
 #      8 соседей того же уровня показывает другое (другой цвет или край силуэта), делится на 4 — и так до ячейки
 #      из настроек. Однородная броня остаётся крупными блоками и расчёта не тратит; граница, пропавшая при
-#      повороте цели, снова становится одним блоком. Новый круг начинается не чаще раза за кадр.
+#      повороте цели, снова становится одним блоком. Основа пересчитывается сначала на границах (край силуэта,
+#      смена цвета), потом однородная. Новый круг начинается не чаще раза за кадр.
 # Область расчёта чуть шире круга и квантована, чтобы порядок не перестраивался каждый кадр.
 # Посчитанное хранится, пока сетка жива: прицел ушёл и вернулся — картинка сразу на месте.
 #
@@ -83,12 +85,15 @@ def keyLevel(i, j, maxLevel):
 def refineOrder(u, v, radius, level, topLevel):
     # (порядок, пересчёт): порядок — блоки уровней от topLevel до level, в каждом от центра (с повторами:
     # крупный блок есть и в мелких уровнях); пересчёт — блоки уровня level от центра.
+    # Крупные уровни — с кольцом блоков вокруг: у крупного блока, чьё значение подставляется, должны быть
+    # посчитаны все соседи (иначе неизвестно, не у края ли он силуэта).
     order = []
     refresh = []
     for lvl in xrange(topLevel, level - 1, -1):
         step = 1 << lvl
         half = step * 0.5
-        cells = [ (i, j) for j, iLo, iHi in rowRanges(u, v, radius, step) for i in xrange(iLo, iHi + 1, step) ]
+        ring = step * 1.5 if lvl > level else 0.0
+        cells = [ (i, j) for j, iLo, iHi in rowRanges(u, v, radius + ring, step) for i in xrange(iLo, iHi + 1, step) ]
         cells.sort(key=lambda key: (key[0] + half - u) ** 2 + (key[1] + half - v) ** 2)
         order.extend(cells)
         if lvl == level:
@@ -117,7 +122,6 @@ class AimWindow(object):
         # Расчётов уточнения в последнем законченном круге.
         self.lastDetail = 0
         self.__detail = 0
-        self.__masks = tuple((~((1 << lvl) - 1) for lvl in xrange(self.level + 1, self.topLevel + 1)))
         # Поделённые блоки (i, j, уровень), уровень от 1 до level.
         self.__split = set()
         self.__aim = aim
@@ -268,7 +272,22 @@ class AimWindow(object):
         half = step * 0.5
         blocks.sort(key=lambda key: (key[0] + half - u) ** 2 + (key[1] + half - v) ** 2)
         yield BUSY
+        # Сначала блоки на границах (край силуэта, смена цвета) — после поворота цели контур обновляется первым,
+        # и подсветка за ним не задерживается; однородные — потом.
+        level = self.level
+        later = []
+        checks = 0
         for key in blocks:
+            checks += 1
+            if checks >= _CHECKS_PER_CALL:
+                checks = 0
+                yield BUSY
+            if self.__isBoundary(key[0], key[1], level):
+                yield key
+            else:
+                later.append(key)
+
+        for key in later:
             yield key
 
     def __refine(self):
@@ -394,6 +413,37 @@ class AimWindow(object):
 
     # --- растр ---
 
+    def __fallback(self, i, j):
+        # Пока блок не посчитан, показываем значение ближайшего посчитанного крупного блока над ним — но только
+        # внутри силуэта: если у крупного блока хоть один сосед «мимо цели», блок лежит на краю танка, и его цвет
+        # вылился бы за контур; тогда до расчёта здесь пусто. Если соседи на этом уровне ещё не посчитаны (точка
+        # блока — общая с крупным блоком), проверяется уровень крупнее.
+        get = self.cache.get
+        drawable = self.drawable
+        level = self.level
+        for lvl in xrange(level + 1, self.topLevel + 1):
+            mask = ~((1 << lvl) - 1)
+            pi = i & mask
+            pj = j & mask
+            value = get((pi, pj), _MISSING)
+            if value is _MISSING:
+                continue
+            if value not in drawable:
+                return None
+            size = 1 << lvl
+            known = True
+            for dx, dy in _NEIGHBOURS:
+                other = get((pi + dx * size, pj + dy * size), _MISSING)
+                if other is _MISSING:
+                    known = False
+                elif other not in drawable:
+                    return None
+
+            if known:
+                return value
+
+        return None
+
     def __buildLocal(self, bi, bj):
         # Строки поделённого блока основы по его листьям: кортеж на строку ячеек, интервалы (значение, i0, i1).
         step = 1 << self.level
@@ -438,7 +488,6 @@ class AimWindow(object):
         # их собственные строки.
         step = 1 << self.level
         get = self.cache.get
-        masks = self.__masks
         drawable = self.drawable
         split = self.__split
         level = self.level
@@ -457,14 +506,7 @@ class AimWindow(object):
                 continue
             value = get((i, j), _MISSING)
             if value is _MISSING:
-                # Пока блок не посчитан, показываем значение ближайшего посчитанного крупного блока над ним.
-                value = None
-                for mask in masks:
-                    parent = get((i & mask, j & mask), _MISSING)
-                    if parent is not _MISSING:
-                        value = parent
-                        break
-
+                value = self.__fallback(i, j)
             if value not in drawable:
                 continue
             if uniform and uniform[-1][0] == value and uniform[-1][2] == i:
