@@ -2,9 +2,9 @@
 rem Builds max.armor-highlight_<version>.mtmod.
 rem
 rem Usage:
-rem   build.bat -v 0.6.0                          build only
-rem   build.bat -v 0.6.0 -i "D:\Games\Tanki"      build and copy to <game>\mods\<client version>\
-rem   build.bat -v 0.6.0 -i "D:\Games\Tanki" -m 1.45.0.0
+rem   build.bat -v 0.7.0                          build only
+rem   build.bat -v 0.7.0 -i "D:\Games\Tanki"      build and copy to <game>\mods\<client version>\
+rem   build.bat -v 0.7.0 -i "D:\Games\Tanki" -m 1.45.0.0
 rem                                               same, with explicit mods subfolder
 rem
 rem Python 2.7: set PYTHON27=C:\Python27\python.exe, otherwise "py -2.7" or "python" is used.

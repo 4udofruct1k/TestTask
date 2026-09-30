@@ -7,9 +7,15 @@ from gui.mods.armor_highlight import log, logException, palette
 
 LINKAGE = 'max.armor_highlight'
 # Увеличить при изменении шаблона: ModsSettingsAPI тогда сбросит сохранённые значения на новые по умолчанию.
-SETTINGS_VERSION = 3
+SETTINGS_VERSION = 5
 
 CELL_SIZES = (1, 2, 4, 8)
+# Где подсвечивать: область вокруг центра прицела (каждая ячейка) или вся цель — с уточнением границ
+# или каждая ячейка (в фоне, показ целиком / за один кадр, игра замирает).
+MODES = ('aim', 'adaptive', 'background', 'blocking')
+MODE_LABELS = ['Вокруг центра прицела', 'Вся цель, с уточнением', 'Вся цель, каждая ячейка в фоне', 'Вся цель, каждая ячейка за один кадр']
+# Радиус области вокруг центра прицела, px.
+AIM_RADII = (40, 60, 80, 120, 160)
 # Шаг поиска мелких зон: None — подобрать по размеру цели, иначе уровень сетки (16 px -> 4, ...).
 SEARCH_STEPS = (None, 16, 8, 4, 2)
 FOCUS_RADII = (0, 10, 20, 40)
@@ -21,10 +27,11 @@ DEFAULTS = {'enabled': True,
  'showInArcade': True,
  'stickyTarget': True,
  'appearDelayMs': 100,
+ 'mode': 0,
+ 'aimRadius': 1,
  'cellSize': 0,
  'searchStep': 0,
  'focusRadius': 2,
- 'fullPass': False,
  'frameBudgetMs': 3,
  'colorFull': palette.DEFAULT_FULL,
  'colorHalf': palette.DEFAULT_HALF,
@@ -47,12 +54,13 @@ def _template(templates):
                  templates.createCheckbox('Показывать в движении', 'showWhileMoving', DEFAULTS['showWhileMoving'], tooltip=_tooltip('Показывать в движении', 'Если выключено, подсветка появляется, только когда свой танк стоит.')),
                  templates.createCheckbox('Показывать в аркадном режиме', 'showInArcade', DEFAULTS['showInArcade'], tooltip=_tooltip('Аркадный режим', 'Если выключено, подсветка только в снайперском режиме.')),
                  templates.createCheckbox('Не убирать, когда прицел уходит с цели', 'stickyTarget', DEFAULTS['stickyTarget'], tooltip=_tooltip('Держать цель', 'Подсветка остаётся на последней цели, пока прицел не наведён на другого противника, цель жива и видна.')),
+                 templates.createDropdown('Где подсвечивать', 'mode', MODE_LABELS, DEFAULTS['mode'], tooltip=_tooltip('Где подсвечивать', '«Вокруг центра прицела» — круг заданного размера, в нём считается каждая ячейка, от центра наружу; нагрузка небольшая. «Вся цель» — для проверки: с уточнением — сначала редкие точки, потом границы цветов; каждая ячейка — вся цель без пропусков, в фоне (бюджет 25 мс на кадр, картинка появляется целиком) или за один кадр (игра замирает на время расчёта).')),
+                 templates.createStepSlider('Размер области у прицела', 'aimRadius', [ 'радиус %d px' % radius for radius in AIM_RADII ], DEFAULTS['aimRadius'], tooltip=_tooltip('Размер области', 'Радиус круга вокруг центра прицела. Число точек растёт как квадрат радиуса: вдвое больше радиус — вчетверо дольше прорисовка.')),
                  templates.createSlider('Задержка появления', 'appearDelayMs', DEFAULTS['appearDelayMs'], 0, 1000, 50, '{{value}} мс'),
                  templates.createStepSlider('Размер ячейки', 'cellSize', [ '%d px' % size for size in CELL_SIZES ], DEFAULTS['cellSize'], tooltip=_tooltip('Размер ячейки', 'Мельче — ровнее граница цветов, но дольше прорисовка и больше нагрузка.')),
-                 templates.createStepSlider('Шаг поиска мелких зон', 'searchStep', [ 'авто' if step is None else '%d px' % step for step in SEARCH_STEPS ], DEFAULTS['searchStep'], tooltip=_tooltip('Шаг поиска', 'Сначала цель проверяется точками через этот шаг, потом уточняются границы цветов. Зона меньше шага может потеряться. Мельче шаг — меньше пропусков, но дольше первая картинка. «Авто» — 8–16 px в зависимости от размера цели.')),
-                 templates.createStepSlider('Полная проверка под прицелом', 'focusRadius', [ 'выкл' if radius == 0 else 'радиус %d px' % radius for radius in FOCUS_RADII ], DEFAULTS['focusRadius'], tooltip=_tooltip('Под прицелом', 'В круге вокруг прицела считается каждая ячейка, без пропусков: там найдутся и смотровые щели меньше шага поиска. Эта часть считается первой.')),
-                 templates.createCheckbox('Полная проходка сразу (замирание)', 'fullPass', DEFAULTS['fullPass'], tooltip=_tooltip('Полная проходка', 'Для проверки: вся цель считается в каждой ячейке за один кадр, без постепенного появления и уточнений. Игра замирает на время расчёта — на крупной цели несколько секунд, и снова при каждом повороте башни или камеры. Настройки шага и круга под прицелом при этом не действуют.')),
-                 templates.createSlider('Нагрузка на процессор', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS.'))],
+                 templates.createStepSlider('Шаг поиска мелких зон', 'searchStep', [ 'авто' if step is None else '%d px' % step for step in SEARCH_STEPS ], DEFAULTS['searchStep'], tooltip=_tooltip('Шаг поиска', 'Только для «Вся цель, с уточнением». Сначала цель проверяется точками через этот шаг, потом уточняются границы цветов. Зона меньше шага может потеряться. Мельче шаг — меньше пропусков, но дольше первая картинка. «Авто» — 8–16 px в зависимости от размера цели.')),
+                 templates.createStepSlider('Полная проверка под прицелом', 'focusRadius', [ 'выкл' if radius == 0 else 'радиус %d px' % radius for radius in FOCUS_RADII ], DEFAULTS['focusRadius'], tooltip=_tooltip('Под прицелом', 'Только для «Вся цель, с уточнением». В круге вокруг прицела считается каждая ячейка, без пропусков: там найдутся и смотровые щели меньше шага поиска. Эта часть считается первой.')),
+                 templates.createSlider('Нагрузка на процессор', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS. Расчёт идёт в основном потоке игры: движок проверяет попадание луча в модель только из него, поэтому другие ядра процессора не помогают.'))],
      'column2': [templates.createColorChoice('Пробитие 100%', 'colorFull', '#' + DEFAULTS['colorFull']),
                  templates.createColorChoice('Пробитие 50%', 'colorHalf', '#' + DEFAULTS['colorHalf']),
                  templates.createColorChoice('Не пробивает или нет урона', 'colorZero', '#' + DEFAULTS['colorZero']),
@@ -161,8 +169,12 @@ class Settings(object):
         return FOCUS_RADII[_index(self.values['focusRadius'], FOCUS_RADII, DEFAULTS['focusRadius'])]
 
     @property
-    def fullPass(self):
-        return bool(self.values['fullPass'])
+    def mode(self):
+        return MODES[_index(self.values['mode'], MODES, DEFAULTS['mode'])]
+
+    @property
+    def aimRadius(self):
+        return AIM_RADII[_index(self.values['aimRadius'], AIM_RADII, DEFAULTS['aimRadius'])]
 
     @property
     def gradientSteps(self):

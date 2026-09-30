@@ -444,6 +444,16 @@ class Lattice(object):
             return 'refine, queue %d' % len(self.__heap)
         return self.__phase
 
+    def summary(self):
+        # Для строки статистики.
+        return 'cell=%dpx search=%dpx stage=%s%s done=%s cells=%d splits=%d' % (1 << self.minLevel,
+         1 << self.baseLevel,
+         self.stage,
+         ' full pass' if self.fullPass else '',
+         self.done,
+         len(self.cache),
+         self.splits)
+
     # --- растр ---
 
     def __setBlock(self, i, j, level, value):

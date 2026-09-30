@@ -149,14 +149,14 @@ class ArmorHighlightController(object):
         if ctx is None:
             self.__deactivate(reason)
         else:
-            target, aimWorld, shellDir, team = ctx
+            target, aimWorld, markerWorld, shellDir, team = ctx
             if self.__readySince is None:
                 self.__readySince = now
             if now - self.__readySince < self.__settings.appearDelay:
                 self.__hide('appear delay')
             else:
                 sampleKey = self.__sampler.prepare(player, target, shellDir, self.__piercingMultiplier, team, self.__settings.gradientSteps)
-                reason = self.__highlighter.frame(target, aimWorld, self.__sampler, sampleKey)
+                reason = self.__highlighter.frame(target, aimWorld, self.__sampler, sampleKey, markerWorld=markerWorld)
                 self.__setInactiveReason(reason)
         self.__logStatsIfDue()
 
@@ -171,7 +171,8 @@ class ArmorHighlightController(object):
             self.__stillSince = None
 
     def __findTarget(self, player):
-        # Возвращает (причина, None) или (None, (цель, точка прицеливания на ней или None, направление снаряда, команда)).
+        # Возвращает (причина, None) или (None, (цель, точка прицеливания на ней или None, центр прицела в мире,
+        # направление снаряда, команда)).
         settings = self.__settings
         if not settings.enabled:
             return ('disabled in settings', None)
@@ -207,7 +208,7 @@ class ArmorHighlightController(object):
         self.__stickyTarget = target
         shellDir = Math.Vector3(direction)
         shellDir.normalise()
-        return (None, (target, aimWorld, shellDir, team))
+        return (None, (target, aimWorld, position, shellDir, team))
 
     @staticmethod
     def __isEnemy(entity, team):
