@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-# Офлайн-тесты window.py: область вокруг центра прицела.
+# Офлайн-тесты window.py: область вокруг центра прицела по логике 0.3.0.
+import math
 import unittest
 
 import support
 support.installPackages()
-from gui.mods.armor_highlight.window import AimWindow
+from gui.mods.armor_highlight.window import AimWindow, rowRanges
 
 LEVELS = range(7)
-AREA = (-160, -85, 160, 85)
 
 
 def tank(x, y):
@@ -19,14 +19,30 @@ def tank(x, y):
     return max(0, min(6, int((x + 0.5 * y + 150) / 300.0 * 7)))
 
 
-def run(window, scene, limit=None):
+def atCell(scene, cell):
+    # Значение ячейки (i, j) — в её центре.
+    return lambda i, j: scene(int(math.floor((i + 0.5) * cell)), int(math.floor((j + 0.5) * cell)))
+
+
+def run(window, scene, cell, limit=None):
+    # Один кадр: ячейки, пока окно их отдаёт (непосчитанные, затем пересчёт по кругу не больше раза на ячейку).
+    value = atCell(scene, cell)
     keys = []
     while limit is None or len(keys) < limit:
         key = window.nextKey()
         if key is None:
             break
-        window.store(key, scene(*key))
+        window.store(key, value(*key))
         keys.append(key)
+
+    return keys
+
+
+def frames(window, scene, cell, count):
+    keys = []
+    for _ in range(count):
+        window.setAim(window.aim)
+        keys.extend(run(window, scene, cell))
 
     return keys
 
@@ -42,127 +58,116 @@ def coverage(rects):
     return cells
 
 
-def inWindow(x, y, aim, radius, tile=8):
-    # Пиксель в плитке, чей центр в радиусе от прицела.
-    tx, ty = x // tile * tile, y // tile * tile
-    return (tx + tile * 0.5 - aim[0]) ** 2 + (ty + tile * 0.5 - aim[1]) ** 2 <= radius * radius
+def expected(scene, aim, radius, cell, step=1):
+    # Пиксели ячеек, чьи центры в круге, со значением сцены в центре ячейки.
+    out = {}
+    value = atCell(scene, cell)
+    for j, iLo, iHi in rowRanges(aim[0] / float(cell), aim[1] / float(cell), radius / float(cell), step):
+        for i in range(iLo, iHi + 1, step):
+            v = value(i, j)
+            if v is None:
+                continue
+            for y in range(j * cell, (j + step) * cell):
+                for x in range(i * cell, (i + step) * cell):
+                    out[x, y] = v
+
+    return out
 
 
 class AimWindowTest(unittest.TestCase):
 
-    def test_every_cell_around_aim(self):
+    def test_coarse_picture_first(self):
+        # После расчёта только крупного уровня (шаг 8 ячеек) круг уже закрашен целиком.
+        window = AimWindow(3, LEVELS, (0.0, 0.0), 60, 2500, 3)
+        coarse = 0
+        keys = []
+        while True:
+            key = window.nextKey()
+            if key[0] % 8 or key[1] % 8:
+                break
+            window.store(key, atCell(tank, 3)(*key))
+            keys.append(key)
+
+        self.assertGreater(len(keys), 10)
+        self.assertLess(len(keys), 60)
+        self.assertGreater(len(coverage(window.rects()[0])), 0.9 * math.pi * 60 * 60)
+
+    def test_exact_after_first_pass(self):
         aim = (-20.0, 10.0)
-        window = AimWindow(AREA, 0, LEVELS, aim, 40)
-        keys = run(window, tank)
+        window = AimWindow(3, LEVELS, aim, 60, 2500, 3)
+        run(window, tank, 3)
         self.assertTrue(window.done)
-        self.assertEqual(len(keys), len(set(keys)))
-        cells = coverage(window.rects()[0])
-        expected = dict((((x, y), tank(x, y)) for y in range(-85, 85) for x in range(-160, 160) if inWindow(x, y, aim, 40) and tank(x, y) is not None))
-        self.assertEqual(cells, expected)
-        # Каждая ячейка области посчитана, лишних нет.
-        self.assertEqual(set(keys), set(((x, y) for y in range(-85, 85) for x in range(-160, 160) if inWindow(x, y, aim, 40))))
+        self.assertEqual(coverage(window.rects()[0]), expected(tank, aim, 60, 3))
 
-    def test_centre_first(self):
-        aim = (30.0, -5.0)
-        window = AimWindow(AREA, 0, LEVELS, aim, 60)
-        keys = run(window, tank)
-        first = keys[:64]
-        self.assertTrue(all((abs(x - 30) < 8 and abs(y + 5) < 8 for x, y in first)), first)
-        # Последние — у края области.
-        last = keys[-64:]
-        self.assertTrue(all(((x - 30) ** 2 + (y + 5) ** 2 > 40 ** 2 for x, y in last)))
-
-    def test_clipped_to_target_area(self):
-        window = AimWindow((-20, -20, 20, 20), 0, LEVELS, (15.0, 15.0), 40)
-        keys = run(window, tank)
-        self.assertTrue(keys)
-        self.assertTrue(all((-20 <= x < 20 and -20 <= y < 20 for x, y in keys)))
-
-    def test_aim_moves_and_returns(self):
-        window = AimWindow(AREA, 0, LEVELS, (-60.0, 0.0), 30)
-        first = run(window, tank)
-        window.setAim((60.0, 0.0))
-        second = run(window, tank)
-        self.assertTrue(second)
-        self.assertFalse(set(first) & set(second))
-        cells = coverage(window.rects()[0])
-        self.assertTrue(all((inWindow(x, y, (60.0, 0.0), 30) for x, y in cells)), 'old area is not drawn')
-        # Вернулись — всё уже посчитано.
-        window.setAim((-60.0, 0.0))
-        self.assertEqual(run(window, tank), [])
-        self.assertEqual(len(coverage(window.rects()[0])), sum((1 for x, y in first if tank(x, y) is not None)))
-
-    def test_refresh_keeps_picture(self):
+    def test_round_robin_refresh_follows_changes(self):
         aim = (0.0, 0.0)
-        window = AimWindow(AREA, 0, LEVELS, aim, 30)
-        run(window, tank)
-        before = coverage(window.rects()[0])
-        shifted = lambda x, y: tank(x - 3, y)
-        window.refresh(AREA, 1.5)
-        self.assertFalse(window.done)
-        run(window, shifted, 50)
-        middle = coverage(window.rects()[0])
-        # Посчитанное заново — новое, остальное — прежнее, дыр нет.
-        self.assertEqual(set(middle), set(before) | set(((x, y) for x, y in middle if shifted(x, y) is not None)))
-        run(window, shifted)
-        after = coverage(window.rects()[0])
-        expected = dict((((x, y), shifted(x, y)) for y in range(-85, 85) for x in range(-160, 160) if inWindow(x, y, aim, 30) and shifted(x, y) is not None))
-        self.assertEqual(after, expected)
+        window = AimWindow(3, LEVELS, aim, 45, 2500, 3)
+        run(window, tank, 3)
+        shifted = lambda x, y: tank(x - 20, y)
+        # Каждая ячейка пересчитывается не больше раза за кадр.
+        perFrame = len(frames(window, shifted, 3, 1))
+        self.assertLessEqual(perFrame, len(window.cache))
+        frames(window, shifted, 3, 1)
+        self.assertEqual(coverage(window.rects()[0]), expected(shifted, aim, 45, 3))
 
-    def test_refresh_restarts_from_centre(self):
-        window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 30)
-        run(window, tank)
-        window.refresh(AREA, 1.0)
-        run(window, tank, 100)
-        window.refresh(AREA, 0.5)
-        # Пересчёт начался заново от центра, не дожидаясь края.
-        first = window.nextKey()
-        self.assertTrue(-8 <= first[0] < 8 and -8 <= first[1] < 8, first)
-        self.assertEqual(window.refreshes, 2)
+    def test_budget_limited_frames_still_catch_up(self):
+        # Кадры по 50 ячеек: пересчёт идёт по кругу и за несколько кадров догоняет изменения.
+        aim = (0.0, 0.0)
+        window = AimWindow(3, LEVELS, aim, 45, 2500, 3)
+        run(window, tank, 3)
+        shifted = lambda x, y: tank(x + 12, y)
+        for _ in range(20):
+            window.setAim(aim)
+            run(window, shifted, 3, 50)
 
-    def test_stale_values_are_hidden(self):
-        # Прежние значения видны, пока суммарный сдвиг с их расчёта не больше staleDriftPx (2 px).
-        window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 30, staleDriftPx=2.0)
-        run(window, tank)
-        full = len(coverage(window.rects()[0]))
-        window.refresh(AREA, 1.0)
-        run(window, tank, 64)
-        window.refresh(AREA, 1.0)
-        self.assertEqual(len(coverage(window.rects()[0])), full, '2 px of drift: still shown')
-        run(window, tank, 64)
-        window.refresh(AREA, 1.0)
-        # 3 px с расчёта краёв: видно только пересчитанное после первого сдвига — центр.
-        cells = coverage(window.rects()[0])
-        self.assertLess(len(cells), full / 4)
-        self.assertTrue(all((abs(x) < 16 and abs(y) < 16 for x, y in cells)))
-        run(window, tank)
-        self.assertEqual(len(coverage(window.rects()[0])), full)
+        self.assertEqual(coverage(window.rects()[0]), expected(shifted, aim, 45, 3))
 
-    def test_two_pixel_cells(self):
+    def test_aim_moves_new_area_coarse_first(self):
+        window = AimWindow(3, LEVELS, (-60.0, 0.0), 30, 2500, 3)
+        run(window, tank, 3)
+        window.setAim((60.0, 0.0))
+        first = run(window, tank, 3, 5)
+        self.assertTrue(all((i % 8 == 0 and j % 8 == 0 for i, j in first)), first)
+        run(window, tank, 3)
+        self.assertEqual(coverage(window.rects()[0]), expected(tank, (60.0, 0.0), 30, 3))
+        # Вернулись — старая область уже посчитана: сразу точная картинка, дальше только пересчёт.
+        cached = set(window.cache)
+        window.setAim((-60.0, 0.0))
+        self.assertEqual(coverage(window.rects()[0]), expected(tank, (-60.0, 0.0), 30, 3))
+        self.assertTrue(set(run(window, tank, 3)) <= cached)
+
+    def test_step_grows_for_huge_circle(self):
+        window = AimWindow(1, LEVELS, (0.0, 0.0), 160, 2500, 3)
+        self.assertEqual(window.level, 3)
+        run(window, tank, 1)
+        self.assertEqual(coverage(window.rects()[0]), expected(tank, (0.0, 0.0), 160, 1, 8))
+
+    def test_one_pixel_cells(self):
         aim = (5.0, 5.0)
-        window = AimWindow(AREA, 1, LEVELS, aim, 30)
-        keys = run(window, tank)
-        self.assertTrue(all((x % 2 == 0 and y % 2 == 0 for x, y in keys)))
-        cells = coverage(window.rects()[0])
-        bad = [ xy for xy, value in cells.items() if value != tank(xy[0] & ~1, xy[1] & ~1) ]
-        self.assertEqual(bad, [])
+        window = AimWindow(1, LEVELS, aim, 25, 2500, 3)
+        run(window, tank, 1)
+        self.assertEqual(coverage(window.rects()[0]), expected(tank, aim, 25, 1))
+
+    def test_rects_are_whole_cells(self):
+        window = AimWindow(3, LEVELS, (7.0, -4.0), 50, 2500, 3)
+        run(window, tank, 3)
+        for _, x0, y0, x1, y1 in window.rects()[0]:
+            self.assertTrue(x0 % 3 == 0 and y0 % 3 == 0 and x1 % 3 == 0 and y1 % 3 == 0)
 
     def test_uniform_armour_is_few_rects(self):
-        # Каждый прямоугольник — квадрат на экране. Однородная броня в круге — полосы по 8 строк
-        # (у каждой своя ширина круга), а не по прямоугольнику на плитку.
-        window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 60)
-        run(window, lambda x, y: 3)
-        rects = window.rects()[0]
-        self.assertLessEqual(len(rects), 16)
-        self.assertEqual(sum(((x1 - x0) * (y1 - y0) for _, x0, y0, x1, y1 in rects)), len(coverage(rects)))
+        # Каждый прямоугольник — квадрат на экране: однородная броня — не больше одного на строку ячеек.
+        window = AimWindow(3, LEVELS, (0.0, 0.0), 60, 2500, 3)
+        run(window, lambda x, y: 3, 3)
+        self.assertLessEqual(len(window.rects()[0]), 2 * 60 // 3 + 2)
 
     def test_rects_changed_flag(self):
-        window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 30)
-        run(window, tank)
+        window = AimWindow(3, LEVELS, (0.0, 0.0), 30, 2500, 3)
+        run(window, tank, 3)
         rects, changed = window.rects()
         self.assertTrue(changed)
         self.assertEqual(window.rects(), (rects, False))
-        window.setAim((0.4, 0.4))
+        # Пересчёт тех же значений картинку не меняет.
+        frames(window, tank, 3, 1)
         self.assertEqual(window.rects(), (rects, False))
 
 

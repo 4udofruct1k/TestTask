@@ -1,353 +1,288 @@
 # -*- coding: utf-8 -*-
-# Область вокруг центра прицела: каждая ячейка в круге радиуса radius px, от центра наружу.
-# Без BigWorld и GUI — тестируется офлайн (tests/test_window.py).
+# Область вокруг центра прицела — по логике 0.3.0. Без BigWorld и GUI — тестируется офлайн (tests/test_window.py).
 #
-# Координаты — пиксели экрана от якоря на цели, как в lattice.py: ячейка (i, j) — квадрат 2**minLevel px
-# с левым верхним углом (i, j), значение — результат в центре её левого верхнего пикселя.
-# Ячейки собраны в плитки 8x8 px (при ячейке крупнее — плитка из одной ячейки). Область — плитки, чей центр
-# не дальше radius от прицела, в пределах габаритов цели. Плитки считаются по близости к прицелу, в плитке —
-# все ячейки подряд. Посчитанное хранится по плиткам: прицел ушёл и вернулся — картинка сразу на месте.
+# Координаты: ячейка (i, j) — квадрат cellPx x cellPx с левым верхним углом (i * cellPx, j * cellPx) пикселей
+# от якоря на цели, значение — результат в центре ячейки. Уровень k — ячейки с шагом 2**k, их (i, j) кратны 2**k,
+# поэтому посчитанное на крупном уровне годится и на мелком.
 #
-# refresh(): цель на экране сдвинулась (башня, угол камеры, дистанция). Область пересчитывается заново от центра.
-# Прежние значения остаются на экране, только пока суммарный сдвиг с их расчёта не больше staleDriftPx, дальше
-# плитка показывает лишь пересчитанное: неактуальная картинка не показывается. На движущейся цели видна та часть
-# круга, которую расчёт успевает держать актуальной, — центр всегда.
-#
-# Растр: у каждой плитки свои интервалы одного значения по строкам; строка области — интервалы её плиток подряд,
-# соседние одного значения сливаются; одинаковые интервалы соседних строк — в прямоугольники. Каждый
-# прямоугольник — квадрат на экране, поэтому их должно быть как можно меньше: при разрезе по плиткам
-# их выходило втрое больше.
+# Круг радиуса radius px вокруг центра прицела. Если ячеек в нём больше maxCells, шаг удваивается.
+# Порядок расчёта:
+#   1. Непосчитанные ячейки области — от крупного уровня (шаг 2**coarseLevels ячеек) к мелкому, в каждом уровне
+#      от центра. Круг сразу заполняется грубо и за несколько кадров становится точным: пока ячейка не посчитана,
+#      рисуется значение ближайшей посчитанной крупной ячейки над ней.
+#   2. Пересчёт по кругу: ячейки мелкого уровня по очереди от центра, каждая не больше раза за кадр. Картинка
+#      обновляется целиком за несколько кадров и следит за поворотом башни и угла обзора.
+# Область расчёта чуть шире круга и квантована, чтобы порядок не перестраивался каждый кадр.
+# Посчитанное хранится, пока сетка жива: прицел ушёл и вернулся — картинка сразу на месте.
 import math
 
-_TILE_MIN_SHIFT = 3
-# Круг перестраивается, когда прицел сдвинулся на столько пикселей: плитка 8 px, чаще незачем.
-_WINDOW_STEP_PX = 4.0
+MAX_LEVEL = 8
 _MISSING = object()
 
 
-class _Tile(object):
-    __slots__ = ('key', 'values', 'old', 'oldStamp', 'complete', 'cells', 'runs')
+def gridLevel(radius, maxCells):
+    # Наименьший уровень, на котором в круге радиуса radius (в ячейках) не больше maxCells ячеек.
+    area = math.pi * radius * radius
+    level = 0
+    while level < MAX_LEVEL and area / float(4 ** level) > max(1, maxCells):
+        level += 1
 
-    def __init__(self, key):
-        self.key = key
-        # Значения текущего пересчёта и прежние (показываются, пока ячейка не пересчитана).
-        self.values = {}
-        self.old = None
-        # Суммарный сдвиг цели на момент расчёта самых старых из прежних значений.
-        self.oldStamp = 0.0
-        self.complete = False
-        self.cells = None
-        # Интервалы по строкам плитки или None, если значения менялись.
-        self.runs = None
+    return level
+
+
+def rowRanges(u, v, radius, step):
+    # Строки ячеек шага step, чьи центры в круге (u, v, radius); всё в ячейках.
+    # Возвращает кортеж (j, iLo, iHi): i от iLo до iHi включительно с шагом step.
+    rows = []
+    half = step * 0.5
+    r2 = radius * radius
+    jLo = int(math.floor((v - radius - half) / step)) * step
+    for j in xrange(jLo, int(math.ceil(v + radius)) + step, step):
+        dy = j + half - v
+        rest = r2 - dy * dy
+        if rest < 0.0:
+            continue
+        width = math.sqrt(rest)
+        iLo = int(math.ceil((u - width - half) / step)) * step
+        iHi = int(math.floor((u + width - half) / step)) * step
+        if iLo <= iHi:
+            rows.append((j, iLo, iHi))
+
+    return tuple(rows)
+
+
+def keyLevel(i, j, maxLevel):
+    # Самый крупный уровень (не выше maxLevel), которому принадлежит ячейка (i, j).
+    bits = i | j
+    if bits == 0:
+        return maxLevel
+    return min((bits & -bits).bit_length() - 1, maxLevel)
+
+
+def refineOrder(u, v, radius, level, topLevel):
+    # (порядок, пересчёт): порядок — ячейки уровней от topLevel до level, в каждом от центра (с повторами:
+    # крупная ячейка есть и в мелких уровнях); пересчёт — ячейки уровня level от центра.
+    order = []
+    refresh = []
+    for lvl in xrange(topLevel, level - 1, -1):
+        step = 1 << lvl
+        half = step * 0.5
+        cells = [ (i, j) for j, iLo, iHi in rowRanges(u, v, radius, step) for i in xrange(iLo, iHi + 1, step) ]
+        cells.sort(key=lambda key: (key[0] + half - u) ** 2 + (key[1] + half - v) ** 2)
+        order.extend(cells)
+        if lvl == level:
+            refresh = cells
+
+    return (order, refresh)
 
 
 class AimWindow(object):
 
-    def __init__(self, area, minLevel, drawable, aim, radius, staleDriftPx=2.0):
-        # area: (x0, y0, x1, y1) — габариты цели в пикселях от якоря; aim — центр прицела от якоря.
-        self.area = area
-        self.minLevel = minLevel
-        self.tileShift = max(_TILE_MIN_SHIFT, minLevel)
+    def __init__(self, cellPx, drawable, aim, radius, maxCells, coarseLevels):
+        # aim — центр прицела в пикселях от якоря; обновляется каждый кадр через setAim().
+        self.cellPx = cellPx
+        # Ключ ячейки в пикселях: точка расчёта — ((i + 0.5) * keyScale, (j + 0.5) * keyScale) от якоря.
+        self.keyScale = cellPx
         self.drawable = frozenset(drawable)
         self.radius = float(radius)
+        self.cache = {}
+        self.level = gridLevel(self.radius / cellPx, maxCells)
+        self.topLevel = min(self.level + coarseLevels, MAX_LEVEL)
         self.done = False
         self.hasPicture = True
         self.stale = False
-        self.refreshes = 0
-        self.staleDriftPx = staleDriftPx
-        # Суммарный сдвиг цели на экране с создания, px, и его значение в начале текущего пересчёта.
-        self.driftTotal = 0.0
-        self.__passStamp = 0.0
+        self.cycles = 0
+        self.__masks = tuple((~((1 << lvl) - 1) for lvl in xrange(self.level + 1, self.topLevel + 1)))
         self.__aim = aim
-        self.__windowAim = None
-        self.__tiles = {}
-        self.__window = frozenset()
-        self.__todo = []
-        self.__current = None
-        # Полосы плиток: y плитки -> x плиток области по порядку; строки полос с интервалами.
-        self.__bands = {}
-        self.__bandRows = {}
-        self.__dirtyBands = set()
+        self.__computeKey = None
+        # Порядок расчёта для центра, сдвинутого на кратное шагу верхнего уровня, — тот же, только сдвинутый:
+        # (u mod M, v mod M, r) -> (порядок, число ячеек пересчёта).
+        self.__patterns = {}
+        self.__order = []
+        self.__orderPos = 0
+        self.__refresh = []
+        self.__cursor = 0
+        self.__refreshLeft = 0
+        self.__drawRows = ()
+        self.__rowRuns = {}
+        self.__dirtyRows = set()
         self.__rects = []
         self.__rectsDirty = True
-        self.__updateWindow()
+        self.setAim(aim)
 
     # --- прицел ---
 
     def setAim(self, aim):
+        # Вызывается каждый кадр: круг для рисования, область расчёта и лимит пересчёта на кадр.
         self.__aim = aim
-        last = self.__windowAim
-        if abs(aim[0] - last[0]) >= _WINDOW_STEP_PX or abs(aim[1] - last[1]) >= _WINDOW_STEP_PX:
-            self.__updateWindow()
+        cell = float(self.cellPx)
+        u = aim[0] / cell
+        v = aim[1] / cell
+        radius = self.radius / cell
+        step = 1 << self.level
+        drawRows = rowRanges(u, v, radius, step)
+        if drawRows != self.__drawRows:
+            self.__drawRows = drawRows
+            self.__rectsDirty = True
+        quant = 2 * step
+        qu = int(round(u / quant)) * quant
+        qv = int(round(v / quant)) * quant
+        qr = (int(math.ceil(radius / quant)) + 1) * quant
+        computeKey = (qu, qv, qr)
+        if computeKey != self.__computeKey:
+            self.__computeKey = computeKey
+            period = 1 << self.topLevel
+            bu = qu % period
+            bv = qv % period
+            pattern = self.__patterns.get((bu, bv, qr))
+            if pattern is None:
+                order, refresh = refineOrder(bu, bv, qr, self.level, self.topLevel)
+                pattern = self.__patterns[bu, bv, qr] = (order, len(refresh))
+            order, refreshCount = pattern
+            du = qu - bu
+            dv = qv - bv
+            if du or dv:
+                order = [ (i + du, j + dv) for i, j in order ]
+            # Ячейки пересчёта — последний, мелкий уровень порядка.
+            self.__order = order
+            self.__refresh = order[len(order) - refreshCount:]
+            self.__orderPos = 0
+            self.__cursor = 0
+            self.done = False
+        # За кадр каждая ячейка пересчитывается не больше раза.
+        self.__refreshLeft = len(self.__refresh)
 
     @property
     def aim(self):
         return self.__aim
 
-    def __updateWindow(self):
-        # Плитки области для текущего прицела и очередь расчёта.
-        ax, ay = self.__windowAim = self.__aim
-        shift = self.tileShift
-        size = 1 << shift
-        half = size * 0.5
-        radius = self.radius
-        r2 = radius * radius
-        x0, y0, x1, y1 = self.area
-        aimTile = (int(math.floor(ax)) >> shift << shift, int(math.floor(ay)) >> shift << shift)
-        window = []
-        for ky in xrange(int(math.floor((ay - radius) / size)) - 1, int(math.floor((ay + radius) / size)) + 2):
-            ty = ky << shift
-            if ty >= y1 or ty + size <= y0:
-                continue
-            dy = ty + half - ay
-            for kx in xrange(int(math.floor((ax - radius) / size)) - 1, int(math.floor((ax + radius) / size)) + 2):
-                tx = kx << shift
-                if tx >= x1 or tx + size <= x0:
-                    continue
-                dx = tx + half - ax
-                if dx * dx + dy * dy <= r2 or (tx, ty) == aimTile:
-                    window.append((tx, ty))
-
-        window = frozenset(window)
-        if window != self.__window:
-            self.__window = window
-            self.__rectsDirty = True
-            bands = {}
-            for key in window:
-                bands.setdefault(key[1], []).append(key[0])
-
-            bands = dict(((ty, tuple(sorted(xs))) for ty, xs in bands.iteritems()))
-            old = self.__bands
-            self.__dirtyBands.update((ty for ty in set(old) | set(bands) if old.get(ty) != bands.get(ty)))
-            self.__bands = bands
-        tiles = self.__tiles
-        todo = []
-        for key in window:
-            tile = tiles.get(key)
-            if tile is None:
-                tile = tiles[key] = _Tile(key)
-            if not tile.complete:
-                # Сначала плитки, где ещё ничего нет, потом пересчёт прежних; в каждой группе — от прицела.
-                hasPicture = bool(tile.values) or tile.old is not None
-                todo.append((hasPicture, (key[0] + half - ax) ** 2 + (key[1] + half - ay) ** 2, key))
-
-        todo.sort(reverse=True)
-        self.__todo = todo
-        self.__current = None
-        self.done = False
-
     # --- расчёт ---
 
     def nextKey(self):
-        # Следующая ячейка для расчёта или None, если вся область посчитана.
-        tiles = self.__tiles
-        while True:
-            current = self.__current
-            if current is None:
-                if not self.__todo:
-                    self.done = True
-                    return None
-                key = self.__todo.pop()[2]
-                tile = tiles.get(key)
-                if tile is None or tile.complete:
-                    continue
-                if tile.cells is None:
-                    tile.cells = self.__cells(key)
-                current = self.__current = [tile, 0]
-            tile, idx = current
-            cells = tile.cells
-            values = tile.values
-            count = len(cells)
-            while idx < count and cells[idx] in values:
-                idx += 1
+        # Сначала непосчитанные ячейки от крупного уровня к мелкому, затем пересчёт по кругу; None — на этот кадр всё.
+        cache = self.cache
+        order = self.__order
+        pos = self.__orderPos
+        count = len(order)
+        while pos < count:
+            key = order[pos]
+            pos += 1
+            if key not in cache:
+                self.__orderPos = pos
+                return key
 
-            if idx < count:
-                current[1] = idx
-                return cells[idx]
-            tile.complete = True
-            if tile.old is not None:
-                tile.old = None
-                self.__tileChanged(tile)
-            self.__current = None
+        self.__orderPos = pos
+        self.done = True
+        refresh = self.__refresh
+        if self.__refreshLeft <= 0 or not refresh:
+            return None
+        self.__refreshLeft -= 1
+        idx = self.__cursor % len(refresh)
+        if idx == len(refresh) - 1:
+            self.cycles += 1
+        self.__cursor += 1
+        return refresh[idx]
 
     def store(self, key, value):
         # value — значение ячейки key, которую вернул nextKey().
-        shift = self.tileShift
-        tile = self.__tiles.get((key[0] >> shift << shift, key[1] >> shift << shift))
-        if tile is None:
+        cache = self.cache
+        old = cache.get(key, _MISSING)
+        cache[key] = value
+        if old is not _MISSING and old == value:
             return
-        tile.values[key] = value
-        self.__tileChanged(tile)
-
-    def __tileChanged(self, tile):
-        tile.runs = None
-        self.__dirtyBands.add(tile.key[1])
+        # Крупная ячейка подменяет ещё не посчитанные мелкие под собой: строки j .. j + 2**top - 1.
+        i, j = key
+        top = keyLevel(i, j, self.topLevel)
+        if top <= self.level:
+            self.__dirtyRows.add(j)
+        else:
+            self.__dirtyRows.update(xrange(j, j + (1 << top), 1 << self.level))
         self.__rectsDirty = True
 
-    def refresh(self, area, drift):
-        # Цель на экране сдвинулась на drift px: пересчёт заново от центра, устаревшее убирается.
-        self.driftTotal += drift
-        self.refreshes += 1
-        self.area = area
-        window = self.__window
-        tiles = self.__tiles
-        for key in tiles.keys():
-            if key not in window:
-                del tiles[key]
-
-        now = self.driftTotal
-        passStamp = self.__passStamp
-        for tile in tiles.itervalues():
-            changed = False
-            if tile.values:
-                if tile.old is None:
-                    tile.old = tile.values
-                    tile.oldStamp = passStamp
-                else:
-                    tile.old.update(tile.values)
-                    tile.oldStamp = min(tile.oldStamp, passStamp)
-                tile.values = {}
-            if tile.old is not None and now - tile.oldStamp > self.staleDriftPx:
-                tile.old = None
-                changed = True
-            tile.complete = False
-            tile.cells = None
-            if changed:
-                self.__tileChanged(tile)
-
-        self.__passStamp = now
-        self.__updateWindow()
-
-    def __cells(self, key):
-        # Ячейки плитки внутри габаритов цели, по строкам.
-        tx, ty = key
-        step = 1 << self.minLevel
-        size = 1 << self.tileShift
-        x0, y0, x1, y1 = self.area
-        xs = [ x for x in xrange(tx, tx + size, step) if x + step > x0 and x < x1 ]
-        return [ (x, y) for y in xrange(ty, ty + size, step) if y + step > y0 and y < y1 for x in xs ]
-
     def probe(self):
-        # Перепроверки однородных блоков, как в lattice.py, здесь нет: область пересчитывается целиком при сдвиге.
+        # Перепроверки, как в lattice.py, не нужны: круг и так пересчитывается непрерывно.
         return None
-
-    def valueAt(self, x, y):
-        # Значение ячейки с пикселем (x, y): текущее, прежнее или _MISSING.
-        mask = ~((1 << self.minLevel) - 1)
-        key = (x & mask, y & mask)
-        shift = self.tileShift
-        tile = self.__tiles.get((key[0] >> shift << shift, key[1] >> shift << shift))
-        if tile is None:
-            return _MISSING
-        value = tile.values.get(key, _MISSING)
-        if value is _MISSING and tile.old is not None:
-            value = tile.old.get(key, _MISSING)
-        return value
 
     def summary(self):
         # Для строки статистики.
-        window = self.__window
-        tiles = self.__tiles
-        complete = sum((1 for key in window if tiles[key].complete))
-        return 'cell=%dpx aim area r=%dpx tiles=%d/%d refreshes=%d done=%s' % (1 << self.minLevel,
+        pending = sum((1 for key in self.__refresh if key not in self.cache))
+        return 'cell=%dpx step=%d aim area r=%dpx cells=%d pending=%d cycles=%d' % (self.cellPx,
+         1 << self.level,
          self.radius,
-         complete,
-         len(window),
-         self.refreshes,
-         self.done)
+         len(self.__refresh),
+         pending,
+         self.cycles)
 
     # --- растр ---
 
-    def __tileRuns(self, tile):
-        # Интервалы одного значения в каждой строке плитки: кортеж на строку, (x0, x1, значение).
-        values = tile.values
-        old = tile.old or {}
+    def __buildRow(self, j, iLo, iHi):
+        # Интервалы строки j: (значение, i0, i1), i1 не включён.
+        step = 1 << self.level
+        get = self.cache.get
+        masks = self.__masks
         drawable = self.drawable
-        step = 1 << self.minLevel
-        size = 1 << self.tileShift
-        tx, ty = tile.key
-        x0, y0, x1, y1 = self.area
-        xs = [ x for x in xrange(tx, tx + size, step) if x + step > x0 and x < x1 ]
-        rows = []
-        for y in xrange(ty, ty + size, step):
-            if y + step <= y0 or y >= y1:
-                rows.append(())
-                continue
-            runs = []
-            start = end = value = None
-            for x in xs:
-                cell = values.get((x, y), _MISSING)
-                if cell is _MISSING:
-                    cell = old.get((x, y))
-                if cell not in drawable:
-                    cell = None
-                if cell == value and x == end:
-                    end = x + step
-                    continue
-                if value is not None:
-                    runs.append((start, end, value))
-                start, end, value = x, x + step, cell
+        runs = []
+        runValue = None
+        runStart = iLo
+        for i in xrange(iLo, iHi + 1, step):
+            value = get((i, j), _MISSING)
+            if value is _MISSING:
+                # Пока ячейка не посчитана, показываем значение ближайшей посчитанной крупной ячейки над ней.
+                value = None
+                for mask in masks:
+                    parent = get((i & mask, j & mask), _MISSING)
+                    if parent is not _MISSING:
+                        value = parent
+                        break
 
-            if value is not None:
-                runs.append((start, end, value))
-            rows.append(tuple(runs))
+            if value not in drawable:
+                value = None
+            if value != runValue:
+                if runValue is not None:
+                    runs.append((runValue, runStart, i))
+                runValue = value
+                runStart = i
 
-        return rows
-
-    def __buildBand(self, ty, xs):
-        # Строки полосы: интервалы плиток подряд, стыкующиеся интервалы одного значения сливаются.
-        tiles = self.__tiles
-        rows = [ [] for _ in xrange((1 << self.tileShift) >> self.minLevel) ]
-        for tx in xs:
-            tile = tiles[tx, ty]
-            if tile.runs is None:
-                tile.runs = self.__tileRuns(tile)
-            for row, runs in zip(rows, tile.runs):
-                for run in runs:
-                    if row and row[-1][1] == run[0] and row[-1][2] == run[2]:
-                        row[-1] = (row[-1][0], run[1], run[2])
-                    else:
-                        row.append(run)
-
-        return [ tuple(row) for row in rows ]
+        if runValue is not None:
+            runs.append((runValue, runStart, iHi + step))
+        return tuple(runs)
 
     def rects(self):
         # [(value, x0, y0, x1, y1)] в пикселях от якоря и признак, что список изменился с прошлого вызова.
+        # Интервалы по строкам; одинаковые интервалы соседних строк — один прямоугольник.
         if not self.__rectsDirty:
             return (self.__rects, False)
         self.__rectsDirty = False
-        bands = self.__bands
-        bandRows = self.__bandRows
-        for ty in self.__dirtyBands:
-            xs = bands.get(ty)
-            if xs:
-                bandRows[ty] = self.__buildBand(ty, xs)
-            else:
-                bandRows.pop(ty, None)
+        rowRuns = self.__rowRuns
+        for j in self.__dirtyRows:
+            rowRuns.pop(j, None)
 
-        self.__dirtyBands.clear()
-        step = 1 << self.minLevel
+        self.__dirtyRows.clear()
+        step = 1 << self.level
+        cell = self.cellPx
+        height = step * cell
         rects = []
         opened = {}
-        lastY = None
-        for ty in sorted(bandRows):
-            y = ty
-            for runs in bandRows[ty]:
-                if lastY is None or y != lastY + step:
-                    opened = {}
-                current = {}
-                for run in runs:
-                    idx = opened.get(run)
-                    if idx is None:
-                        idx = len(rects)
-                        rects.append([run[2], run[0], y, run[1], y + step])
-                    else:
-                        rects[idx][4] = y + step
-                    current[run] = idx
+        lastJ = None
+        for j, iLo, iHi in self.__drawRows:
+            entry = rowRuns.get(j)
+            if entry is None or entry[0] != iLo or entry[1] != iHi:
+                entry = rowRuns[j] = (iLo, iHi, self.__buildRow(j, iLo, iHi))
+            if lastJ is None or j != lastJ + step:
+                opened = {}
+            current = {}
+            y0 = j * cell
+            for run in entry[2]:
+                idx = opened.get(run)
+                if idx is None:
+                    idx = len(rects)
+                    rects.append([run[0], run[1] * cell, y0, run[2] * cell, y0 + height])
+                else:
+                    rects[idx][4] = y0 + height
+                current[run] = idx
 
-                opened = current
-                lastY = y
-                y += step
+            opened = current
+            lastJ = j
 
         rects = [ tuple(rect) for rect in rects ]
         if rects == self.__rects:

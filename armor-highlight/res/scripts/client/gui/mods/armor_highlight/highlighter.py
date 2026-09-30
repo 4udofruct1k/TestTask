@@ -179,14 +179,8 @@ class Highlighter(object):
             anchorWorld = targetMatrix.applyPoint(lattice.anchorLocal)
             check, drift = self.__check(lattice, target, sampleKey, (screenW, screenH), fov, pose, toLocal, anchorWorld, cameraPos, pxPerRadian)
             if check == _DRIFT and lattice.window:
-                # Область у прицела: пересчёт от центра наружу, устаревшее больше чем на staleDriftPx убирается.
-                anchor = _project(viewProj, anchorWorld, screenW, screenH)
-                area = self.__targetArea(bounds, viewProj, screenW, screenH, anchor) if anchor is not None else None
-                if area is None:
-                    lattice = None
-                else:
-                    lattice.refresh(area[0], drift)
-                    self.__setReference(lattice, pose, toLocal, anchorWorld, cameraPos, area[1])
+                # Область у прицела пересчитывается по кругу непрерывно: сдвиг цели догоняется сам.
+                self.__setReference(lattice, pose, toLocal, anchorWorld, cameraPos, lattice.radiusPx)
             elif check == _RESET or check == _DRIFT and lattice.done:
                 lattice = None
             # Сдвиг цели, пока сетка всей цели не досчитана: досчитываем её, новую — потом. В 0.6.0 сетка
@@ -205,6 +199,9 @@ class Highlighter(object):
         ay = int(math.floor(anchor[1] + 0.5))
         if aimPx is not None:
             lattice.setAim((aimPx[0] - ax, aimPx[1] - ay))
+        elif lattice.window:
+            # Область у прицела обновляет лимит пересчёта на кадр в setAim.
+            lattice.setAim(lattice.aim)
         self.anchor = (ax, ay)
         self.rays = rays
         self.rayLength = (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH
@@ -328,12 +325,13 @@ class Highlighter(object):
         mode = settings.mode
         drawable = range(settings.gradientSteps)
         if mode == 'aim':
-            lattice = AimWindow(area, settings.cellLevel, drawable, aim, settings.aimRadius, config.staleDriftPx)
+            lattice = AimWindow(settings.cellPx, drawable, aim, settings.aimRadius, config.aimMaxCells, config.aimCoarseLevels)
             lattice.tolerancePx = config.rebuildTolerancePx
         else:
             fullPass = mode in _FULL_PASS_MODES
             lattice = Lattice(area, settings.cellLevel, config.uniformMax, config.maxRows, drawable, aim, settings.searchLevel, settings.focusRadius, fullPass)
             lattice.tolerancePx = config.rebuildTolerancePxFullPass if fullPass else config.rebuildTolerancePx
+            lattice.keyScale = 1
         lattice.mode = mode
         lattice.window = mode == 'aim'
         lattice.target = target
@@ -356,6 +354,7 @@ class Highlighter(object):
         probes = config.probesPerFrame
         sample = sampler.sample
         getRay = rays.get
+        scale = lattice.keyScale
         while True:
             key = lattice.nextKey()
             if key is BUSY:
@@ -378,7 +377,7 @@ class Highlighter(object):
                 computed += 1
                 continue
             i, j = key
-            ray, point = getRay((ax + i + 0.5) * sx - 1.0, 1.0 - (ay + j + 0.5) * sy)
+            ray, point = getRay((ax + (i + 0.5) * scale) * sx - 1.0, 1.0 - (ay + (j + 0.5) * scale) * sy)
             lattice.store(key, sample(point, point + ray.scale(rayLength)))
             computed += 1
             if timer() - start >= budget:
