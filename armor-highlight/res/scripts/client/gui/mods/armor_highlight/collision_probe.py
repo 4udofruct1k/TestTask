@@ -4,6 +4,8 @@
 # модули (гусеницы, орудие); внутренние (двигатель, баки, боеукладка, экипаж), если и есть, то в серверной.
 # Загрузить модель по имени клиент не умеет (BigWorld.BspCollisionModel есть только на сервере, ModelHitTester.py),
 # поэтому здесь только чтение через ResMgr и строки в лог: по ним видно, можно ли разобрать файл самим.
+# ResMgr.isFile в 0.12.1 вернул 0 даже для клиентской модели, которую игра загружает, поэтому файл открывается
+# через openSection, а содержимое папок танка (collision_client, collision) выводится списком.
 # Файлы клиента не меняются.
 import ResMgr
 import nations
@@ -14,6 +16,7 @@ from gui.mods.armor_highlight import log, logException
 _VEHICLES_PATH = 'scripts/item_defs/vehicles/'
 _PRIMITIVES_EXT = ('.primitives_processed', '.primitives')
 _HEX_BYTES = 32
+_FOLDER_ENTRIES = 40
 _probed = set()
 
 
@@ -32,6 +35,7 @@ def probe(vDesc):
             return
         turrets = root['turrets0']
         parts = (('hull', root['hull']), ('turret', turrets[vDesc.turret.name] if turrets is not None else None))
+        folders = []
         for part, section in parts:
             hitTester = section['hitTester'] if section is not None else None
             if hitTester is None:
@@ -39,14 +43,38 @@ def probe(vDesc):
                 continue
             client = hitTester.readString('collisionModelClient')
             server = hitTester.readString('collisionModelServer')
-            log('collision probe %s %s: client %s (file %s), server %s (file %s)', vType.name, part, client, bool(client) and ResMgr.isFile(client), server, bool(server) and ResMgr.isFile(server))
-            if server and server != client and ResMgr.isFile(server):
+            log('collision probe %s %s: client %s (%s), server %s (%s)', vType.name, part, client, _exists(client), server, _exists(server))
+            for model in (client, server):
+                folder = model.rsplit('/', 1)[0] if '/' in model else ''
+                if folder and folder not in folders:
+                    folders.append(folder)
+            if server and server != client and ResMgr.openSection(server) is not None:
                 log('collision probe %s %s server: %s', vType.name, part, _describeModel(server))
                 log('collision probe %s %s client: %s', vType.name, part, _describeModel(client))
+
+        # Папка танка и папки моделей: есть ли вообще collision рядом с collision_client.
+        if folders:
+            vehicleFolder = folders[0].rsplit('/', 1)[0]
+            for folder in [vehicleFolder] + folders:
+                log('collision probe %s folder %s', vType.name, _describeFolder(folder))
 
         ResMgr.purge(path, True)
     except Exception:
         logException('collision probe')
+
+
+def _exists(path):
+    if not path:
+        return 'empty'
+    return 'isFile %s, open %s' % (ResMgr.isFile(path), ResMgr.openSection(path) is not None)
+
+
+def _describeFolder(path):
+    section = ResMgr.openSection(path)
+    if section is None:
+        return '%s: not found (isDir %s)' % (path, ResMgr.isDir(path))
+    keys = sorted(section.keys())
+    return '%s: %d entries %s' % (path, len(keys), keys[:_FOLDER_ENTRIES])
 
 
 def _describeModel(path):

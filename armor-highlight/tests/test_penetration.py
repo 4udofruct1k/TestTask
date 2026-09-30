@@ -79,6 +79,11 @@ class ModulesTest(unittest.TestCase):
         details = [Detail(1.0, 0.2, Mat(50), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('gunnerHealth')), 'hull')]
         self.assertEqual(modules(details, ricochet=lambda shell, cos, mat: cos < 0.5), [])
 
+    def test_describe_layers_names_string_extras(self):
+        # У гусениц extra — строка с индексом пары, у остальных модулей — объект с name.
+        details = [Detail(1.0, 1.0, Mat(20, damage=0.0, kind=23, extra='leftTrack0Health'), 0), Detail(2.0, 1.0, Mat(0, damage=0.0, kind=5, extra=Extra('engineHealth')), 1)]
+        self.assertEqual(pen.describeLayers(details), '0/23 armor=20 dmg=0.0 extra=leftTrack0Health; 1/5 armor=0 dmg=0.0 extra=engineHealth')
+
     def test_labels(self):
         self.assertEqual(pen.moduleLabel('gunner1Health'), u'наводчик')
         self.assertEqual(pen.moduleLabel('gunHealth'), u'орудие')

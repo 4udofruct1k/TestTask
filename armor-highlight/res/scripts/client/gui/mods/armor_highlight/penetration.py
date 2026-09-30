@@ -170,7 +170,9 @@ def describeLayers(details):
             out.append('%s/none' % (cDetails.compName,))
             continue
         extra = getattr(matInfo, 'extra', None)
-        out.append('%s/%s armor=%s dmg=%s extra=%s' % (cDetails.compName, matInfo.kind, matInfo.armor, matInfo.vehicleDamageFactor, getattr(extra, 'name', None) if extra is not None else None))
+        # extra — объект с name или строка (у гусениц с индексом пары: 'leftTrack0Health').
+        extraName = (getattr(extra, 'name', None) or str(extra)) if extra is not None else None
+        out.append('%s/%s armor=%s dmg=%s extra=%s' % (cDetails.compName, matInfo.kind, matInfo.armor, matInfo.vehicleDamageFactor, extraName))
 
     return '; '.join(out)
 
