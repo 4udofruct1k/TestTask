@@ -98,7 +98,7 @@ class AimWindowTest(unittest.TestCase):
         run(window, tank)
         before = coverage(window.rects()[0])
         shifted = lambda x, y: tank(x - 3, y)
-        window.refresh(AREA)
+        window.refresh(AREA, 1.5)
         self.assertFalse(window.done)
         run(window, shifted, 50)
         middle = coverage(window.rects()[0])
@@ -109,15 +109,34 @@ class AimWindowTest(unittest.TestCase):
         expected = dict((((x, y), shifted(x, y)) for y in range(-85, 85) for x in range(-160, 160) if inWindow(x, y, aim, 30) and shifted(x, y) is not None))
         self.assertEqual(after, expected)
 
-    def test_refresh_during_refresh_finishes_first(self):
+    def test_refresh_restarts_from_centre(self):
         window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 30)
-        total = len(run(window, tank))
-        window.refresh(AREA)
+        run(window, tank)
+        window.refresh(AREA, 1.0)
         run(window, tank, 100)
-        window.refresh(AREA)
-        # Текущий пересчёт доходит до края, потом начинается следующий: всего два полных.
-        self.assertEqual(len(run(window, tank)), 2 * total - 100)
+        window.refresh(AREA, 0.5)
+        # Пересчёт начался заново от центра, не дожидаясь края.
+        first = window.nextKey()
+        self.assertTrue(-8 <= first[0] < 8 and -8 <= first[1] < 8, first)
         self.assertEqual(window.refreshes, 2)
+
+    def test_stale_values_are_hidden(self):
+        # Прежние значения видны, пока суммарный сдвиг с их расчёта не больше staleDriftPx (2 px).
+        window = AimWindow(AREA, 0, LEVELS, (0.0, 0.0), 30, staleDriftPx=2.0)
+        run(window, tank)
+        full = len(coverage(window.rects()[0]))
+        window.refresh(AREA, 1.0)
+        run(window, tank, 64)
+        window.refresh(AREA, 1.0)
+        self.assertEqual(len(coverage(window.rects()[0])), full, '2 px of drift: still shown')
+        run(window, tank, 64)
+        window.refresh(AREA, 1.0)
+        # 3 px с расчёта краёв: видно только пересчитанное после первого сдвига — центр.
+        cells = coverage(window.rects()[0])
+        self.assertLess(len(cells), full / 4)
+        self.assertTrue(all((abs(x) < 16 and abs(y) < 16 for x, y in cells)))
+        run(window, tank)
+        self.assertEqual(len(coverage(window.rects()[0])), full)
 
     def test_two_pixel_cells(self):
         aim = (5.0, 5.0)

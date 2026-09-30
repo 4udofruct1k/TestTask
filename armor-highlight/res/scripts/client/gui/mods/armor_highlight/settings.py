@@ -7,7 +7,7 @@ from gui.mods.armor_highlight import log, logException, palette
 
 LINKAGE = 'max.armor_highlight'
 # Увеличить при изменении шаблона: ModsSettingsAPI тогда сбросит сохранённые значения на новые по умолчанию.
-SETTINGS_VERSION = 6
+SETTINGS_VERSION = 7
 
 CELL_SIZES = (1, 2, 4, 8)
 # Где подсвечивать: область вокруг центра прицела (каждая ячейка) или вся цель — с уточнением границ
@@ -29,7 +29,7 @@ DEFAULTS = {'enabled': True,
  'appearDelayMs': 100,
  'mode': 0,
  'aimRadius': 1,
- 'cellSize': 0,
+ 'cellSize': 1,
  'searchStep': 0,
  'focusRadius': 2,
  'frameBudgetMs': 3,
@@ -58,7 +58,7 @@ def _template(templates):
                  templates.createDropdown('Где подсвечивать', 'mode', MODE_LABELS, DEFAULTS['mode'], tooltip=_tooltip('Где подсвечивать', '«Вокруг центра прицела» — круг заданного размера, в нём считается каждая ячейка, от центра наружу; нагрузка небольшая. «Вся цель» — для проверки: с уточнением — сначала редкие точки, потом границы цветов; каждая ячейка — вся цель без пропусков, в фоне (бюджет 25 мс на кадр, картинка появляется целиком) или за один кадр (игра замирает на время расчёта).')),
                  templates.createStepSlider('Размер области у прицела', 'aimRadius', [ 'радиус %d px' % radius for radius in AIM_RADII ], DEFAULTS['aimRadius'], tooltip=_tooltip('Размер области', 'Радиус круга вокруг центра прицела. Число точек растёт как квадрат радиуса: вдвое больше радиус — вчетверо дольше прорисовка.')),
                  templates.createSlider('Задержка появления', 'appearDelayMs', DEFAULTS['appearDelayMs'], 0, 1000, 50, '{{value}} мс'),
-                 templates.createStepSlider('Размер ячейки', 'cellSize', [ '%d px' % size for size in CELL_SIZES ], DEFAULTS['cellSize'], tooltip=_tooltip('Размер ячейки', 'Мельче — ровнее граница цветов, но дольше прорисовка и больше нагрузка.')),
+                 templates.createStepSlider('Размер ячейки', 'cellSize', [ '%d px' % size for size in CELL_SIZES ], DEFAULTS['cellSize'], tooltip=_tooltip('Размер ячейки', 'Мельче — ровнее граница цветов, но дольше прорисовка. В бою точка стоит ~22 мкс: при нагрузке 3 мс/кадр круг радиусом 60 px с ячейкой 2 px заполняется примерно за 0.35 с, с ячейкой 1 px — за 1.3 с. На движущейся цели видна та часть круга, которую расчёт успевает держать актуальной.')),
                  templates.createStepSlider('Шаг поиска мелких зон', 'searchStep', [ 'авто' if step is None else '%d px' % step for step in SEARCH_STEPS ], DEFAULTS['searchStep'], tooltip=_tooltip('Шаг поиска', 'Только для «Вся цель, с уточнением». Сначала цель проверяется точками через этот шаг, потом уточняются границы цветов. Зона меньше шага может потеряться. Мельче шаг — меньше пропусков, но дольше первая картинка. «Авто» — 8–16 px в зависимости от размера цели.')),
                  templates.createStepSlider('Полная проверка под прицелом', 'focusRadius', [ 'выкл' if radius == 0 else 'радиус %d px' % radius for radius in FOCUS_RADII ], DEFAULTS['focusRadius'], tooltip=_tooltip('Под прицелом', 'Только для «Вся цель, с уточнением». В круге вокруг прицела считается каждая ячейка, без пропусков: там найдутся и смотровые щели меньше шага поиска. Эта часть считается первой.')),
                  templates.createSlider('Нагрузка на процессор в бою', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта в бою', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS. Расчёт идёт в основном потоке игры: движок проверяет попадание луча в модель только из него, поэтому другие ядра процессора не помогают.')),

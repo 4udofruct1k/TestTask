@@ -84,7 +84,8 @@ class ArmorHighlightController(object):
         self.__isEnabled = True
         self.__stillSince = None
         self.__readySince = None
-        self.__stickyTarget = None
+        # id, а не сам объект: танк, ушедший из видимости, в клиенте уничтожается, и обращение к нему — ошибка.
+        self.__stickyTargetID = None
         self.__inactiveReason = 'starting'
         self.__lastErrorLogAt = None
         self.__suppressedErrors = 0
@@ -186,7 +187,7 @@ class ArmorHighlightController(object):
             return ('own vehicle is dead', None)
         mode = player.inputHandler.ctrlModeName
         if mode not in _SNIPER_MODES and not (settings.showInArcade and mode in _ARCADE_MODES):
-            self.__stickyTarget = None
+            self.__stickyTargetID = None
             return ('control mode %s' % mode, None)
         if not settings.showWhileMoving and self.__stillSince is None:
             return ('own vehicle is moving', None)
@@ -200,19 +201,22 @@ class ArmorHighlightController(object):
         target = getattr(collision, 'entity', None)
         aimWorld = position
         if not self.__isEnemy(target, team):
-            target = self.__stickyTarget if settings.stickyTarget else None
+            stickyID = self.__stickyTargetID
+            target = BigWorld.entities.get(stickyID) if settings.stickyTarget and stickyID is not None else None
             aimWorld = None
             if not self.__isEnemy(target, team):
-                self.__stickyTarget = None
+                self.__stickyTargetID = None
                 return ('no enemy under the marker', None)
-        self.__stickyTarget = target
+        self.__stickyTargetID = target.id
         shellDir = Math.Vector3(direction)
         shellDir.normalise()
         return (None, (target, aimWorld, position, shellDir, team))
 
     @staticmethod
     def __isEnemy(entity, team):
-        return isinstance(entity, Vehicle) and entity.isStarted and entity.health > 0 and entity.publicInfo['team'] != team
+        # getattr: у уничтоженной сущности (танк ушёл из видимости) атрибуты недоступны — в 0.7.1 это была ошибка
+        # в каждом тике до конца боя.
+        return isinstance(entity, Vehicle) and getattr(entity, 'isStarted', False) and entity.health > 0 and entity.publicInfo['team'] != team
 
     def __activeMarkerType(self):
         # 2.5: серверный маркер, если он включён, иначе клиентский.

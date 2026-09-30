@@ -177,15 +177,15 @@ class Highlighter(object):
         anchorWorld = None
         if lattice is not None:
             anchorWorld = targetMatrix.applyPoint(lattice.anchorLocal)
-            check = self.__check(lattice, target, sampleKey, (screenW, screenH), fov, pose, toLocal, anchorWorld, cameraPos, pxPerRadian)
+            check, drift = self.__check(lattice, target, sampleKey, (screenW, screenH), fov, pose, toLocal, anchorWorld, cameraPos, pxPerRadian)
             if check == _DRIFT and lattice.window:
-                # Область у прицела: картинка остаётся, область пересчитывается от центра наружу.
+                # Область у прицела: пересчёт от центра наружу, устаревшее больше чем на staleDriftPx убирается.
                 anchor = _project(viewProj, anchorWorld, screenW, screenH)
                 area = self.__targetArea(bounds, viewProj, screenW, screenH, anchor) if anchor is not None else None
                 if area is None:
                     lattice = None
                 else:
-                    lattice.refresh(area[0])
+                    lattice.refresh(area[0], drift)
                     self.__setReference(lattice, pose, toLocal, anchorWorld, cameraPos, area[1])
             elif check == _RESET or check == _DRIFT and lattice.done:
                 lattice = None
@@ -247,13 +247,13 @@ class Highlighter(object):
 
     def __check(self, lattice, target, sampleKey, screen, fov, pose, toLocal, anchorWorld, cameraPos, pxPerRadian):
         if lattice.stale or lattice.target is not target or lattice.sampleKey != sampleKey or lattice.screen != screen:
-            return _RESET
+            return (_RESET, None)
         if abs(fov - lattice.fov) > 1e-4 * abs(lattice.fov):
-            return _RESET
+            return (_RESET, None)
         toCamera = cameraPos - anchorWorld
         dist = toCamera.length
         if dist <= 0.0:
-            return _RESET
+            return (_RESET, None)
         pxPerMeter = pxPerRadian / dist
         # Сдвиг картинки в пикселях. Башня, орудие, корпус: сдвиг габаритов в системе координат цели.
         drift = max(((new - old).length for old, new in zip(lattice.pose, pose))) * pxPerMeter
@@ -263,11 +263,11 @@ class Highlighter(object):
         cosine = max(-1.0, min(1.0, direction.dot(lattice.cameraDir)))
         drift = max(drift, math.acos(cosine) * lattice.radiusPx, abs(dist / lattice.cameraDist - 1.0) * lattice.radiusPx)
         if drift <= lattice.tolerancePx:
-            return _OK
+            return (_OK, drift)
         # Резкий сдвиг: прежняя картинка уже не похожа на цель, строим заново.
         if drift > config.resetDriftPx:
-            return _RESET
-        return _DRIFT
+            return (_RESET, drift)
+        return (_DRIFT, drift)
 
     @staticmethod
     def __targetArea(bounds, viewProj, screenW, screenH, anchor):
@@ -328,7 +328,7 @@ class Highlighter(object):
         mode = settings.mode
         drawable = range(settings.gradientSteps)
         if mode == 'aim':
-            lattice = AimWindow(area, settings.cellLevel, drawable, aim, settings.aimRadius)
+            lattice = AimWindow(area, settings.cellLevel, drawable, aim, settings.aimRadius, config.staleDriftPx)
             lattice.tolerancePx = config.rebuildTolerancePx
         else:
             fullPass = mode in _FULL_PASS_MODES

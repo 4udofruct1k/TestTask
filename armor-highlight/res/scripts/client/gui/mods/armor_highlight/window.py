@@ -8,9 +8,10 @@
 # не дальше radius от прицела, в пределах габаритов цели. Плитки считаются по близости к прицелу, в плитке —
 # все ячейки подряд. Посчитанное хранится по плиткам: прицел ушёл и вернулся — картинка сразу на месте.
 #
-# refresh(): цель на экране чуть сдвинулась (башня, угол камеры, дистанция). Картинка не пропадает: прежние
-# значения остаются на экране, а область пересчитывается заново от центра наружу. Если цель сдвинулась ещё раз,
-# пока пересчёт идёт, он всё равно доходит до края области, и только потом начинается следующий.
+# refresh(): цель на экране сдвинулась (башня, угол камеры, дистанция). Область пересчитывается заново от центра.
+# Прежние значения остаются на экране, только пока суммарный сдвиг с их расчёта не больше staleDriftPx, дальше
+# плитка показывает лишь пересчитанное: неактуальная картинка не показывается. На движущейся цели видна та часть
+# круга, которую расчёт успевает держать актуальной, — центр всегда.
 #
 # Растр: у каждой плитки свои интервалы одного значения по строкам; строка области — интервалы её плиток подряд,
 # соседние одного значения сливаются; одинаковые интервалы соседних строк — в прямоугольники. Каждый
@@ -25,13 +26,15 @@ _MISSING = object()
 
 
 class _Tile(object):
-    __slots__ = ('key', 'values', 'old', 'complete', 'cells', 'runs')
+    __slots__ = ('key', 'values', 'old', 'oldStamp', 'complete', 'cells', 'runs')
 
     def __init__(self, key):
         self.key = key
         # Значения текущего пересчёта и прежние (показываются, пока ячейка не пересчитана).
         self.values = {}
         self.old = None
+        # Суммарный сдвиг цели на момент расчёта самых старых из прежних значений.
+        self.oldStamp = 0.0
         self.complete = False
         self.cells = None
         # Интервалы по строкам плитки или None, если значения менялись.
@@ -40,7 +43,7 @@ class _Tile(object):
 
 class AimWindow(object):
 
-    def __init__(self, area, minLevel, drawable, aim, radius):
+    def __init__(self, area, minLevel, drawable, aim, radius, staleDriftPx=2.0):
         # area: (x0, y0, x1, y1) — габариты цели в пикселях от якоря; aim — центр прицела от якоря.
         self.area = area
         self.minLevel = minLevel
@@ -51,14 +54,16 @@ class AimWindow(object):
         self.hasPicture = True
         self.stale = False
         self.refreshes = 0
+        self.staleDriftPx = staleDriftPx
+        # Суммарный сдвиг цели на экране с создания, px, и его значение в начале текущего пересчёта.
+        self.driftTotal = 0.0
+        self.__passStamp = 0.0
         self.__aim = aim
         self.__windowAim = None
         self.__tiles = {}
         self.__window = frozenset()
         self.__todo = []
         self.__current = None
-        self.__again = False
-        self.__nextArea = None
         # Полосы плиток: y плитки -> x плиток области по порядку; строки полос с интервалами.
         self.__bands = {}
         self.__bandRows = {}
@@ -140,9 +145,6 @@ class AimWindow(object):
             current = self.__current
             if current is None:
                 if not self.__todo:
-                    if self.__again:
-                        self.__startRefresh()
-                        continue
                     self.done = True
                     return None
                 key = self.__todo.pop()[2]
@@ -182,37 +184,38 @@ class AimWindow(object):
         self.__dirtyBands.add(tile.key[1])
         self.__rectsDirty = True
 
-    def refresh(self, area):
-        # Цель на экране сдвинулась: пересчитать область, не убирая картинку.
-        self.__nextArea = area
-        if self.done:
-            self.__startRefresh()
-        else:
-            self.__again = True
-
-    def __startRefresh(self):
-        self.__again = False
+    def refresh(self, area, drift):
+        # Цель на экране сдвинулась на drift px: пересчёт заново от центра, устаревшее убирается.
+        self.driftTotal += drift
         self.refreshes += 1
-        if self.__nextArea is not None:
-            self.area = self.__nextArea
-            self.__nextArea = None
+        self.area = area
         window = self.__window
         tiles = self.__tiles
         for key in tiles.keys():
             if key not in window:
                 del tiles[key]
 
+        now = self.driftTotal
+        passStamp = self.__passStamp
         for tile in tiles.itervalues():
+            changed = False
             if tile.values:
                 if tile.old is None:
                     tile.old = tile.values
+                    tile.oldStamp = passStamp
                 else:
                     tile.old.update(tile.values)
+                    tile.oldStamp = min(tile.oldStamp, passStamp)
                 tile.values = {}
-            # Картинка плитки не меняется: те же значения, только перенесены в прежние.
+            if tile.old is not None and now - tile.oldStamp > self.staleDriftPx:
+                tile.old = None
+                changed = True
             tile.complete = False
             tile.cells = None
+            if changed:
+                self.__tileChanged(tile)
 
+        self.__passStamp = now
         self.__updateWindow()
 
     def __cells(self, key):
