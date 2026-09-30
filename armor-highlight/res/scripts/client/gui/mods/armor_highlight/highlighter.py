@@ -6,11 +6,12 @@ import sys
 import time
 
 import BigWorld
+import GUI
 import Math
 from AvatarInputHandler import cameras
 from vehicle_systems.tankStructure import TankPartIndexes
 
-from gui.mods.armor_highlight import config, palette
+from gui.mods.armor_highlight import config, log, palette
 from gui.mods.armor_highlight.lattice import BUSY, Lattice
 from gui.mods.armor_highlight.overlay import Overlay
 from gui.mods.armor_highlight.sampler import RAY_EXTRA_LENGTH, FrameRays
@@ -45,6 +46,19 @@ def buildPaints(settings):
             paints[level] = (_WHITE_TEXTURE, (rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0, opacity / 100.0))
 
     return (paints, memory)
+
+
+_resolutionLogged = [False]
+
+
+def screenResolution():
+    # Сетка пикселей — разрешение GUI, как в клиенте (helpers/gui_utils.pixToClipVector2).
+    # Один раз пишем в лог и BigWorld.screenSize(): в 0.4.0 размеры в пикселях не совпали с экраном.
+    width, height = GUI.screenResolution()[:2]
+    if not _resolutionLogged[0]:
+        _resolutionLogged[0] = True
+        log('screen: GUI.screenResolution=%s, BigWorld.screenSize=%s', (width, height), tuple(BigWorld.screenSize()[:2]))
+    return (float(width), float(height))
 
 
 def _project(viewProj, point, screenW, screenH):
@@ -100,6 +114,10 @@ class Highlighter(object):
         self.__lattice = None
         self.__shown = None
         self.stats = Stats()
+        # Последний кадр: якорь в пикселях, лучи камеры и длина луча — для точечного расчёта под курсором.
+        self.anchor = None
+        self.rays = None
+        self.rayLength = 0.0
 
     def start(self):
         self.stop()
@@ -124,14 +142,15 @@ class Highlighter(object):
         self.__lattice = None
         self.__shown = None
 
-    def frame(self, target, aimWorld, sampler, sampleKey):
+    def frame(self, target, aimWorld, sampler, sampleKey, aimScreen=None):
         # Один кадр для цели target (Vehicle в бою или танк в ангаре). aimWorld — точка прицеливания на цели
-        # или None; sampler.sample(start, end) считает ячейку. Возвращает None или причину, почему не рисуем.
+        # или None; aimScreen — она же в пикселях экрана (курсор в режиме просмотра) или None.
+        # sampler.sample(start, end) считает ячейку. Возвращает None или причину, почему не рисуем.
         settings = self.__settings
         model = getattr(target, 'model', None)
         if model is None:
             return 'target has no model'
-        screenW, screenH = BigWorld.screenSize()[:2]
+        screenW, screenH = screenResolution()
         viewProj = cameras.getViewProjectionMatrix()
         fov = BigWorld.projection().fov
         rays = FrameRays()
@@ -149,7 +168,7 @@ class Highlighter(object):
             if not self.__isValid(lattice, target, sampleKey, (screenW, screenH), fov, pose, toLocal, anchorWorld, cameraPos, pxPerRadian):
                 lattice = None
         if lattice is None:
-            lattice, anchorWorld = self.__createLattice(target, aimWorld, sampleKey, (screenW, screenH), fov, pose, bounds, toLocal, targetMatrix, viewProj, cameraPos)
+            lattice, anchorWorld = self.__createLattice(target, aimWorld, aimScreen, sampleKey, (screenW, screenH), fov, pose, bounds, toLocal, targetMatrix, viewProj, cameraPos)
             if lattice is None:
                 self.__hide()
                 return 'target is off screen'
@@ -160,14 +179,19 @@ class Highlighter(object):
         # Якорь округляется до пикселя: края ячеек ложатся на границы пикселей, без щелей и наложений.
         ax = int(math.floor(anchor[0] + 0.5))
         ay = int(math.floor(anchor[1] + 0.5))
-        if aimWorld is not None:
-            aim = _project(viewProj, aimWorld, screenW, screenH)
-            if aim is not None:
-                lattice.aim = (aim[0] - ax, aim[1] - ay)
+        aim = aimScreen if aimScreen is not None else (_project(viewProj, aimWorld, screenW, screenH) if aimWorld is not None else None)
+        if aim is not None:
+            lattice.aim = (aim[0] - ax, aim[1] - ay)
+        self.anchor = (ax, ay)
+        self.rays = rays
+        self.rayLength = (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH
         computeStart = timer()
         computed = self.__compute(lattice, sampler, rays, ax, ay, screenW, screenH, (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH, settings.frameBudget)
         renderStart = timer()
-        shown = lattice if lattice.hasPicture else self.__shown
+        # Новая сетка показывается сразу, если старой картинки этой цели нет; иначе — когда готова её основная часть.
+        shown = self.__shown
+        if lattice.hasPicture or shown is None or shown.target is not target:
+            shown = lattice
         if shown is None or shown.target is not target:
             self.__hide()
         else:
@@ -207,7 +231,7 @@ class Highlighter(object):
             return False
         return True
 
-    def __createLattice(self, target, aimWorld, sampleKey, screen, fov, pose, bounds, toLocal, targetMatrix, viewProj, cameraPos):
+    def __createLattice(self, target, aimWorld, aimScreen, sampleKey, screen, fov, pose, bounds, toLocal, targetMatrix, viewProj, cameraPos):
         # Якорь: прежний, если цель та же (картинка не прыгает), иначе точка прицеливания или центр корпуса.
         previous = self.__lattice or self.__shown
         if previous is not None and previous.target is target:
@@ -242,7 +266,7 @@ class Highlighter(object):
             return (None, None)
         area = (x0 - ax, y0 - ay, x1 - ax, y1 - ay)
         settings = self.__settings
-        aim = _project(viewProj, aimWorld, screenW, screenH) if aimWorld is not None else None
+        aim = aimScreen if aimScreen is not None else (_project(viewProj, aimWorld, screenW, screenH) if aimWorld is not None else None)
         aim = (aim[0] - ax, aim[1] - ay) if aim is not None else ((x0 + x1) * 0.5 - ax, (y0 + y1) * 0.5 - ay)
         lattice = Lattice(area, settings.cellLevel, config.uniformMax, config.maxRows, range(settings.gradientSteps), aim)
         toCamera = cameraPos - anchorWorld

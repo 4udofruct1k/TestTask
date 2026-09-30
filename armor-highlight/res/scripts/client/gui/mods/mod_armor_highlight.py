@@ -13,7 +13,7 @@ def init():
         log('init, version %s', VERSION)
         # Импорт внутри try: ошибка импорта клиентских модулей попадёт в лог с префиксом мода.
         from gui.mods.armor_highlight.controller import ArmorHighlightController
-        from gui.mods.armor_highlight.preview import HangarPreview
+        from gui.mods.armor_highlight.preview import ViewMode
         from gui.mods.armor_highlight.settings import g_settings
         try:
             g_settings.load()
@@ -21,7 +21,12 @@ def init():
             logException('settings.load')
 
         _controller = ArmorHighlightController(g_settings)
-        _preview = HangarPreview(g_settings)
+        _preview = ViewMode(g_settings)
+        try:
+            _preview.register()
+        except Exception:
+            logException('ViewMode.register')
+
         g_playerEvents.onAvatarReady += _onAvatarReady
         g_playerEvents.onAvatarBecomeNonPlayer += _onAvatarBecomeNonPlayer
         g_playerEvents.onAccountBecomePlayer += _onAccountBecomePlayer
@@ -41,7 +46,7 @@ def fini():
             _controller.stop()
             _controller = None
         if _preview is not None:
-            _preview.stop()
+            _preview.deactivate()
             _preview = None
         log('fini')
     except Exception:
@@ -69,7 +74,7 @@ def _onAvatarBecomeNonPlayer():
 def _onAccountBecomePlayer():
     try:
         if _preview is not None:
-            _preview.start()
+            _preview.onLobby(True)
     except Exception:
         logException('onAccountBecomePlayer')
 
@@ -77,6 +82,6 @@ def _onAccountBecomePlayer():
 def _onAccountBecomeNonPlayer():
     try:
         if _preview is not None:
-            _preview.stop()
+            _preview.onLobby(False)
     except Exception:
         logException('onAccountBecomeNonPlayer')

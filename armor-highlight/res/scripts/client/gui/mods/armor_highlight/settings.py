@@ -7,7 +7,7 @@ from gui.mods.armor_highlight import log, logException, palette
 
 LINKAGE = 'max.armor_highlight'
 # Увеличить при изменении шаблона: ModsSettingsAPI тогда сбросит сохранённые значения на новые по умолчанию.
-SETTINGS_VERSION = 1
+SETTINGS_VERSION = 2
 
 CELL_SIZES = (1, 2, 4, 8)
 COLOUR_MODES = ('texture', 'memory', 'tint255', 'tint1')
@@ -25,7 +25,6 @@ DEFAULTS = {'enabled': True,
  'colorZero': palette.DEFAULT_ZERO,
  'gradientSteps': 2,
  'opacity': 50,
- 'hangarPreview': True,
  'colourMode': 0}
 
 
@@ -37,14 +36,14 @@ def _template(templates):
     return {'modDisplayName': 'Подсветка брони',
      'settingsVersion': SETTINGS_VERSION,
      'enabled': DEFAULTS['enabled'],
-     'column1': [templates.createHotkey('Включить или выключить в бою', 'toggleKey', DEFAULTS['toggleKey'], tooltip=_tooltip('Клавиша подсветки', 'В начале каждого боя подсветка включена. Клавиша выключает и снова включает её до конца боя.')),
+     'column1': [templates.createLabel('Просмотр на танке в ангаре — пункт «Подсветка брони: просмотр» в списке модов.'),
+                 templates.createHotkey('Включить или выключить в бою', 'toggleKey', DEFAULTS['toggleKey'], tooltip=_tooltip('Клавиша подсветки', 'В начале каждого боя подсветка включена. Клавиша выключает и снова включает её до конца боя.')),
                  templates.createCheckbox('Показывать в движении', 'showWhileMoving', DEFAULTS['showWhileMoving'], tooltip=_tooltip('Показывать в движении', 'Если выключено, подсветка появляется, только когда свой танк стоит.')),
                  templates.createCheckbox('Показывать в аркадном режиме', 'showInArcade', DEFAULTS['showInArcade'], tooltip=_tooltip('Аркадный режим', 'Если выключено, подсветка только в снайперском режиме.')),
                  templates.createCheckbox('Не убирать, когда прицел уходит с цели', 'stickyTarget', DEFAULTS['stickyTarget'], tooltip=_tooltip('Держать цель', 'Подсветка остаётся на последней цели, пока прицел не наведён на другого противника, цель жива и видна.')),
                  templates.createSlider('Задержка появления', 'appearDelayMs', DEFAULTS['appearDelayMs'], 0, 1000, 50, '{{value}} мс'),
                  templates.createStepSlider('Размер ячейки', 'cellSize', [ '%d px' % size for size in CELL_SIZES ], DEFAULTS['cellSize'], tooltip=_tooltip('Размер ячейки', 'Мельче — ровнее граница цветов, но дольше прорисовка и больше нагрузка.')),
-                 templates.createSlider('Нагрузка на процессор', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS.')),
-                 templates.createCheckbox('Предпросмотр в ангаре', 'hangarPreview', DEFAULTS['hangarPreview'], tooltip=_tooltip('Предпросмотр', 'Подсветка на танке в ангаре с текущими настройками. Расчёт упрощённый: ваш текущий снаряд против брони вашего танка, без учёта дистанции. В бою используется ванильный расчёт.'))],
+                 templates.createSlider('Нагрузка на процессор', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS.'))],
      'column2': [templates.createColorChoice('Пробитие 100%', 'colorFull', '#' + DEFAULTS['colorFull']),
                  templates.createColorChoice('Пробитие 50%', 'colorHalf', '#' + DEFAULTS['colorHalf']),
                  templates.createColorChoice('Не пробивает или нет урона', 'colorZero', '#' + DEFAULTS['colorZero']),
@@ -127,10 +126,6 @@ class Settings(object):
     @property
     def stickyTarget(self):
         return bool(self.values['stickyTarget'])
-
-    @property
-    def hangarPreview(self):
-        return bool(self.values['hangarPreview'])
 
     @property
     def appearDelay(self):

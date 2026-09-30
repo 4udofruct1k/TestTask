@@ -6,11 +6,15 @@
 # блок и его левый верхний потомок делят один расчёт.
 #
 # Порядок расчёта:
-#   1. Корни уровня top покрывают область — картинка появляется за один-два кадра.
+#   1. Корни уровня top покрывают область.
 #   2. До уровня base блоки делятся все: равномерная сетка ловит мелкие детали.
 #   3. Ниже base делятся только блоки на границе разных значений, до уровня minLevel (размер ячейки).
 #      Однородная броня остаётся крупными блоками, граница цветов уточняется до пикселя.
 # Внутри уровня блоки делятся от ближних к прицелу к дальним.
+#
+# Рисуются только окончательные блоки: ячейки minLevel и однородные блоки (проверены, границы рядом нет).
+# Грубых промежуточных блоков на экране нет: подсветка не вылезает за силуэт, а края сразу пиксельные.
+# Сначала появляется однородная броня, потом дорисовываются края.
 #
 # Отрисовка: блоки раскладываются по строкам высотой 2**minLevel, соседние интервалы одного значения
 # сливаются в полосы, одинаковые полосы соседних строк — в прямоугольники.
@@ -98,8 +102,10 @@ class Lattice(object):
                 if self.__childIdx == 0 and not self.__jobChecked:
                     # Граница проверяется лениво, по мере очереди: на тонких уровнях блоков тысячи.
                     if self.__onlyBoundary and not self.__isBoundary((i, j), self.__level + 1):
-                        if self.__level + 1 >= self.minLevel + 2:
-                            self.__probeBlocks.append(((i, j), self.__level + 1))
+                        level = self.__level + 1
+                        self.__setBlock(i, j, level, self.cache[i, j])
+                        if level >= self.minLevel + 2:
+                            self.__probeBlocks.append(((i, j), level))
                         self.__jobIdx += 1
                         checks += 1
                         if checks >= _CHECKS_PER_CALL:
@@ -117,11 +123,9 @@ class Lattice(object):
         # value — значение ячейки key, которую вернул nextKey().
         self.cache[key] = value
         if self.__isRootStage:
-            self.__setBlock(key[0], key[1], self.topLevel, value)
+            self.__setBlock(key[0], key[1], self.topLevel, value if self.topLevel <= self.minLevel else None)
             self.__created.append(key)
             self.__jobIdx += 1
-            if self.__jobIdx == len(self.__jobs):
-                self.hasPicture = True
             return
         self.__childIdx += 1
         if self.__childIdx == 3:
@@ -134,10 +138,11 @@ class Lattice(object):
     def __nextStage(self):
         # Блоки, созданные на этом уровне, становятся очередью на деление. Порядок наследуется от родителей,
         # а те шли от прицела, поэтому пересортировка не нужна.
-        if self.__isRootStage:
-            self.hasPicture = True
         created = self.__created
         level = self.__level
+        if not self.__isRootStage and level + 1 <= self.baseLevel:
+            # Однородные блоки уровня base проверены: основная картинка уже на экране.
+            self.hasPicture = True
         self.__created = []
         self.__isRootStage = False
         self.__jobs = created
@@ -148,14 +153,17 @@ class Lattice(object):
         self.__level = level - 1
         if level <= self.minLevel or not created:
             self.done = True
+            self.hasPicture = True
             self.__jobs = []
 
     def __split(self, i, j, level):
         half = 1 << level - 1
         cache = self.cache
         child = level - 1
+        final = child <= self.minLevel
         for ci, cj in ((i, j), (i + half, j), (i, j + half), (i + half, j + half)):
-            self.__setBlock(ci, cj, child, cache[ci, cj])
+            # Пока блок не проверен на границу, он не рисуется: None в растре.
+            self.__setBlock(ci, cj, child, cache[ci, cj] if final else None)
             self.__created.append((ci, cj))
 
         self.splits += 1

@@ -124,11 +124,34 @@ def allTextures():
             yield (rgb, opacity)
 
 
-def png(rgba, size=TEXTURE_SIZE):
-    # Сплошной RGBA PNG size x size — для текстур в памяти (BigWorld.addScaleformTexture).
+def pngImage(width, height, pixel):
+    # RGBA PNG: pixel(x, y) -> (r, g, b, a).
     def chunk(tag, data):
         return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag + data) & 0xFFFFFFFF)
 
-    row = b'\x00' + struct.pack('4B', *rgba) * size
-    header = struct.pack('>IIBBBBB', size, size, 8, 6, 0, 0, 0)
-    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header) + chunk(b'IDAT', zlib.compress(row * size)) + chunk(b'IEND', b'')
+    raw = b''.join((b'\x00' + b''.join((struct.pack('4B', *pixel(x, y)) for x in range(width))) for y in range(height)))
+    header = struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0)
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', header) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+
+
+def png(rgba, size=TEXTURE_SIZE):
+    # Сплошной RGBA PNG size x size — для текстур в памяти (BigWorld.addScaleformTexture).
+    return pngImage(size, size, lambda x, y: rgba)
+
+
+ICON_PATH = 'gui/maps/icons/armor_highlight/icon.png'
+ICON_SIZE = 50
+
+
+def icon():
+    # Иконка для списка модов: три полосы градиента по умолчанию на прозрачном фоне.
+    bands = [ _parseHex(colour) for colour in (DEFAULT_FULL, DEFAULT_HALF, DEFAULT_ZERO) ]
+    margin = 6
+    inner = ICON_SIZE - 2 * margin
+
+    def pixel(x, y):
+        if not (margin <= x < ICON_SIZE - margin and margin <= y < ICON_SIZE - margin):
+            return (0, 0, 0, 0)
+        return bands[min(2, (y - margin) * 3 // inner)] + (255,)
+
+    return pngImage(ICON_SIZE, ICON_SIZE, pixel)

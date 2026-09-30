@@ -34,7 +34,7 @@ PLAIN_ARMOR = lambda shell, cos, matInfo: matInfo.armor / cos
 
 
 def run(details, fullPP=200.0, ricochet=NO_RICOCHET, jet=0.0):
-    return pen.evaluate(details, fullPP, SHELL, MIN_PP, MAX_PP, ricochet, PLAIN_ARMOR, jet)
+    return pen.evaluate(details, fullPP, SHELL, MIN_PP, MAX_PP, ricochet, PLAIN_ARMOR, jet)[:2]
 
 
 class ProbabilityTest(unittest.TestCase):
@@ -96,6 +96,15 @@ class EvaluateTest(unittest.TestCase):
         result, prob = run([Detail(1.0, 1.0, spaced, 1), Detail(2.02, 1.0, Mat(80), 1)], jet=0.5)
         # остаток 180 * 0.5 = 90 при нужных 80: piercingPercent = 100 + (80 - 90) / 200 * 100 = 95
         self.assertAlmostEqual(prob, pen.probability(95.0, 0.25))
+
+
+class PercentTest(unittest.TestCase):
+
+    def test_percent_of_decisive_plate(self):
+        spaced = Mat(40, damage=0.0, kind=2)
+        result, prob, percent = pen.evaluate([Detail(1.0, 1.0, spaced, 1), Detail(1.5, 1.0, Mat(160), 1)], 200.0, SHELL, MIN_PP, MAX_PP, NO_RICOCHET, PLAIN_ARMOR, 0.0)
+        self.assertAlmostEqual(percent, 100.0)
+        self.assertIsNone(pen.evaluate([Detail(1.0, 1.0, None, 1)], 200.0, SHELL, MIN_PP, MAX_PP, NO_RICOCHET, PLAIN_ARMOR, 0.0)[2])
 
 
 class PreviewFormulaTest(unittest.TestCase):

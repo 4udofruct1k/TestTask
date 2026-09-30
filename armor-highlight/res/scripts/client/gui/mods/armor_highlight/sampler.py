@@ -8,7 +8,7 @@ import BigWorld
 import Math
 import constants
 from AvatarInputHandler import cameras
-from AvatarInputHandler.gun_marker_ctrl import createShotResultResolver
+from AvatarInputHandler.gun_marker_ctrl import _computePiercingPowerAtDistImpl, createShotResultResolver
 from ProjectileMover import collideDynamicAndStatic
 from helpers_common import computeDistanceFactor
 from vehicle_systems.tankStructure import TankPartIndexes
@@ -101,7 +101,7 @@ class BattleSampler(object):
         details = resolver._getAllCollisionDetails(hitPoint, self.__shellDir, self.__target)
         if details is None:
             return UNDEFINED_VALUE
-        result, prob = penetration.evaluate(details, fullPiercingPower, shell, self.__minPP, self.__maxPP, resolver._shouldRicochet, resolver._computePenetrationArmor, self.__jetLoss)
+        result, prob, _ = penetration.evaluate(details, fullPiercingPower, shell, self.__minPP, self.__maxPP, resolver._shouldRicochet, resolver._computePenetrationArmor, self.__jetLoss)
         if self.__debug:
             self.__count += 1
             if self.__count % VANILLA_CHECK_EVERY == 0:
@@ -134,25 +134,28 @@ class BattleSampler(object):
 
 
 class PreviewSampler(object):
-    # Ангар: боя нет, ванильный расчёт недоступен (ему нужен аватар и модификаторы арены).
-    # Слои брони — коллизия танка в ангаре (collideAllWorld, как в Vehicle.collideSegmentExt), снаряд — текущий
-    # снаряд этого танка, пробитие — на 100 м, нормализация и рикошет — значения по умолчанию из клиента.
+    # Режим просмотра в ангаре: боя нет, ванильный расчёт недоступен (ему нужен аватар и модификаторы арены).
+    # Слои брони — коллизия танка в ангаре (collideAllWorld, как в Vehicle.collideSegmentExt), снаряд — выбранный
+    # в режиме просмотра, пробитие — на выбранной дистанции, нормализация и рикошет — значения по умолчанию клиента.
+    # Коллизия в ангаре содержит кроме частей танка увеличенные копии корпуса, башни и орудия для камеры
+    # (hangar_vehicle_appearance.py, индексы частей 4..6) — их попадания отбрасываются.
 
     def __init__(self):
         from gui.battle_control.arena_visitor import _ArenaModifiersVisitor
         self.__modifiers = _ArenaModifiersVisitor()
         self.__resolver = createShotResultResolver()
+        self.__parts = frozenset(TankPartIndexes.ALL)
 
-    def prepare(self, entity, steps):
+    def prepare(self, entity, shot, distance, steps):
+        # entity — танк в ангаре (цель), shot — выбранный снаряд стрелка, distance — дистанция, м.
         vDesc = entity.typeDescriptor
-        shot = vDesc.shot
         shell = shot.shell
         extra = self.__resolver._SHELL_EXTRA_DATA[shell.kind]
-        self.__entity = entity
         self.__collisions = entity.appearance.collisions
         self.__steps = steps
         self.__shell = shell
-        self.__fullPP = shot.piercingPower[0]
+        p100, p500 = shot.piercingPower[:2]
+        self.fullPiercingPower = _computePiercingPowerAtDistImpl(distance, shot.maxDistance, p100, p500) * computeDistanceFactor(shell, distance, 'pierceFactor')
         self.__minPP, self.__maxPP = self.__resolver._computePiercingPowerRandomization(shell)
         self.__jetLoss = extra.jetLossPPByDist
         self.__materials = {TankPartIndexes.CHASSIS: vDesc.chassis.materials,
@@ -163,10 +166,15 @@ class PreviewSampler(object):
         normalization = self.__modifiers.getShellNormalization(shell.kind)
         self.__shouldRicochet = lambda shell, cos, matInfo: penetration.shouldRicochet(shell, cos, matInfo, extra.mayRicochet, extra.checkCaliberForRicochet, ricochetCos)
         self.__penetrationArmor = lambda shell, cos, matInfo: penetration.penetrationArmor(shell, cos, matInfo, extra.hasNormalization, normalization)
-        return (id(shot),)
+        return (id(entity), id(vDesc), id(shot), distance)
 
-    def sample(self, start, end):
+    def evaluate(self, start, end):
+        # (результат, вероятность, piercingPercent) или None, если луч не попал в танк.
         hits = self.__collisions.collideAllWorld(start, end)
+        if not hits:
+            return None
+        parts = self.__parts
+        hits = sorted((hit for hit in hits if hit[3] in parts), key=lambda hit: hit[0])
         if not hits:
             return None
         details = []
@@ -174,5 +182,10 @@ class PreviewSampler(object):
             materials = self.__materials.get(hit[3])
             details.append(_Detail(hit[0], hit[1], materials.get(hit[2]) if materials is not None else None, hit[3]))
 
-        result, prob = penetration.evaluate(details, self.__fullPP, self.__shell, self.__minPP, self.__maxPP, self.__shouldRicochet, self.__penetrationArmor, self.__jetLoss)
-        return _valueFor(result, prob, self.__steps)
+        return penetration.evaluate(details, self.fullPiercingPower, self.__shell, self.__minPP, self.__maxPP, self.__shouldRicochet, self.__penetrationArmor, self.__jetLoss)
+
+    def sample(self, start, end):
+        evaluated = self.evaluate(start, end)
+        if evaluated is None:
+            return None
+        return _valueFor(evaluated[0], evaluated[1], self.__steps)

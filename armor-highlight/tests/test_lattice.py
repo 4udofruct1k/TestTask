@@ -78,11 +78,17 @@ class LatticeTest(unittest.TestCase):
         self.assertEqual(bad, [])
         self.assertTrue(all((y1 - y0) % 2 == 0 for _, _, y0, _, y1 in lattice.rects()[0]))
 
-    def test_first_picture_is_fast(self):
-        lattice, count = build(tank, limit=40)
-        self.assertTrue(lattice.hasPicture)
-        rects, changed = lattice.rects()
-        self.assertTrue(changed and rects)
+    def test_only_final_cells_are_drawn(self):
+        # На любом шаге нарисованное совпадает с точным ответом: ни грубых блоков, ни подсветки вне силуэта.
+        full, total = build(tank)
+        for limit in (40, 700, 2000, 5000, total // 2, total - 100):
+            lattice, _ = build(tank, limit=limit)
+            cells = coverage(lattice.rects()[0])
+            bad = [ xy for xy, value in cells.items() if value != tank(*xy) ]
+            self.assertEqual(bad, [], 'limit %d' % limit)
+            if limit >= total // 2:
+                self.assertTrue(lattice.hasPicture)
+                self.assertGreater(len(cells), 320 * 170 // 3, 'uniform armour is drawn before edges')
 
     def test_rects_merge_rows(self):
         # Однородный прямоугольник — один прямоугольник на экране

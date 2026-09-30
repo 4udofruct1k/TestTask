@@ -27,9 +27,10 @@ def probability(piercingPercent, randomization):
 
 def evaluate(details, fullPiercingPower, shell, minPP, maxPP, shouldRicochet, penetrationArmor, jetLossPPByDist):
     # details — слои по ходу снаряда (dist, hitAngleCos, matInfo, compName) из collideSegmentExt.
-    # Возвращает (SHOT_RESULT, вероятность пробития 0..1).
+    # Возвращает (SHOT_RESULT, вероятность пробития 0..1, piercingPercent последнего посчитанного листа или None).
     result = NOT_PIERCED
     prob = 0.0
+    lastPercent = None
     isJet = False
     jetStartDist = None
     piercingPower = fullPiercingPower
@@ -57,6 +58,7 @@ def evaluate(details, fullPiercingPower, shell, minPP, maxPP, shouldRicochet, pe
                 armor = penetrationArmor(shell, hitAngleCos, matInfo)
                 piercingPercent = 100.0 + (armor - piercingPower) / fullPiercingPower * 100.0
                 piercingPower -= armor
+                lastPercent = piercingPercent
             if matInfo.vehicleDamageFactor:
                 if minPP < piercingPercent < maxPP:
                     result = LITTLE_PIERCED
@@ -76,7 +78,7 @@ def evaluate(details, fullPiercingPower, shell, minPP, maxPP, shouldRicochet, pe
             armor = matInfo.armor if matInfo is not None else 0.0
             jetStartDist = cDetails.dist + armor * 0.001
 
-    return (result, prob)
+    return (result, prob, lastPercent)
 
 
 # --- Для предпросмотра в ангаре: там нет боя и ванильный расчёт недоступен ---

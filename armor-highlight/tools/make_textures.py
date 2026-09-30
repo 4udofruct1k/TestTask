@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Генерирует текстуры палитры (palette.allTextures): сплошной цвет с альфой = непрозрачность.
+# Генерирует текстуры палитры (palette.allTextures): сплошной цвет с альфой = непрозрачность, и иконку для списка модов.
 # Запуск: python tools/make_textures.py <папка res сборки>. Работает на Python 2.7 и 3.x.
 import os
 import struct
@@ -40,6 +40,12 @@ def main(resDir):
         count += 1
 
     print('textures: %d in %s' % (count, outDir))
+    iconPath = os.path.join(resDir, *palette['ICON_PATH'].split('/'))
+    if not os.path.isdir(os.path.dirname(iconPath)):
+        os.makedirs(os.path.dirname(iconPath))
+    with open(iconPath, 'wb') as f:
+        f.write(palette['icon']())
+    print('icon: %s' % iconPath)
 
 
 if __name__ == '__main__':

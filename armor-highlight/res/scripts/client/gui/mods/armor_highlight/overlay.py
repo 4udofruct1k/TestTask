@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # Прямоугольники подсветки поверх экрана: GUI.Simple, по пулу на оттенок.
-# Позиция — левый верхний угол в clip-координатах, размер — в пикселях.
+# Позиция — левый верхний угол, размер — оба в clip-координатах. В 0.4.0 размер задавался в режиме PIXEL,
+# и квадраты выходили крупнее нужного: пиксели GUI в этом клиенте не совпадают с пикселями экрана
+# (похоже, учитывается масштаб интерфейса). clip-координаты от масштаба не зависят.
 # Прямоугольник, который не изменился, сохраняет свой квадрат: при уточнении сетки GUI трогается только там,
 # где картинка поменялась. При сдвиге якоря (поворот камеры) переставляются все показанные квадраты.
 import BigWorld
@@ -12,8 +14,8 @@ from gui.mods.armor_highlight import logException
 def _createQuad(texture, depth, colour):
     quad = GUI.Simple(texture)
     quad.materialFX = GUI.Simple.eMaterialFX.BLEND
-    quad.widthMode = GUI.Simple.eSizeMode.PIXEL
-    quad.heightMode = GUI.Simple.eSizeMode.PIXEL
+    quad.widthMode = GUI.Simple.eSizeMode.CLIP
+    quad.heightMode = GUI.Simple.eSizeMode.CLIP
     quad.horizontalPositionMode = GUI.Simple.ePositionMode.CLIP
     quad.verticalPositionMode = GUI.Simple.ePositionMode.CLIP
     quad.horizontalAnchor = GUI.Simple.eHAnchor.LEFT
@@ -65,6 +67,7 @@ class Overlay(object):
         # rects: [(значение, x0, y0, x1, y1)] в пикселях от якоря (ax, ay) — пиксели от левого верхнего угла экрана.
         anchor = (ax, ay, screenW, screenH)
         moved = anchor != self.__anchor
+        resized = self.__anchor is None or self.__anchor[2:] != (screenW, screenH)
         if not moved and not rectsChanged and not self.incomplete and rects is self.__rects:
             return
         sx = 2.0 / screenW
@@ -89,7 +92,10 @@ class Overlay(object):
 
             if moved:
                 for (x0, y0, x1, y1), idx in byRect.iteritems():
-                    quads[idx].position = ((ax + x0) * sx - 1.0, 1.0 - (ay + y0) * sy, depth)
+                    quad = quads[idx]
+                    quad.position = ((ax + x0) * sx - 1.0, 1.0 - (ay + y0) * sy, depth)
+                    if resized:
+                        quad.size = ((x1 - x0) * sx, (y1 - y0) * sy)
 
             for rect in keep:
                 if rect in byRect:
@@ -107,7 +113,7 @@ class Overlay(object):
                 x0, y0, x1, y1 = rect
                 quad = quads[idx]
                 quad.position = ((ax + x0) * sx - 1.0, 1.0 - (ay + y0) * sy, depth)
-                quad.size = (x1 - x0, y1 - y0)
+                quad.size = ((x1 - x0) * sx, (y1 - y0) * sy)
                 quad.visible = True
                 byRect[rect] = idx
 
