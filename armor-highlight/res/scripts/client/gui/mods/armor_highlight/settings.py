@@ -7,7 +7,7 @@ from gui.mods.armor_highlight import log, logException, palette
 
 LINKAGE = 'max.armor_highlight'
 # Увеличить при изменении шаблона: ModsSettingsAPI тогда сбросит сохранённые значения на новые по умолчанию.
-SETTINGS_VERSION = 5
+SETTINGS_VERSION = 6
 
 CELL_SIZES = (1, 2, 4, 8)
 # Где подсвечивать: область вокруг центра прицела (каждая ячейка) или вся цель — с уточнением границ
@@ -33,6 +33,7 @@ DEFAULTS = {'enabled': True,
  'searchStep': 0,
  'focusRadius': 2,
  'frameBudgetMs': 3,
+ 'previewBudgetMs': 25,
  'colorFull': palette.DEFAULT_FULL,
  'colorHalf': palette.DEFAULT_HALF,
  'colorZero': palette.DEFAULT_ZERO,
@@ -60,7 +61,8 @@ def _template(templates):
                  templates.createStepSlider('Размер ячейки', 'cellSize', [ '%d px' % size for size in CELL_SIZES ], DEFAULTS['cellSize'], tooltip=_tooltip('Размер ячейки', 'Мельче — ровнее граница цветов, но дольше прорисовка и больше нагрузка.')),
                  templates.createStepSlider('Шаг поиска мелких зон', 'searchStep', [ 'авто' if step is None else '%d px' % step for step in SEARCH_STEPS ], DEFAULTS['searchStep'], tooltip=_tooltip('Шаг поиска', 'Только для «Вся цель, с уточнением». Сначала цель проверяется точками через этот шаг, потом уточняются границы цветов. Зона меньше шага может потеряться. Мельче шаг — меньше пропусков, но дольше первая картинка. «Авто» — 8–16 px в зависимости от размера цели.')),
                  templates.createStepSlider('Полная проверка под прицелом', 'focusRadius', [ 'выкл' if radius == 0 else 'радиус %d px' % radius for radius in FOCUS_RADII ], DEFAULTS['focusRadius'], tooltip=_tooltip('Под прицелом', 'Только для «Вся цель, с уточнением». В круге вокруг прицела считается каждая ячейка, без пропусков: там найдутся и смотровые щели меньше шага поиска. Эта часть считается первой.')),
-                 templates.createSlider('Нагрузка на процессор', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS. Расчёт идёт в основном потоке игры: движок проверяет попадание луча в модель только из него, поэтому другие ядра процессора не помогают.'))],
+                 templates.createSlider('Нагрузка на процессор в бою', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта в бою', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS. Расчёт идёт в основном потоке игры: движок проверяет попадание луча в модель только из него, поэтому другие ядра процессора не помогают.')),
+                 templates.createSlider('Нагрузка в режиме просмотра', 'previewBudgetMs', DEFAULTS['previewBudgetMs'], 5, 50, 5, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта в ангаре', 'То же для режима просмотра в ангаре. Там FPS не важен, поэтому по умолчанию бюджет больше и прорисовка быстрее; пока круг заполняется, FPS в ангаре ниже.'))],
      'column2': [templates.createColorChoice('Пробитие 100%', 'colorFull', '#' + DEFAULTS['colorFull']),
                  templates.createColorChoice('Пробитие 50%', 'colorHalf', '#' + DEFAULTS['colorHalf']),
                  templates.createColorChoice('Не пробивает или нет урона', 'colorZero', '#' + DEFAULTS['colorZero']),
@@ -151,6 +153,10 @@ class Settings(object):
     @property
     def frameBudget(self):
         return max(0.5, _number(self.values['frameBudgetMs'], DEFAULTS['frameBudgetMs'])) / 1000.0
+
+    @property
+    def previewFrameBudget(self):
+        return max(1.0, _number(self.values['previewBudgetMs'], DEFAULTS['previewBudgetMs'])) / 1000.0
 
     @property
     def cellLevel(self):

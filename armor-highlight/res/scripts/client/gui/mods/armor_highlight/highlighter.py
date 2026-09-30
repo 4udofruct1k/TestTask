@@ -113,8 +113,10 @@ class Stats(object):
 
 class Highlighter(object):
 
-    def __init__(self, settings):
+    def __init__(self, settings, preview=False):
+        # preview — режим просмотра в ангаре: там свой бюджет расчёта на кадр.
         self.__settings = settings
+        self.__preview = preview
         self.__overlay = None
         self.__lattice = None
         self.__shown = None
@@ -207,9 +209,13 @@ class Highlighter(object):
         self.rays = rays
         self.rayLength = (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH
         computeStart = timer()
-        # Вся цель, каждая ячейка: «за один кадр» — без бюджета (игра замирает), «в фоне» — с бюджетом 25 мс.
+        # Вся цель, каждая ячейка: «за один кадр» — без бюджета (игра замирает), «в фоне» — не меньше 25 мс.
         mode = lattice.mode
-        budget = config.fullPassMaxSeconds if mode == 'blocking' else (config.fullPassFrameBudget if mode == 'background' else settings.frameBudget)
+        budget = settings.previewFrameBudget if self.__preview else settings.frameBudget
+        if mode == 'blocking':
+            budget = config.fullPassMaxSeconds
+        elif mode == 'background':
+            budget = max(budget, config.fullPassFrameBudget)
         wasDone = lattice.done
         computed = self.__compute(lattice, sampler, rays, ax, ay, screenW, screenH, (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH, budget)
         if mode in _FULL_PASS_MODES and not wasDone:

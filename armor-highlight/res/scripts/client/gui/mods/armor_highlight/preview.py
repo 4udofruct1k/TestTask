@@ -62,7 +62,7 @@ class ViewMode(object):
 
     def __init__(self, settings):
         self.__settings = settings
-        self.__highlighter = Highlighter(settings)
+        self.__highlighter = Highlighter(settings, preview=True)
         self.__sampler = None
         self.__callbackID = None
         self.__inLobby = False
@@ -171,6 +171,20 @@ class ViewMode(object):
 
         self.__setState(state)
         self.__setText(info)
+        self.__logStatsIfDue()
+
+    def __logStatsIfDue(self):
+        # Как в бою: раз в statsInterval строка stats — сколько точек за кадр и сколько стоит одна точка.
+        highlighter = self.__highlighter
+        stats = highlighter.stats
+        stats.frames += 1
+        now = timer()
+        if now - stats.startedAt < config.statsInterval:
+            return
+        if config.debug and stats.activeFrames:
+            summary = highlighter.describe()
+            log('view mode %s%s', stats.line(now), ' | ' + summary if summary else '')
+        stats.reset(now)
 
     def __shooter(self, entity):
         # Стрелок: танк, выбранный в карусели; если его нет — сам танк в ангаре.
