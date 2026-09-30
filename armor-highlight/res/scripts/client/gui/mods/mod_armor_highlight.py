@@ -5,14 +5,16 @@ from gui.mods.armor_highlight import VERSION, log, logException
 
 _controller = None
 _preview = None
+_panel = None
 
 
 def init():
-    global _controller, _preview
+    global _controller, _preview, _panel
     try:
         log('init, version %s', VERSION)
         # Импорт внутри try: ошибка импорта клиентских модулей попадёт в лог с префиксом мода.
         from gui.mods.armor_highlight.controller import ArmorHighlightController
+        from gui.mods.armor_highlight.panel import SettingsPanel
         from gui.mods.armor_highlight.preview import ViewMode
         from gui.mods.armor_highlight.settings import g_settings
         try:
@@ -26,6 +28,12 @@ def init():
             _preview.register()
         except Exception:
             logException('ViewMode.register')
+
+        _panel = SettingsPanel(g_settings, _preview)
+        try:
+            _panel.register()
+        except Exception:
+            logException('SettingsPanel.register')
 
         from gui.mods.armor_highlight import config
         if config.debug:
@@ -45,7 +53,7 @@ def init():
 
 
 def fini():
-    global _controller, _preview
+    global _controller, _preview, _panel
     try:
         g_playerEvents.onAvatarReady -= _onAvatarReady
         g_playerEvents.onAvatarBecomeNonPlayer -= _onAvatarBecomeNonPlayer
@@ -54,6 +62,9 @@ def fini():
         if _controller is not None:
             _controller.stop()
             _controller = None
+        if _panel is not None:
+            _panel.onLobby(False)
+            _panel = None
         if _preview is not None:
             _preview.deactivate()
             _preview = None
@@ -84,12 +95,16 @@ def _onAccountBecomePlayer():
     try:
         if _preview is not None:
             _preview.onLobby(True)
+        if _panel is not None:
+            _panel.onLobby(True)
     except Exception:
         logException('onAccountBecomePlayer')
 
 
 def _onAccountBecomeNonPlayer():
     try:
+        if _panel is not None:
+            _panel.onLobby(False)
         if _preview is not None:
             _preview.onLobby(False)
     except Exception:

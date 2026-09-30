@@ -157,6 +157,29 @@ class AimWindowTest(unittest.TestCase):
         settle(window, tank, 1)
         self.assertEqual([ xy for xy in coverage(window.rects()[0]) if tank(*xy) is None ], [])
 
+    def test_prefetch_gives_coarse_picture_after_jump(self):
+        # Пока прицел стоит, крупные блоки досчитываются по всей цели; после резкого ухода прицела на другое
+        # место цели круг сразу закрашен грубо, ещё до расчёта.
+        area = (-160, -85, 160, 85)
+        window = AimWindow(3, LEVELS, (-100.0, 0.0), 40, 2500, 3, 4, area)
+        for _ in range(40):
+            window.setAim((-100.0, 0.0))
+            run(window, tank, 3)
+
+        window.setAim((100.0, 0.0))
+        cells = coverage(window.rects()[0])
+        inside = [ (x, y) for y in range(-40, 40) for x in range(60, 140) if math.hypot(x - 100, y) < 36 ]
+        painted = sum((1 for xy in inside if xy in cells))
+        self.assertGreater(painted, 0.6 * len(inside), (painted, len(inside)))
+        # Без расчёта заранее там было бы пусто.
+        cold = AimWindow(3, LEVELS, (-100.0, 0.0), 40, 2500, 3, 4)
+        for _ in range(40):
+            cold.setAim((-100.0, 0.0))
+            run(cold, tank, 3)
+
+        cold.setAim((100.0, 0.0))
+        self.assertEqual(len(coverage(cold.rects()[0])), 0)
+
     def test_exact_after_first_pass(self):
         aim = (-20.0, 10.0)
         window = AimWindow(3, LEVELS, aim, 60, 2500, 3)

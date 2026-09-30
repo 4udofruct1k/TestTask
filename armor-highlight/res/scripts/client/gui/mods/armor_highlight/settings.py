@@ -1,29 +1,49 @@
 # -*- coding: utf-8 -*-
-# Настройки мода. Окно — через ModsSettingsAPI (izeberg.modssettingsapi), если он установлен;
-# он же сохраняет значения между запусками. Без него работают значения по умолчанию.
+# Настройки мода. Свои: панель в ангаре (panel.py, Ctrl+Shift+Y) и файл settings.json рядом с preferences.xml
+# клиента — без других модов (ModsSettingsAPI не нужен). Описание пунктов панели — ITEMS.
+import json
+import os
+
+import BigWorld
 import Keys
 
 from gui.mods.armor_highlight import log, logException, palette
 
-LINKAGE = 'max.armor_highlight'
-# Увеличить при изменении шаблона: ModsSettingsAPI тогда сбросит сохранённые значения на новые по умолчанию.
-SETTINGS_VERSION = 8
+# Увеличить, если значения по умолчанию должны заменить сохранённые.
+FILE_VERSION = 1
+FILE_DIR = 'mods_armor_highlight'
+FILE_NAME = 'settings.json'
 
 # Для всей цели размер округляется вниз до степени двойки: 3 px -> 2 px.
 CELL_SIZES = (1, 2, 3, 4, 8)
-# Где подсвечивать: область вокруг центра прицела (каждая ячейка) или вся цель — с уточнением границ
-# или каждая ячейка (в фоне, показ целиком / за один кадр, игра замирает).
+# Где подсвечивать: область вокруг центра прицела или вся цель — с уточнением границ или каждая ячейка
+# (в фоне, показ целиком / за один кадр, игра замирает).
 MODES = ('aim', 'adaptive', 'background', 'blocking')
-MODE_LABELS = ['Вокруг центра прицела', 'Вся цель, с уточнением', 'Вся цель, каждая ячейка в фоне', 'Вся цель, каждая ячейка за один кадр']
+MODE_LABELS = (u'вокруг центра прицела', u'вся цель, с уточнением', u'вся цель, каждая ячейка в фоне', u'вся цель, каждая ячейка за кадр')
 # Радиус области вокруг центра прицела, px.
 AIM_RADII = (40, 60, 80, 120, 160)
 # Шаг поиска мелких зон: None — подобрать по размеру цели, иначе уровень сетки (16 px -> 4, ...).
 SEARCH_STEPS = (None, 16, 8, 4, 2)
 FOCUS_RADII = (0, 10, 20, 40)
 COLOUR_MODES = ('texture', 'memory', 'tint255', 'tint1')
+COLOUR_MODE_LABELS = (u'текстуры из пакета', u'текстуры в памяти', u'colour 0–255', u'colour 0–1')
+# Цвета на выбор в панели: (hex, название).
+COLOUR_PRESETS = (('1db83a', u'зелёный'),
+ ('7cfc00', u'салатовый'),
+ ('00c8ff', u'голубой'),
+ ('2060ff', u'синий'),
+ ('ffd200', u'жёлтый'),
+ ('ff8a00', u'оранжевый'),
+ ('ff4d00', u'красно-оранжевый'),
+ ('d11a1a', u'красный'),
+ ('ff00c8', u'пурпурный'),
+ ('8a2be2', u'фиолетовый'),
+ ('ffffff', u'белый'))
+# Панель в ангаре открывается и закрывается этим сочетанием.
+PANEL_KEY = {'key': Keys.KEY_Y, 'ctrl': True, 'alt': False, 'shift': True}
 
 DEFAULTS = {'enabled': True,
- 'toggleKey': [Keys.KEY_Y],
+ 'toggleKey': {'key': Keys.KEY_Y, 'ctrl': False, 'alt': False, 'shift': False},
  'showWhileMoving': True,
  'showInArcade': True,
  'stickyTarget': True,
@@ -42,62 +62,122 @@ DEFAULTS = {'enabled': True,
  'opacity': 50,
  'colourMode': 0}
 
+# Пункты панели: (ключ, вид, подпись, варианты или (от, до, шаг, единица), подсказка).
+# Виды: bool, choice (индекс в вариантах), int, colour (hex), hotkey.
+ITEMS = (('enabled', 'bool', u'Подсветка', None, u'Выключено — подсветки нет ни в бою, ни в просмотре.'),
+ ('toggleKey', 'hotkey', u'Клавиша вкл/выкл в бою', None, u'В начале каждого боя подсветка включена. Enter — задать: нажмите новую клавишу или сочетание, Backspace — отмена.'),
+ ('mode', 'choice', u'Где подсвечивать', MODE_LABELS, u'Вокруг центра прицела — круг, нагрузка небольшая. Вся цель — для проверки, тяжелее.'),
+ ('aimRadius', 'choice', u'Радиус круга', tuple((u'%d px' % radius for radius in AIM_RADII)), u'Вдвое больше радиус — вчетверо больше точек.'),
+ ('cellSize', 'choice', u'Размер ячейки', tuple((u'%d px' % size for size in CELL_SIZES)), u'Мельче — точнее, но дольше пересчёт. На большом круге основа крупнее, границы уточняются до этого размера.'),
+ ('gradientSteps', 'choice', u'Оттенков в переходе', tuple((unicode(steps) for steps in palette.GRADIENT_STEPS)), u'Сколько цветов между 100% и 0%.'),
+ ('opacity', 'int', u'Непрозрачность', (10, 100, 10, u'%'), u''),
+ ('colorFull', 'colour', u'Цвет: пробитие 100%', None, u''),
+ ('colorHalf', 'colour', u'Цвет: пробитие 50%', None, u''),
+ ('colorZero', 'colour', u'Цвет: не пробивает', None, u'Не пробивает или нет урона.'),
+ ('appearDelayMs', 'int', u'Задержка появления', (0, 1000, 50, u' мс'), u'С момента, когда цель под прицелом.'),
+ ('showWhileMoving', 'bool', u'Показывать в движении', None, u'Выключено — только когда свой танк стоит.'),
+ ('showInArcade', 'bool', u'Показывать в аркадном режиме', None, u'Выключено — только в снайперском.'),
+ ('stickyTarget', 'bool', u'Держать цель, когда прицел ушёл', None, u'Подсветка остаётся на последней цели, пока прицел не на другом противнике.'),
+ ('frameBudgetMs', 'int', u'Нагрузка в бою', (1, 10, 1, u' мс/кадр'), u'Всё время мода за кадр. Больше — быстрее прорисовка, ниже FPS.'),
+ ('previewBudgetMs', 'int', u'Нагрузка в просмотре', (5, 50, 5, u' мс/кадр'), u'То же в ангаре.'),
+ ('searchStep', 'choice', u'Шаг поиска (вся цель)', tuple((u'авто' if step is None else u'%d px' % step for step in SEARCH_STEPS)), u'Только для «вся цель, с уточнением».'),
+ ('focusRadius', 'choice', u'Под прицелом (вся цель)', tuple((u'выкл' if radius == 0 else u'%d px' % radius for radius in FOCUS_RADII)), u'Только для «вся цель, с уточнением».'),
+ ('colourMode', 'choice', u'Способ окраски', COLOUR_MODE_LABELS, u'Если цвета неправильные или квадраты белые — попробуйте другой.'))
 
-def _tooltip(header, body):
-    return '{HEADER}%s{/HEADER}{BODY}%s{/BODY}' % (header, body)
+_KEY_NAMES = dict(((getattr(Keys, name), name[4:]) for name in dir(Keys) if name.startswith('KEY_') and isinstance(getattr(Keys, name), int)))
 
 
-def _template(templates):
-    return {'modDisplayName': 'Подсветка брони',
-     'settingsVersion': SETTINGS_VERSION,
-     'enabled': DEFAULTS['enabled'],
-     'column1': [templates.createLabel('Просмотр на танке в ангаре — пункт «Подсветка брони: просмотр» в списке модов.'),
-                 templates.createHotkey('Включить или выключить в бою', 'toggleKey', DEFAULTS['toggleKey'], tooltip=_tooltip('Клавиша подсветки', 'В начале каждого боя подсветка включена. Клавиша выключает и снова включает её до конца боя.')),
-                 templates.createCheckbox('Показывать в движении', 'showWhileMoving', DEFAULTS['showWhileMoving'], tooltip=_tooltip('Показывать в движении', 'Если выключено, подсветка появляется, только когда свой танк стоит.')),
-                 templates.createCheckbox('Показывать в аркадном режиме', 'showInArcade', DEFAULTS['showInArcade'], tooltip=_tooltip('Аркадный режим', 'Если выключено, подсветка только в снайперском режиме.')),
-                 templates.createCheckbox('Не убирать, когда прицел уходит с цели', 'stickyTarget', DEFAULTS['stickyTarget'], tooltip=_tooltip('Держать цель', 'Подсветка остаётся на последней цели, пока прицел не наведён на другого противника, цель жива и видна.')),
-                 templates.createDropdown('Где подсвечивать', 'mode', MODE_LABELS, DEFAULTS['mode'], tooltip=_tooltip('Где подсвечивать', '«Вокруг центра прицела» — круг заданного размера, в нём считается каждая ячейка, от центра наружу; нагрузка небольшая. «Вся цель» — для проверки: с уточнением — сначала редкие точки, потом границы цветов; каждая ячейка — вся цель без пропусков, в фоне (бюджет 25 мс на кадр, картинка появляется целиком) или за один кадр (игра замирает на время расчёта).')),
-                 templates.createStepSlider('Размер области у прицела', 'aimRadius', [ 'радиус %d px' % radius for radius in AIM_RADII ], DEFAULTS['aimRadius'], tooltip=_tooltip('Размер области', 'Радиус круга вокруг центра прицела. Число точек растёт как квадрат радиуса: вдвое больше радиус — вчетверо дольше прорисовка.')),
-                 templates.createSlider('Задержка появления', 'appearDelayMs', DEFAULTS['appearDelayMs'], 0, 1000, 50, '{{value}} мс'),
-                 templates.createStepSlider('Размер ячейки', 'cellSize', [ '%d px' % size for size in CELL_SIZES ], DEFAULTS['cellSize'], tooltip=_tooltip('Размер ячейки', 'Мельче — ровнее граница цветов, но медленнее пересчёт. В бою точка стоит ~22 мкс: при нагрузке 3 мс/кадр круг радиусом 60 px с ячейкой 3 px (как в 0.3.0) целиком пересчитывается примерно за 0.15 с, с ячейкой 2 px — за 0.35 с, 1 px — за 1.4 с. Круг сразу появляется грубо и за эти доли секунды становится точным.')),
-                 templates.createStepSlider('Шаг поиска мелких зон', 'searchStep', [ 'авто' if step is None else '%d px' % step for step in SEARCH_STEPS ], DEFAULTS['searchStep'], tooltip=_tooltip('Шаг поиска', 'Только для «Вся цель, с уточнением». Сначала цель проверяется точками через этот шаг, потом уточняются границы цветов. Зона меньше шага может потеряться. Мельче шаг — меньше пропусков, но дольше первая картинка. «Авто» — 8–16 px в зависимости от размера цели.')),
-                 templates.createStepSlider('Полная проверка под прицелом', 'focusRadius', [ 'выкл' if radius == 0 else 'радиус %d px' % radius for radius in FOCUS_RADII ], DEFAULTS['focusRadius'], tooltip=_tooltip('Под прицелом', 'Только для «Вся цель, с уточнением». В круге вокруг прицела считается каждая ячейка, без пропусков: там найдутся и смотровые щели меньше шага поиска. Эта часть считается первой.')),
-                 templates.createSlider('Нагрузка на процессор в бою', 'frameBudgetMs', DEFAULTS['frameBudgetMs'], 1, 10, 1, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта в бою', 'Сколько миллисекунд каждого кадра мод тратит на расчёт точек. Больше — быстрее прорисовка, но ниже FPS. Расчёт идёт в основном потоке игры: движок проверяет попадание луча в модель только из него, поэтому другие ядра процессора не помогают.')),
-                 templates.createSlider('Нагрузка в режиме просмотра', 'previewBudgetMs', DEFAULTS['previewBudgetMs'], 5, 50, 5, '{{value}} мс/кадр', tooltip=_tooltip('Бюджет расчёта в ангаре', 'То же для режима просмотра в ангаре: точка там стоит дороже (~52 мкс), поэтому бюджет по умолчанию больше, чем в бою.'))],
-     'column2': [templates.createColorChoice('Пробитие 100%', 'colorFull', '#' + DEFAULTS['colorFull']),
-                 templates.createColorChoice('Пробитие 50%', 'colorHalf', '#' + DEFAULTS['colorHalf']),
-                 templates.createColorChoice('Не пробивает или нет урона', 'colorZero', '#' + DEFAULTS['colorZero']),
-                 templates.createStepSlider('Оттенков в переходе', 'gradientSteps', [ str(steps) for steps in palette.GRADIENT_STEPS ], DEFAULTS['gradientSteps'], tooltip=_tooltip('Оттенки', 'Сколько цветов между 100% и 0%. Больше — плавнее переход, но больше границ для уточнения.')),
-                 templates.createSlider('Непрозрачность', 'opacity', DEFAULTS['opacity'], 10, 100, 10, '{{value}}%'),
-                 templates.createDropdown('Способ окраски', 'colourMode', ['Текстуры из пакета', 'Текстуры в памяти', 'colour 0–255', 'colour 0–1'], DEFAULTS['colourMode'], tooltip=_tooltip('Способ окраски', 'Если цвета в предпросмотре неправильные или квадраты белые, попробуйте другой способ. Текстуры из пакета приводят цвет к ближайшему из палитры.'))]}
+def keyName(key):
+    return _KEY_NAMES.get(key, str(key))
+
+
+def hotkeyName(hotkey):
+    # «Ctrl+Shift+Y».
+    parts = [ label for flag, label in (('ctrl', 'Ctrl'), ('alt', 'Alt'), ('shift', 'Shift')) if hotkey.get(flag) ]
+    parts.append(keyName(hotkey.get('key')))
+    return '+'.join(parts)
+
+
+def hotkeyMatches(hotkey, event):
+    return event.key == hotkey.get('key') and bool(event.isCtrlDown()) == bool(hotkey.get('ctrl')) and bool(event.isAltDown()) == bool(hotkey.get('alt')) and bool(event.isShiftDown()) == bool(hotkey.get('shift'))
+
+
+def _settingsPath():
+    # Рядом с preferences.xml клиента, как его кэши (helpers/local_cache.py): туда игра точно может писать.
+    prefs = BigWorld.getPreferencesFilePath()
+    if isinstance(prefs, str):
+        prefs = prefs.decode('utf-8', 'replace')
+    return os.path.join(os.path.dirname(prefs), FILE_DIR, FILE_NAME)
+
+
+def _valid(key, value):
+    default = DEFAULTS[key]
+    if isinstance(default, bool):
+        return isinstance(value, bool)
+    if key == 'toggleKey':
+        return isinstance(value, dict) and isinstance(value.get('key'), int)
+    if isinstance(default, basestring):
+        return isinstance(value, basestring) and len(value) == 6
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 class Settings(object):
 
     def __init__(self):
         self.values = dict(DEFAULTS)
-        self.hasApi = False
-        self.__api = None
+        self.path = None
         self.__listeners = []
 
     def load(self):
-        # Регистрация окна настроек. Без ModsSettingsAPI остаются значения по умолчанию.
+        self.path = _settingsPath()
         try:
-            from gui.modsSettingsApi import g_modsSettingsApi, templates
-        except ImportError:
-            log('ModsSettingsAPI not found, using default settings')
-            return
+            if os.path.isfile(self.path):
+                with open(self.path, 'rb') as f:
+                    data = json.load(f)
+                if data.get('version') == FILE_VERSION:
+                    for key, value in (data.get('values') or {}).iteritems():
+                        key = str(key)
+                        if key in DEFAULTS and _valid(key, value):
+                            if key == 'toggleKey':
+                                value = dict(((str(k), v) for k, v in value.iteritems()))
+                            elif isinstance(value, unicode):
+                                value = str(value)
+                            self.values[key] = value
 
-        template = _template(templates)
-        saved = g_modsSettingsApi.getModSettings(LINKAGE, template)
-        if saved:
-            g_modsSettingsApi.registerCallback(LINKAGE, self.__onModSettingsChanged)
-        else:
-            saved = g_modsSettingsApi.setModTemplate(LINKAGE, template, self.__onModSettingsChanged)
-        self.__api = g_modsSettingsApi
-        self.hasApi = True
-        self.__apply(saved)
-        log('settings: %s', self.describe())
+        except Exception:
+            logException('settings.load')
+
+        log('settings: %s (%s)', self.describe(), self.path.encode('utf-8'))
+
+    def save(self):
+        if self.path is None:
+            return
+        try:
+            folder = os.path.dirname(self.path)
+            if not os.path.isdir(folder):
+                os.makedirs(folder)
+            with open(self.path, 'wb') as f:
+                json.dump({'version': FILE_VERSION,
+                 'values': self.values}, f, indent=1, sort_keys=True)
+        except Exception:
+            logException('settings.save')
+
+    def update(self, changes):
+        # Новые значения: сохранить и сообщить подписчикам (сетка и квадраты создаются заново).
+        for key, value in changes.iteritems():
+            if key in DEFAULTS:
+                self.values[key] = value
+
+        self.save()
+        log('settings changed: %s', self.describe())
+        for callback in list(self.__listeners):
+            try:
+                callback()
+            except Exception:
+                logException('settings listener')
+
+    def reset(self):
+        self.update(dict(((key, dict(value) if isinstance(value, dict) else value) for key, value in DEFAULTS.iteritems())))
 
     def addListener(self, callback):
         if callback not in self.__listeners:
@@ -106,25 +186,6 @@ class Settings(object):
     def removeListener(self, callback):
         if callback in self.__listeners:
             self.__listeners.remove(callback)
-
-    def __onModSettingsChanged(self, linkage, newSettings):
-        try:
-            if linkage != LINKAGE:
-                return
-            self.__apply(newSettings)
-            log('settings changed: %s', self.describe())
-            for callback in list(self.__listeners):
-                callback()
-
-        except Exception:
-            logException('onModSettingsChanged')
-
-    def __apply(self, saved):
-        if not saved:
-            return
-        for key in DEFAULTS:
-            if key in saved:
-                self.values[key] = saved[key]
 
     def describe(self):
         return ', '.join(('%s=%s' % (key, self.values[key]) for key in sorted(self.values)))
@@ -204,20 +265,8 @@ class Settings(object):
         return (palette.parseColour(self.values['colorFull'], DEFAULTS['colorFull']), palette.parseColour(self.values['colorHalf'], DEFAULTS['colorHalf']), palette.parseColour(self.values['colorZero'], DEFAULTS['colorZero']))
 
     def isToggleKey(self, event):
-        # Нажата ли клавиша вкл/выкл. С ModsSettingsAPI — сочетание из настроек, без него — Y без модификаторов.
-        keys = self.values['toggleKey'] or []
-        flat = set()
-        for key in keys:
-            if isinstance(key, (list, tuple)):
-                flat.update(key)
-            else:
-                flat.add(key)
-
-        if event.key not in flat:
-            return False
-        if self.__api is not None:
-            return self.__api.checkKeyset(keys)
-        return not (event.isCtrlDown() or event.isAltDown() or event.isShiftDown())
+        # Нажато ли сочетание вкл/выкл из настроек.
+        return hotkeyMatches(self.values['toggleKey'], event)
 
 
 def _number(value, default):

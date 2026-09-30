@@ -85,7 +85,7 @@ class ViewMode(object):
         try:
             from gui.modsListApi import g_modsListApi
         except ImportError:
-            log('ModsList API not found, view mode is unavailable')
+            log('ModsList API not found, view mode: from the settings panel')
             return
 
         g_modsListApi.addModification(id=MODS_LIST_ID, name='Подсветка брони: просмотр', description='Показать подсветку брони на танке в ангаре. Наводите курсор на танк; 1–4 — снаряд, G — орудие, «-»/«=» — дистанция. Повторный клик — выход.', icon=palette.ICON_PATH, enabled=True, login=False, lobby=True, callback=self.toggle)

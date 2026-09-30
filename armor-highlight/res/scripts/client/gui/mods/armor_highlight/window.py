@@ -18,6 +18,8 @@
 #      смена цвета), потом однородная. Новый круг начинается не чаще раза за кадр.
 # Область расчёта чуть шире круга и квантована, чтобы порядок не перестраивался каждый кадр.
 # Посчитанное хранится, пока сетка жива: прицел ушёл и вернулся — картинка сразу на месте.
+# Заранее: в конце каждого круга пересчёта — немного крупных блоков по всей цели (area), от прицела наружу.
+# Когда прицел резко уходит на новое место цели, там сразу есть грубая картинка, и круг не обрывается.
 #
 # Растр: у каждой полосы (строки блоков основы области расчёта) — интервалы по строкам ячеек; у поделённых блоков
 # свои строки по их листьям. Куски по _CHUNK_ROWS строк: одинаковые интервалы соседних строк — один прямоугольник;
@@ -104,7 +106,7 @@ def refineOrder(u, v, radius, level, topLevel):
 
 class AimWindow(object):
 
-    def __init__(self, cellPx, drawable, aim, radius, maxCells, coarseLevels, edgePx=4):
+    def __init__(self, cellPx, drawable, aim, radius, maxCells, coarseLevels, edgePx=4, area=None):
         # aim — центр прицела в пикселях от якоря; обновляется каждый кадр через setAim().
         self.cellPx = cellPx
         # Ключ ячейки в пикселях: точка расчёта — ((i + 0.5) * keyScale, (j + 0.5) * keyScale) от якоря.
@@ -147,6 +149,9 @@ class AimWindow(object):
         self.__localRows = {}
         self.__chunks = {}
         self.__clipCenter = None
+        # Блоки для расчёта заранее и сколько из них уже пройдено.
+        self.__prefetch = self.__prefetchKeys(area, aim) if area is not None else []
+        self.__prefetchPos = 0
         self.__framesSinceRects = _RECTS_EVERY_FRAMES
         # Круг сдвинулся: пересобрать сразу, без ожидания.
         self.__geometryDirty = True
@@ -289,6 +294,35 @@ class AimWindow(object):
 
         for key in later:
             yield key
+
+        # Заранее: крупные блоки цели вне круга — понемногу, около 1/16 круга пересчёта.
+        quota = max(32, len(blocks) // 16)
+        cache = self.cache
+        prefetch = self.__prefetch
+        while quota > 0 and self.__prefetchPos < len(prefetch):
+            key = prefetch[self.__prefetchPos]
+            self.__prefetchPos += 1
+            if key in cache:
+                continue
+            quota -= 1
+            yield key
+
+    def __prefetchKeys(self, area, aim):
+        # Крупные блоки (уровень под верхним) по габаритам цели, от прицела наружу.
+        level = max(self.level + 1, self.topLevel - 1)
+        size = 1 << level
+        cell = float(self.cellPx)
+        x0, y0, x1, y1 = area
+        i0 = int(math.floor(x0 / cell)) >> level << level
+        j0 = int(math.floor(y0 / cell)) >> level << level
+        i1 = int(math.ceil(x1 / cell))
+        j1 = int(math.ceil(y1 / cell))
+        u = aim[0] / cell
+        v = aim[1] / cell
+        half = size * 0.5
+        keys = [ (i, j) for j in xrange(j0, j1, size) for i in xrange(i0, i1, size) ]
+        keys.sort(key=lambda key: (key[0] + half - u) ** 2 + (key[1] + half - v) ** 2)
+        return keys
 
     def __refine(self):
         level = self.level

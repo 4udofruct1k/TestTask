@@ -331,7 +331,7 @@ class Highlighter(object):
         mode = settings.mode
         drawable = range(settings.gradientSteps)
         if mode == 'aim':
-            lattice = AimWindow(settings.cellPx, drawable, aim, settings.aimRadius, config.aimMaxCells, config.aimCoarseLevels, config.aimEdgePx)
+            lattice = AimWindow(settings.cellPx, drawable, aim, settings.aimRadius, config.aimMaxCells, config.aimCoarseLevels, config.aimEdgePx, area)
             lattice.tolerancePx = config.rebuildTolerancePx
         else:
             fullPass = mode in _FULL_PASS_MODES
