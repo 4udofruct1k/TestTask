@@ -15,7 +15,7 @@ from skeletons.gui.shared.utils import IHangarSpace
 
 from gui.mods.armor_highlight import config, log, logException, palette
 from gui.mods.armor_highlight.highlighter import Highlighter, screenResolution, timer
-from gui.mods.armor_highlight.penetration import UNDEFINED
+from gui.mods.armor_highlight.penetration import SHELL_KINDS, UNDEFINED
 from gui.mods.armor_highlight.sampler import PreviewSampler
 
 MODS_LIST_ID = 'max.armor_highlight.view'
@@ -26,13 +26,6 @@ _SHELL_KEYS = {Keys.KEY_1: 0,
  Keys.KEY_2: 1,
  Keys.KEY_3: 2,
  Keys.KEY_4: 3}
-_SHELL_KINDS = {'ARMOR_PIERCING': u'ББ',
- 'ARMOR_PIERCING_CR': u'БП',
- 'ARMOR_PIERCING_FSDS': u'БОПС',
- 'ARMOR_PIERCING_HE': u'ББ-ОФ',
- 'HOLLOW_CHARGE': u'КС',
- 'HIGH_EXPLOSIVE': u'ОФ',
- 'FLAME': u'огнесмесь'}
 # Подсказка лежит перед интерфейсом лобби (0.5), квадраты подсветки — за ним (config.overlayDepth).
 _TEXT_DEPTH = 0.45
 _TEXT_POSITION = (-0.97, 0.5)
@@ -234,7 +227,7 @@ class ViewMode(object):
          u'Орудие [G]: %s (%d из %d)' % (_unicode(gun.shortUserString), gunIdx + 1, len(guns)),
          u'Снаряд [1–%d]: %d — %s %s, пробитие %d мм на %d м [-/=]' % (len(gun.shots),
                                                                     shellIdx + 1,
-                                                                    _SHELL_KINDS.get(shot.shell.kind, _unicode(shot.shell.kind)),
+                                                                    SHELL_KINDS.get(shot.shell.kind, _unicode(shot.shell.kind)),
                                                                     _unicode(shot.shell.userString),
                                                                     int(sampler.fullPiercingPower + 0.5),
                                                                     self.__distance)]

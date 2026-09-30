@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Бой: подписки, выбор цели, условия показа, тик каждый кадр, клавиша вкл/выкл.
 import BigWorld
+import Keys
 import Math
 import aih_constants
 from AvatarInputHandler import aih_global_binding
@@ -12,7 +13,7 @@ from helpers import dependency
 from messenger import MessengerEntry
 from skeletons.gui.battle_session import IBattleSessionProvider
 
-from gui.mods.armor_highlight import config, log, logException
+from gui.mods.armor_highlight import config, log, logException, penetration
 from gui.mods.armor_highlight.aiminfo import AimInfo
 from gui.mods.armor_highlight.highlighter import Highlighter, timer
 from gui.mods.armor_highlight.sampler import BattleSampler
@@ -23,6 +24,16 @@ _MARKER_FLAG = aih_constants.GUN_MARKER_FLAG
 _SNIPER_MODES = frozenset((_CTRL_MODE.SNIPER, _CTRL_MODE.DUAL_GUN))
 _ARCADE_MODES = frozenset((_CTRL_MODE.ARCADE,))
 
+
+
+def _resultText(result, prob):
+    # Шанс пробития для подписи или None — нет данных о броне. prob None — фугас с новой механикой:
+    # ванильный результат по урону (пробьёт — 100%, урон без гарантии пробития, не пробьёт — 0%).
+    if result == penetration.UNDEFINED:
+        return None
+    if prob is None:
+        return {penetration.GREAT_PIERCED: u'100%', penetration.LITTLE_PIERCED: u'урон'}.get(result, u'0%')
+    return u'%d%%' % int(prob * 100.0 + 0.5)
 
 class ArmorHighlightController(object):
     __gunMarkersFlags = aih_global_binding.bindRO(aih_global_binding.BINDING_ID.GUN_MARKERS_FLAGS)
@@ -162,20 +173,33 @@ class ArmorHighlightController(object):
                 sampleKey = self.__sampler.prepare(player, target, shellDir, self.__piercingMultiplier, team, self.__settings.gradientSteps)
                 reason = self.__highlighter.frame(target, aimWorld, self.__sampler, sampleKey, markerWorld=markerWorld)
                 self.__setInactiveReason(reason)
-                self.__updateAimInfo(aimWorld if reason is None else None)
+                self.__updateAimInfo(player, aimWorld if reason is None else None)
         self.__logStatsIfDue()
 
-    def __updateAimInfo(self, aimWorld):
-        # Подпись у прицела: шанс пробития в точке прицеливания.
+    def __updateAimInfo(self, player, aimWorld):
+        # Подпись у прицела: шанс пробития в точке прицеливания текущим снарядом, с зажатым Alt — всеми снарядами
+        # орудия, по строке на снаряд (номер, тип, шанс), текущий отмечен.
         highlighter = self.__highlighter
         if aimWorld is None or not self.__settings.aimInfo or highlighter.aimPx is None:
             self.__aimInfo.hide()
             return
-        prob = self.__sampler.probabilityAt(aimWorld)
-        if prob is None:
+        vDesc = player.getVehicleDescriptor()
+        allShells = BigWorld.isKeyDown(Keys.KEY_LALT) or BigWorld.isKeyDown(Keys.KEY_RALT)
+        shots = vDesc.gun.shots if allShells else (vDesc.shot,)
+        results = self.__sampler.resultsAt(aimWorld, shots)
+        if results is None:
             self.__aimInfo.hide()
             return
-        self.__aimInfo.show(u'%d%%' % int(prob * 100.0 + 0.5), highlighter.aimPx, highlighter.screen)
+        if allShells:
+            current = vDesc.activeGunShotIndex
+            lines = [ u'%s%d %s  %s' % (u'> ' if idx == current else u'   ', idx + 1, penetration.SHELL_KINDS.get(shot.shell.kind, unicode(shot.shell.kind)), _resultText(*result) or u'—') for idx, (shot, result) in enumerate(zip(shots, results)) ]
+            text = u'\n'.join(lines)
+        else:
+            text = _resultText(*results[0])
+        if text is None:
+            self.__aimInfo.hide()
+            return
+        self.__aimInfo.show(text, highlighter.aimPx, highlighter.screen)
 
     def __updateStillness(self, player, now):
         if player is None or not hasattr(player, 'getOwnVehicleSpeeds'):

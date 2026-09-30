@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Подпись у прицела в бою: шанс пробития в точке прицеливания.
+# Подпись у прицела в бою: шанс пробития в точке прицеливания; с Alt — по строке на каждый снаряд орудия.
 import GUI
 
 from gui.mods.armor_highlight import logException
@@ -24,7 +24,7 @@ class AimInfo(object):
                 text.verticalPositionMode = GUI.Simple.ePositionMode.CLIP
                 text.horizontalAnchor = GUI.Simple.eHAnchor.LEFT
                 text.verticalAnchor = GUI.Simple.eVAnchor.TOP
-                text.multiline = False
+                text.multiline = True
                 GUI.addRoot(text)
                 self.__text = text
                 self.__value = None

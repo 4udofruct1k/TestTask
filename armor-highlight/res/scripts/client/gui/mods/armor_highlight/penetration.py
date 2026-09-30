@@ -14,6 +14,14 @@ LITTLE_PIERCED = 2
 GREAT_PIERCED = 3
 
 _MAX_HIT_ANGLE_BOUND = math.pi / 2.0 - 1e-05
+# Типы снарядов (constants.SHELL_TYPES) — короткие подписи.
+SHELL_KINDS = {'ARMOR_PIERCING': u'ББ',
+ 'ARMOR_PIERCING_CR': u'БП',
+ 'ARMOR_PIERCING_FSDS': u'БОПС',
+ 'ARMOR_PIERCING_HE': u'ББ-ОФ',
+ 'HOLLOW_CHARGE': u'КС',
+ 'HIGH_EXPLOSIVE': u'ОФ',
+ 'FLAME': u'огнесмесь'}
 
 
 def probability(piercingPercent, randomization):

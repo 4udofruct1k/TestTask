@@ -49,6 +49,10 @@ def _valueFor(result, prob, steps):
     return palette.probabilityLevel(prob, steps)
 
 
+def _isModernHE(shell):
+    return shell.kind == constants.SHELL_TYPES.HIGH_EXPLOSIVE and shell.type.mechanics == constants.SHELL_MECHANICS_TYPE.MODERN
+
+
 class BattleSampler(object):
     # Коллизия и слои брони — ванильные (collideDynamicAndStatic, _getAllCollisionDetails), рикошет и приведённая
     # броня — ванильные методы _CrosshairShotResults. Свой только цикл по слоям (penetration.evaluate),
@@ -80,7 +84,7 @@ class BattleSampler(object):
         self.__maxDist = shot.maxDistance
         self.__minPP, self.__maxPP = resolver._computePiercingPowerRandomization(shell)
         self.__jetLoss = resolver._SHELL_EXTRA_DATA[shell.kind].jetLossPPByDist
-        self.__isModernHE = shell.kind == constants.SHELL_TYPES.HIGH_EXPLOSIVE and shell.type.mechanics == constants.SHELL_MECHANICS_TYPE.MODERN
+        self.__isModernHE = _isModernHE(shell)
         return (id(shot), piercingMultiplier)
 
     def sample(self, start, end):
@@ -108,24 +112,33 @@ class BattleSampler(object):
                 self.__checkVanilla(hitPoint, collision, result)
         return _valueFor(result, prob, self.__steps)
 
-    def probabilityAt(self, hitPoint):
-        # Точка прицеливания (маркер орудия на цели) и направление снаряда — как у ванильного индикатора:
-        # вероятность пробития 0..1, None — нет данных о броне; None и без попадания.
-        # Фугас с новой механикой считается по урону, а не по пробитию: подписи нет, цвета — ванильные.
-        if self.__isModernHE:
-            return None
+    def resultsAt(self, hitPoint, shots):
+        # Точка прицеливания (маркер орудия на цели) и направление текущего снаряда — как у ванильного индикатора.
+        # Для каждого снаряда из shots — (SHOT_RESULT, вероятность пробития 0..1). Фугас с новой механикой считается
+        # по урону, а не по пробитию: для него (ванильный результат, None). None — луч не попал в цель.
+        # Слои брони одни на все снаряды: направление — текущего снаряда (у других угол падения чуть другой).
         resolver = self.__resolver
         details = resolver._getAllCollisionDetails(hitPoint, self.__shellDir, self.__target)
         if not details:
             return None
-        shell = self.__shell
         dist = (hitPoint - self.__ownPosition).length
-        fullPiercingPower = resolver._computePiercingPowerAtDist(self.__ppDesc, dist, self.__maxDist, self.__piercingMultiplier)
-        fullPiercingPower *= computeDistanceFactor(shell, dist, 'pierceFactor')
-        result, prob, _ = penetration.evaluate(details, fullPiercingPower, shell, self.__minPP, self.__maxPP, resolver._shouldRicochet, resolver._computePenetrationArmor, self.__jetLoss)
-        if result == penetration.UNDEFINED:
-            return None
-        return prob
+        results = []
+        for shot in shots:
+            shell = shot.shell
+            fullPiercingPower = resolver._computePiercingPowerAtDist(shot.piercingPower, dist, shot.maxDistance, self.__piercingMultiplier)
+            fullPiercingPower *= computeDistanceFactor(shell, dist, 'pierceFactor')
+            minPP, maxPP = resolver._computePiercingPowerRandomization(shell)
+            if _isModernHE(shell):
+                # Ванильный getShotResult считает только текущий снаряд, поэтому его ветка для фугаса — напрямую.
+                modernHE = getattr(resolver, '_CrosshairShotResults__shotResultModernHE', None)
+                result = modernHE(details, fullPiercingPower, shell, minPP, maxPP, self.__target) if modernHE is not None else penetration.UNDEFINED
+                results.append((result, None))
+                continue
+            jetLoss = resolver._SHELL_EXTRA_DATA[shell.kind].jetLossPPByDist
+            result, prob, _ = penetration.evaluate(details, fullPiercingPower, shell, minPP, maxPP, resolver._shouldRicochet, resolver._computePenetrationArmor, jetLoss)
+            results.append((result, prob))
+
+        return results
 
     def __checkVanilla(self, hitPoint, collision, result):
         vanilla = self.__resolver.getShotResult(hitPoint, collision, self.__shellDir, excludeTeam=self.__team, piercingMultiplier=self.__piercingMultiplier)
