@@ -58,20 +58,38 @@ def coverage(rects):
     return cells
 
 
-def expected(scene, aim, radius, cell, step=1):
-    # Пиксели ячеек, чьи центры в круге, со значением сцены в центре ячейки.
+def expected(scene, aim, radius, cell, step=1, edge=4):
+    # Пиксели круга, как их рисует окно: строки блоков step ячеек режутся на полоски высотой edge px, в полоске —
+    # пиксели x из [xl, xr) по кругу с центром в округлённом прицеле. Значение — сцена в центре левой верхней ячейки блока.
     out = {}
     value = atCell(scene, cell)
-    for j, iLo, iHi in rowRanges(aim[0] / float(cell), aim[1] / float(cell), radius / float(cell), step):
-        for i in range(iLo, iHi + 1, step):
-            v = value(i, j)
-            if v is None:
-                continue
-            for y in range(j * cell, (j + step) * cell):
-                for x in range(i * cell, (i + step) * cell):
-                    out[x, y] = v
+    cx = int(math.floor(aim[0] + 0.5))
+    cy = int(math.floor(aim[1] + 0.5))
+    height = step * cell
+    edge = max(cell, min(edge, height))
+    r = int(radius) + height
+    for y in range(cy - r, cy + r):
+        y0 = y // height * height
+        ys = y0 + (y - y0) // edge * edge
+        ye = min(ys + edge, y0 + height)
+        dy = (ys + ye) * 0.5 - cy
+        rest = radius * radius - dy * dy
+        if rest <= 0.0:
+            continue
+        width = math.sqrt(rest)
+        for x in range(int(math.floor(cx - width + 0.5)), int(math.floor(cx + width + 0.5))):
+            v = value(x // height * step, y // height * step)
+            if v is not None:
+                out[x, y] = v
 
     return out
+
+
+def roundness(cells, aim, radius):
+    # Насколько нарисованное отходит от идеального круга: (дальше радиуса, пустых ближе радиуса), px.
+    cx, cy = aim
+    outside = max([ math.hypot(x + 0.5 - cx, y + 0.5 - cy) - radius for x, y in cells ] + [0.0])
+    return outside
 
 
 class AimWindowTest(unittest.TestCase):
@@ -148,17 +166,30 @@ class AimWindowTest(unittest.TestCase):
         run(window, tank, 1)
         self.assertEqual(coverage(window.rects()[0]), expected(tank, aim, 25, 1))
 
-    def test_rects_are_whole_cells(self):
+    def test_round_edge_with_coarse_step(self):
+        # Шаг 8 px (1 px, радиус 120), а край круга — не ступеньками по 8 px: отклонение не больше полоски 4 px.
+        aim = (0.0, 0.0)
+        window = AimWindow(1, LEVELS, aim, 120, 2500, 3)
+        self.assertEqual(window.stepPx, 8)
+        run(window, lambda x, y: 3, 1)
+        cells = coverage(window.rects()[0])
+        self.assertLessEqual(roundness(cells, aim, 120), 2.5)
+        inside = [ (x, y) for y in range(-120, 120) for x in range(-120, 120) if math.hypot(x + 0.5, y + 0.5) < 116 ]
+        self.assertEqual([ xy for xy in inside if xy not in cells ], [])
+        # Прямоугольников: строки внутри и полоски у края, а не по пикселю.
+        self.assertLess(len(window.rects()[0]), 160)
+
+    def test_interior_is_whole_cells(self):
         window = AimWindow(3, LEVELS, (7.0, -4.0), 50, 2500, 3)
         run(window, tank, 3)
         for _, x0, y0, x1, y1 in window.rects()[0]:
-            self.assertTrue(x0 % 3 == 0 and y0 % 3 == 0 and x1 % 3 == 0 and y1 % 3 == 0)
+            self.assertTrue(y0 % 3 == 0 or y1 % 3 == 0 or y1 - y0 <= 4)
 
     def test_uniform_armour_is_few_rects(self):
         # Каждый прямоугольник — квадрат на экране: однородная броня — не больше одного на строку ячеек.
         window = AimWindow(3, LEVELS, (0.0, 0.0), 60, 2500, 3)
         run(window, lambda x, y: 3, 3)
-        self.assertLessEqual(len(window.rects()[0]), 2 * 60 // 3 + 2)
+        self.assertLessEqual(len(window.rects()[0]), 2 * 60 // 3 + 4)
 
     def test_rects_changed_flag(self):
         window = AimWindow(3, LEVELS, (0.0, 0.0), 30, 2500, 3)

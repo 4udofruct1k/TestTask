@@ -238,6 +238,9 @@ class ViewMode(object):
                                                                     _unicode(shot.shell.userString),
                                                                     int(sampler.fullPiercingPower + 0.5),
                                                                     self.__distance)]
+        cellInfo = self.__highlighter.cellInfo
+        if cellInfo is not None and cellInfo[1] != cellInfo[0]:
+            header.append(u'Ячейка %d px укрупнена до %d px: в круге больше %d ячеек (меньше радиус — мельче ячейка)' % (cellInfo[0], cellInfo[1], config.aimMaxCells))
         self.__logSelection(header)
         return (reason, u'\n'.join(header + [self.__cursorLine(cursor)]))
 

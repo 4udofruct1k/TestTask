@@ -14,6 +14,9 @@
 #      обновляется целиком за несколько кадров и следит за поворотом башни и угла обзора.
 # Область расчёта чуть шире круга и квантована, чтобы порядок не перестраивался каждый кадр.
 # Посчитанное хранится, пока сетка жива: прицел ушёл и вернулся — картинка сразу на месте.
+#
+# Край круга не зависит от шага ячеек: строки ячеек обрезаются по кругу точно по горизонтали, полосками высотой
+# edgePx по вертикали. Внутренняя часть строки остаётся одним прямоугольником, отдельные — только полоски у края.
 import math
 
 MAX_LEVEL = 8
@@ -78,13 +81,14 @@ def refineOrder(u, v, radius, level, topLevel):
 
 class AimWindow(object):
 
-    def __init__(self, cellPx, drawable, aim, radius, maxCells, coarseLevels):
+    def __init__(self, cellPx, drawable, aim, radius, maxCells, coarseLevels, edgePx=4):
         # aim — центр прицела в пикселях от якоря; обновляется каждый кадр через setAim().
         self.cellPx = cellPx
         # Ключ ячейки в пикселях: точка расчёта — ((i + 0.5) * keyScale, (j + 0.5) * keyScale) от якоря.
         self.keyScale = cellPx
         self.drawable = frozenset(drawable)
         self.radius = float(radius)
+        self.edgePx = edgePx
         self.cache = {}
         self.level = gridLevel(self.radius / cellPx, maxCells)
         self.topLevel = min(self.level + coarseLevels, MAX_LEVEL)
@@ -106,6 +110,7 @@ class AimWindow(object):
         self.__drawRows = ()
         self.__rowRuns = {}
         self.__dirtyRows = set()
+        self.__clipCenter = None
         self.__rects = []
         self.__rectsDirty = True
         self.setAim(aim)
@@ -120,7 +125,8 @@ class AimWindow(object):
         v = aim[1] / cell
         radius = self.radius / cell
         step = 1 << self.level
-        drawRows = rowRanges(u, v, radius, step)
+        # Строки блоков, задевающих круг (центр не дальше радиуса плюс шаг); лишнее отрежет край круга.
+        drawRows = rowRanges(u, v, radius + step, step)
         if drawRows != self.__drawRows:
             self.__drawRows = drawRows
             self.__rectsDirty = True
@@ -155,6 +161,11 @@ class AimWindow(object):
     @property
     def aim(self):
         return self.__aim
+
+    @property
+    def stepPx(self):
+        # Сторона ячейки на экране с учётом шага: при большом круге шаг растёт.
+        return self.cellPx << self.level
 
     # --- расчёт ---
 
@@ -249,7 +260,13 @@ class AimWindow(object):
 
     def rects(self):
         # [(value, x0, y0, x1, y1)] в пикселях от якоря и признак, что список изменился с прошлого вызова.
-        # Интервалы по строкам; одинаковые интервалы соседних строк — один прямоугольник.
+        # Часть строки ячеек, целиком лежащая в круге, — прямоугольники на всю высоту строки (одинаковые у соседних
+        # строк сливаются); у края — полоски высотой edgePx, обрезанные по кругу (одинаковые соседние сливаются).
+        ax, ay = self.__aim
+        center = (int(math.floor(ax + 0.5)), int(math.floor(ay + 0.5)))
+        if center != self.__clipCenter:
+            self.__clipCenter = center
+            self.__rectsDirty = True
         if not self.__rectsDirty:
             return (self.__rects, False)
         self.__rectsDirty = False
@@ -258,9 +275,12 @@ class AimWindow(object):
             rowRuns.pop(j, None)
 
         self.__dirtyRows.clear()
+        cx, cy = center
+        r2 = self.radius * self.radius
         step = 1 << self.level
         cell = self.cellPx
         height = step * cell
+        edge = max(cell, min(self.edgePx, height))
         rects = []
         opened = {}
         lastJ = None
@@ -268,21 +288,68 @@ class AimWindow(object):
             entry = rowRuns.get(j)
             if entry is None or entry[0] != iLo or entry[1] != iHi:
                 entry = rowRuns[j] = (iLo, iHi, self.__buildRow(j, iLo, iHi))
+            y0 = j * cell
+            y1 = y0 + height
+            # Полоски строки: (ys, ye, xl, xr) — часть круга в полоске, пустая вне круга.
+            slivers = []
+            for ys in xrange(y0, y1, edge):
+                ye = min(ys + edge, y1)
+                dy = (ys + ye) * 0.5 - cy
+                rest = r2 - dy * dy
+                if rest <= 0.0:
+                    slivers.append((ys, ye, cx, cx))
+                    continue
+                width = math.sqrt(rest)
+                slivers.append((ys, ye, int(math.floor(cx - width + 0.5)), int(math.floor(cx + width + 0.5))))
+
+            # Часть строки внутри круга во всех полосках: [inner0, inner1).
+            inner0 = max((sliver[2] for sliver in slivers))
+            inner1 = min((sliver[3] for sliver in slivers))
+            runs = [ (value, i0 * cell, i1 * cell) for value, i0, i1 in entry[2] ]
             if lastJ is None or j != lastJ + step:
                 opened = {}
             current = {}
-            y0 = j * cell
-            for run in entry[2]:
-                idx = opened.get(run)
-                if idx is None:
-                    idx = len(rects)
-                    rects.append([run[0], run[1] * cell, y0, run[2] * cell, y0 + height])
-                else:
-                    rects[idx][4] = y0 + height
-                current[run] = idx
+            if inner0 < inner1:
+                for value, x0, x1 in runs:
+                    a = max(x0, inner0)
+                    b = min(x1, inner1)
+                    if a >= b:
+                        continue
+                    run = (value, a, b)
+                    idx = opened.get(run)
+                    if idx is None:
+                        idx = len(rects)
+                        rects.append([value, a, y0, b, y1])
+                    else:
+                        rects[idx][4] = y1
+                    current[run] = idx
 
             opened = current
             lastJ = j
+            last = None
+            for ys, ye, xl, xr in slivers:
+                pieces = []
+                if xl < xr:
+                    spans = ((xl, min(xr, inner0)), (max(xl, inner1), xr)) if inner0 < inner1 else ((xl, xr),)
+                    for s0, s1 in spans:
+                        for value, x0, x1 in runs:
+                            a = max(x0, s0)
+                            b = min(x1, s1)
+                            if a < b:
+                                pieces.append((value, a, b))
+
+                pieces = tuple(pieces)
+                if last is not None and last[0] == pieces:
+                    for idx in last[1]:
+                        rects[idx][4] = ye
+
+                    continue
+                idxs = []
+                for value, a, b in pieces:
+                    idxs.append(len(rects))
+                    rects.append([value, a, ys, b, ye])
+
+                last = (pieces, idxs)
 
         rects = [ tuple(rect) for rect in rects ]
         if rects == self.__rects:

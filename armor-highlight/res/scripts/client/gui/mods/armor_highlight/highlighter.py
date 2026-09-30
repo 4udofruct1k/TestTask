@@ -325,7 +325,7 @@ class Highlighter(object):
         mode = settings.mode
         drawable = range(settings.gradientSteps)
         if mode == 'aim':
-            lattice = AimWindow(settings.cellPx, drawable, aim, settings.aimRadius, config.aimMaxCells, config.aimCoarseLevels)
+            lattice = AimWindow(settings.cellPx, drawable, aim, settings.aimRadius, config.aimMaxCells, config.aimCoarseLevels, config.aimEdgePx)
             lattice.tolerancePx = config.rebuildTolerancePx
         else:
             fullPass = mode in _FULL_PASS_MODES
@@ -384,6 +384,14 @@ class Highlighter(object):
                 break
 
         return computed
+
+    @property
+    def cellInfo(self):
+        # (ячейка из настроек, фактическая сторона ячейки) области у прицела или None.
+        lattice = self.__lattice
+        if lattice is None or not lattice.window:
+            return None
+        return (lattice.cellPx, lattice.stepPx)
 
     def describe(self):
         # Для строки статистики.
