@@ -27,6 +27,15 @@ def init():
         except Exception:
             logException('ViewMode.register')
 
+        from gui.mods.armor_highlight import config
+        if config.debug:
+            # Разовый замер скорости Python на этом компьютере (~20–30 мс при запуске игры).
+            try:
+                from gui.mods.armor_highlight import bench
+                log(bench.run())
+            except Exception:
+                logException('bench')
+
         g_playerEvents.onAvatarReady += _onAvatarReady
         g_playerEvents.onAvatarBecomeNonPlayer += _onAvatarBecomeNonPlayer
         g_playerEvents.onAccountBecomePlayer += _onAccountBecomePlayer
