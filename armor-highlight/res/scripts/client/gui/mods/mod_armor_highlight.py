@@ -4,29 +4,45 @@ from PlayerEvents import g_playerEvents
 from gui.mods.armor_highlight import VERSION, log, logException
 
 _controller = None
+_preview = None
 
 
 def init():
-    global _controller
+    global _controller, _preview
     try:
         log('init, version %s', VERSION)
         # Импорт внутри try: ошибка импорта клиентских модулей попадёт в лог с префиксом мода.
         from gui.mods.armor_highlight.controller import ArmorHighlightController
-        _controller = ArmorHighlightController()
+        from gui.mods.armor_highlight.preview import HangarPreview
+        from gui.mods.armor_highlight.settings import g_settings
+        try:
+            g_settings.load()
+        except Exception:
+            logException('settings.load')
+
+        _controller = ArmorHighlightController(g_settings)
+        _preview = HangarPreview(g_settings)
         g_playerEvents.onAvatarReady += _onAvatarReady
         g_playerEvents.onAvatarBecomeNonPlayer += _onAvatarBecomeNonPlayer
+        g_playerEvents.onAccountBecomePlayer += _onAccountBecomePlayer
+        g_playerEvents.onAccountBecomeNonPlayer += _onAccountBecomeNonPlayer
     except Exception:
         logException('init')
 
 
 def fini():
-    global _controller
+    global _controller, _preview
     try:
         g_playerEvents.onAvatarReady -= _onAvatarReady
         g_playerEvents.onAvatarBecomeNonPlayer -= _onAvatarBecomeNonPlayer
+        g_playerEvents.onAccountBecomePlayer -= _onAccountBecomePlayer
+        g_playerEvents.onAccountBecomeNonPlayer -= _onAccountBecomeNonPlayer
         if _controller is not None:
             _controller.stop()
             _controller = None
+        if _preview is not None:
+            _preview.stop()
+            _preview = None
         log('fini')
     except Exception:
         logException('fini')
@@ -48,3 +64,19 @@ def _onAvatarBecomeNonPlayer():
             _controller.stop()
     except Exception:
         logException('onAvatarBecomeNonPlayer')
+
+
+def _onAccountBecomePlayer():
+    try:
+        if _preview is not None:
+            _preview.start()
+    except Exception:
+        logException('onAccountBecomePlayer')
+
+
+def _onAccountBecomeNonPlayer():
+    try:
+        if _preview is not None:
+            _preview.stop()
+    except Exception:
+        logException('onAccountBecomeNonPlayer')

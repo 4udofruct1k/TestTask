@@ -1,182 +1,274 @@
 # -*- coding: utf-8 -*-
-# Сетка ячеек, привязанная к точке на цели (якорю). Без BigWorld и GUI — тестируется офлайн (tests/test_lattice.py).
-# Якорь проецируется на экран каждый кадр, ячейка (i, j) — квадрат со стороной cellPx со смещением (i, j) * cellPx
-# от якоря. Поэтому при повороте камеры ячейки едут вместе с целью, а посчитанные результаты остаются верными.
-# Кэш сбрасывается вместе с сеткой: другая цель, зум, разрешение или заметно изменилась дистанция до якоря.
-import math
+# Адаптивная сетка, привязанная к точке на цели (якорю). Без BigWorld и GUI — тестируется офлайн (tests/test_lattice.py).
+#
+# Координаты — пиксели экрана относительно якоря: x вправо, y вниз. Блок уровня k — квадрат 2**k px с левым
+# верхним углом (i, j), кратным 2**k. Значение блока — результат в центре его левого верхнего пикселя, поэтому
+# блок и его левый верхний потомок делят один расчёт.
+#
+# Порядок расчёта:
+#   1. Корни уровня top покрывают область — картинка появляется за один-два кадра.
+#   2. До уровня base блоки делятся все: равномерная сетка ловит мелкие детали.
+#   3. Ниже base делятся только блоки на границе разных значений, до уровня minLevel (размер ячейки).
+#      Однородная броня остаётся крупными блоками, граница цветов уточняется до пикселя.
+# Внутри уровня блоки делятся от ближних к прицелу к дальним.
+#
+# Отрисовка: блоки раскладываются по строкам высотой 2**minLevel, соседние интервалы одного значения
+# сливаются в полосы, одинаковые полосы соседних строк — в прямоугольники.
+import random
 
-from gui.mods.armor_highlight import geometry
-
+MAX_LEVEL = 8
+# nextKey() возвращает BUSY, проверив столько блоков подряд без расчёта.
+_CHECKS_PER_CALL = 64
+BUSY = object()
 _MISSING = object()
+
+
+def blockCount(area, level):
+    # Сколько блоков уровня level покрывают область.
+    x0, y0, x1, y1 = area
+    if x1 <= x0 or y1 <= y0:
+        return 0
+    return ((x1 - 1 >> level) - (x0 >> level) + 1) * ((y1 - 1 >> level) - (y0 >> level) + 1)
+
+
+def chooseLevels(area, minLevel, uniformMax, maxRows, rootsExtra=2):
+    # (minLevel, base, top). minLevel растёт, если строк больше maxRows: на огромной цели 1 px не нужен.
+    height = area[3] - area[1]
+    while minLevel < MAX_LEVEL and height >> minLevel > maxRows:
+        minLevel += 1
+    base = minLevel
+    while base < MAX_LEVEL and blockCount(area, base) > uniformMax:
+        base += 1
+    return (minLevel, base, min(base + rootsExtra, MAX_LEVEL))
 
 
 class Lattice(object):
 
-    def __init__(self, target, anchorLocal, anchorDist, fov, screenSize, cellPx, maxSamples, extraLevels, drawable):
-        self.target = target
-        self.anchorLocal = anchorLocal
-        self.cellPx = cellPx
+    def __init__(self, area, minLevel, uniformMax, maxRows, drawable, aim=(0.0, 0.0)):
+        # area: (x0, y0, x1, y1) в пикселях от якоря, правая и нижняя границы не включены.
+        # drawable: значения, которые рисуются; остальные (None — мимо цели) — нет.
+        # aim: точка прицеливания от якоря; её можно менять каждый кадр — порядок уточнения идёт от неё.
+        self.area = area
+        self.minLevel, self.baseLevel, self.topLevel = chooseLevels(area, minLevel, uniformMax, maxRows)
+        self.drawable = frozenset(drawable)
         self.cache = {}
-        self.level = None
-        self.drawRows = ()
-        self.__anchorDist = anchorDist
-        self.__fov = fov
-        self.__screenSize = screenSize
-        self.__maxSamples = maxSamples
-        self.__extraLevels = extraLevels
-        self.__drawable = frozenset(drawable)
-        self.__topLevel = 0
-        self.__fallbackMasks = ()
-        self.__computeKey = None
-        self.__order = []
-        self.__orderPos = 0
-        self.__refresh = []
-        self.__cursor = 0
-        self.__refreshLeft = 0
+        self.aim = aim
+        self.done = False
+        self.hasPicture = False
+        self.splits = 0
+        self.stale = False
+        self.__probeBlocks = []
+        self.__rowShift = self.minLevel
+        self.__rows = {}
         self.__rowRuns = {}
         self.__dirtyRows = set()
-        self.__lastDrawRows = None
+        self.__rects = []
+        self.__rectsDirty = False
+        self.__level = self.topLevel
+        self.__isRootStage = True
+        self.__jobs = self.__sorted(self.__roots())
+        self.__jobIdx = 0
+        self.__childIdx = 0
+        self.__jobChecked = False
+        self.__onlyBoundary = False
+        self.__created = []
 
-    def matches(self, target, fov, screenSize):
-        return target is self.target and screenSize == self.__screenSize and abs(fov - self.__fov) <= 1e-4 * abs(self.__fov)
+    # --- расчёт ---
 
-    def scaleDrift(self, anchorDist):
-        # Относительное изменение дистанции камера—якорь: от него зависит масштаб цели на экране.
-        if self.__anchorDist <= 0.0:
-            return float('inf')
-        return abs(anchorDist / self.__anchorDist - 1.0)
+    def __roots(self):
+        x0, y0, x1, y1 = self.area
+        top = self.topLevel
+        size = 1 << top
+        return [ (i, j) for j in xrange(y0 >> top << top, y1, size) for i in xrange(x0 >> top << top, x1, size) ]
 
-    @property
-    def step(self):
-        return 1 << self.level
-
-    def setView(self, u, v, radius):
-        # Круг сведения в ячейках относительно якоря: центр (u, v), радиус radius. Вызывается каждый кадр.
-        level = geometry.gridLevel(radius, self.__maxSamples)
-        if level != self.level:
-            self.level = level
-            self.__topLevel = min(level + self.__extraLevels, geometry.MAX_LEVEL)
-            self.__fallbackMasks = tuple((~((1 << lvl) - 1) for lvl in xrange(level + 1, self.__topLevel + 1)))
-            self.__rowRuns.clear()
-            self.__dirtyRows.clear()
-            self.__lastDrawRows = None
-        step = 1 << level
-        self.drawRows = geometry.rowRanges(u, v, radius, step)
-        # Область расчёта чуть шире круга и квантована, чтобы порядок расчёта не перестраивался каждый кадр.
-        quant = 2 * step
-        qu = int(round(u / quant)) * quant
-        qv = int(round(v / quant)) * quant
-        qr = (int(math.ceil(radius / quant)) + 1) * quant
-        computeKey = (level, qu, qv, qr)
-        if computeKey != self.__computeKey:
-            self.__computeKey = computeKey
-            self.__order, self.__refresh = geometry.refineOrder(qu, qv, qr, level, self.__extraLevels)
-            self.__orderPos = 0
-        # За кадр каждая ячейка пересчитывается не больше раза.
-        self.__refreshLeft = len(self.__refresh)
+    def __sorted(self, blocks):
+        ax, ay = self.aim
+        half = (1 << self.__level) * 0.5
+        return sorted(blocks, key=lambda b: (b[0] + half - ax) ** 2 + (b[1] + half - ay) ** 2)
 
     def nextKey(self):
-        # Сначала непосчитанные ячейки от крупного уровня к мелкому, затем пересчёт по кругу.
-        cache = self.cache
-        order = self.__order
-        pos = self.__orderPos
-        count = len(order)
-        while pos < count:
-            key = order[pos]
-            pos += 1
-            if key not in cache:
-                self.__orderPos = pos
-                return key
+        # Следующая ячейка для расчёта, BUSY (проверено много блоков подряд, пора свериться с бюджетом кадра)
+        # или None, если сетка готова.
+        checks = 0
+        while not self.done:
+            if self.__jobIdx < len(self.__jobs):
+                i, j = self.__jobs[self.__jobIdx]
+                if self.__isRootStage:
+                    return (i, j)
+                if self.__childIdx == 0 and not self.__jobChecked:
+                    # Граница проверяется лениво, по мере очереди: на тонких уровнях блоков тысячи.
+                    if self.__onlyBoundary and not self.__isBoundary((i, j), self.__level + 1):
+                        if self.__level + 1 >= self.minLevel + 2:
+                            self.__probeBlocks.append(((i, j), self.__level + 1))
+                        self.__jobIdx += 1
+                        checks += 1
+                        if checks >= _CHECKS_PER_CALL:
+                            return BUSY
+                        continue
+                    self.__jobChecked = True
+                half = 1 << self.__level
+                idx = self.__childIdx
+                return (i + half if idx != 1 else i, j + half if idx != 0 else j)
+            self.__nextStage()
 
-        self.__orderPos = pos
-        if self.__refreshLeft <= 0:
-            return None
-        self.__refreshLeft -= 1
-        refresh = self.__refresh
-        key = refresh[self.__cursor % len(refresh)]
-        self.__cursor += 1
-        return key
+        return None
 
-    def store(self, key, result):
-        # result: SHOT_RESULT или None (в точке нет цели).
-        cache = self.cache
-        old = cache.get(key, _MISSING)
-        cache[key] = result
-        if old is not _MISSING and old == result:
+    def store(self, key, value):
+        # value — значение ячейки key, которую вернул nextKey().
+        self.cache[key] = value
+        if self.__isRootStage:
+            self.__setBlock(key[0], key[1], self.topLevel, value)
+            self.__created.append(key)
+            self.__jobIdx += 1
+            if self.__jobIdx == len(self.__jobs):
+                self.hasPicture = True
             return
-        # Ячейка крупного уровня подменяет ещё не посчитанные мелкие ячейки под собой: строки j .. j + 2**top - 1.
-        i, j = key
-        top = geometry.keyLevel(i, j, self.__topLevel)
-        if top <= self.level:
-            self.__dirtyRows.add(j)
-        else:
-            self.__dirtyRows.update(xrange(j, j + (1 << top), 1 << self.level))
+        self.__childIdx += 1
+        if self.__childIdx == 3:
+            i, j = self.__jobs[self.__jobIdx]
+            self.__split(i, j, self.__level + 1)
+            self.__jobIdx += 1
+            self.__childIdx = 0
+            self.__jobChecked = False
 
-    def runs(self):
-        # Ячейки круга, слитые в полосы по строкам: [(result, i0, i1, j)], i0 <= i < i1, высота полосы — step.
-        # Возвращает (runs, changed): changed — полосы изменились с прошлого вызова.
-        rowRuns = self.__rowRuns
-        changed = False
+    def __nextStage(self):
+        # Блоки, созданные на этом уровне, становятся очередью на деление. Порядок наследуется от родителей,
+        # а те шли от прицела, поэтому пересортировка не нужна.
+        if self.__isRootStage:
+            self.hasPicture = True
+        created = self.__created
+        level = self.__level
+        self.__created = []
+        self.__isRootStage = False
+        self.__jobs = created
+        self.__jobIdx = 0
+        self.__childIdx = 0
+        self.__jobChecked = False
+        self.__onlyBoundary = level <= self.baseLevel
+        self.__level = level - 1
+        if level <= self.minLevel or not created:
+            self.done = True
+            self.__jobs = []
+
+    def __split(self, i, j, level):
+        half = 1 << level - 1
+        cache = self.cache
+        child = level - 1
+        for ci, cj in ((i, j), (i + half, j), (i, j + half), (i + half, j + half)):
+            self.__setBlock(ci, cj, child, cache[ci, cj])
+            self.__created.append((ci, cj))
+
+        self.splits += 1
+
+    def valueAt(self, x, y, level):
+        # Значение самого мелкого посчитанного блока уровня не ниже level, содержащего пиксель (x, y).
+        cache = self.cache
+        for lvl in xrange(level, self.topLevel + 1):
+            mask = ~((1 << lvl) - 1)
+            value = cache.get((x & mask, y & mask), _MISSING)
+            if value is not _MISSING:
+                return value
+
+        return _MISSING
+
+    def __isBoundary(self, block, level):
+        # Блок на границе: у одного из 8 соседей того же размера (или крупнее) другое значение.
+        # Всё, что не рисуется, считается одним значением: границу «мимо цели» / UNDEFINED уточнять незачем.
+        i, j = block
+        size = 1 << level
+        drawable = self.drawable
+        value = self.cache[i, j]
+        value = value if value in drawable else None
+        for x, y in ((i - size, j), (i + size, j), (i, j - size), (i, j + size), (i + size, j + size), (i - size, j - size), (i + size, j - size), (i - size, j + size)):
+            other = self.valueAt(x, y, level)
+            if other is _MISSING:
+                continue
+            if (other if other in drawable else None) != value:
+                return True
+
+        return False
+
+    def probe(self):
+        # Точка для проверки, не изменилась ли картинка: центр случайного однородного блока (не на границе,
+        # не мельче 4 ячеек). Сдвиг сетки на полпикселя при округлении якоря значение в центре не меняет.
+        # Возвращает (x, y, ожидаемое значение) или None.
+        if not self.__probeBlocks:
+            return None
+        (i, j), level = random.choice(self.__probeBlocks)
+        half = (1 << level) * 0.5
+        return (i + half, j + half, self.cache[i, j])
+
+    # --- растр ---
+
+    def __setBlock(self, i, j, level, value):
+        shift = self.__rowShift
+        rows = self.__rows
+        end = i + (1 << level)
+        for row in xrange(j >> shift, j + (1 << level) >> shift):
+            cells = rows.get(row)
+            if cells is None:
+                cells = rows[row] = {}
+            cells[i] = (end, value)
+            self.__dirtyRows.add(row)
+
+    def __buildRowRuns(self, cells):
+        drawable = self.drawable
+        runs = []
+        start = end = value = None
+        for x0 in sorted(cells):
+            x1, cellValue = cells[x0]
+            if cellValue == value and x0 == end:
+                end = x1
+                continue
+            if value in drawable:
+                runs.append((start, end, value))
+            start, end, value = x0, x1, cellValue
+
+        if value in drawable:
+            runs.append((start, end, value))
+        return tuple(runs)
+
+    def rects(self):
+        # [(value, x0, y0, x1, y1)] в пикселях от якоря и признак, что список изменился с прошлого вызова.
         if self.__dirtyRows:
-            for j in self.__dirtyRows:
-                if rowRuns.pop(j, None) is not None:
-                    changed = True
+            rowRuns = self.__rowRuns
+            rows = self.__rows
+            for row in self.__dirtyRows:
+                runs = self.__buildRowRuns(rows[row])
+                if rowRuns.get(row) != runs:
+                    rowRuns[row] = runs
+                    self.__rectsDirty = True
 
             self.__dirtyRows.clear()
-        if self.drawRows != self.__lastDrawRows:
-            self.__lastDrawRows = self.drawRows
-            changed = True
-        out = []
-        for j, iLo, iHi in self.drawRows:
-            entry = rowRuns.get(j)
-            if entry is None or entry[0] != iLo or entry[1] != iHi:
-                entry = (iLo, iHi, self.__buildRow(j, iLo, iHi))
-                rowRuns[j] = entry
-                changed = True
-            out.extend(entry[2])
+        if not self.__rectsDirty:
+            return (self.__rects, False)
+        self.__rectsDirty = False
+        shift = self.__rowShift
+        rects = []
+        opened = {}
+        lastRow = None
+        rowRuns = self.__rowRuns
+        for row in sorted(rowRuns):
+            if lastRow is None or row != lastRow + 1:
+                opened = {}
+            current = {}
+            y = row << shift
+            for run in rowRuns[row]:
+                idx = opened.get(run)
+                if idx is None:
+                    idx = len(rects)
+                    rects.append([run[2], run[0], y, run[1], y + (1 << shift)])
+                else:
+                    rects[idx][4] = y + (1 << shift)
+                current[run] = idx
 
-        return (out, changed)
+            opened = current
+            lastRow = row
 
-    def __buildRow(self, j, iLo, iHi):
-        step = 1 << self.level
-        get = self.cache.get
-        masks = self.__fallbackMasks
-        drawable = self.__drawable
-        runs = []
-        runKind = None
-        runStart = iLo
-        for i in xrange(iLo, iHi + 1, step):
-            kind = get((i, j), _MISSING)
-            if kind is _MISSING:
-                # Пока ячейка не посчитана, показываем результат ближайшей посчитанной крупной ячейки над ней.
-                kind = None
-                for mask in masks:
-                    parent = get((i & mask, j & mask), _MISSING)
-                    if parent is not _MISSING:
-                        kind = parent
-                        break
+        self.__rects = [ tuple(rect) for rect in rects ]
+        return (self.__rects, True)
 
-            if kind != runKind:
-                if runKind in drawable:
-                    runs.append((runKind, runStart, i, j))
-                runKind = kind
-                runStart = i
-
-        if runKind in drawable:
-            runs.append((runKind, runStart, iHi + step, j))
-        return runs
-
-    def summary(self):
-        # Для строки статистики: (ячеек в круге, {result: n} и непосчитанные в области расчёта).
-        counts = {}
-        pending = 0
-        cache = self.cache
-        for key in self.__refresh:
-            value = cache.get(key, _MISSING)
-            if value is _MISSING:
-                pending += 1
-            else:
-                counts[value] = counts.get(value, 0) + 1
-
-        drawn = geometry.cellCount(self.drawRows, 1 << self.level) if self.level is not None else 0
-        return (drawn, counts, pending)
+    @property
+    def stage(self):
+        # Уровень, который сейчас уточняется (после готовности — самый мелкий).
+        return max(self.__level, self.minLevel)
