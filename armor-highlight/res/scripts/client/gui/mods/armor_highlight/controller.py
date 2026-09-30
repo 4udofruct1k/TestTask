@@ -12,7 +12,7 @@ from helpers import dependency
 from messenger import MessengerEntry
 from skeletons.gui.battle_session import IBattleSessionProvider
 
-from gui.mods.armor_highlight import config, log, logException, penetration
+from gui.mods.armor_highlight import collision_probe, config, log, logException, penetration
 from gui.mods.armor_highlight.aiminfo import AimInfo
 from gui.mods.armor_highlight.highlighter import Highlighter, timer
 from gui.mods.armor_highlight.preview import modulesText
@@ -186,6 +186,7 @@ class ArmorHighlightController(object):
             self.__layersLogged.add(target.id)
             name = getattr(getattr(getattr(target, 'typeDescriptor', None), 'type', None), 'name', target.id)
             log('aim layers (%s): %s', name, penetration.describeLayers(details))
+            collision_probe.probe(target.typeDescriptor)
 
     def __updateStillness(self, player, now):
         if player is None or not hasattr(player, 'getOwnVehicleSpeeds'):

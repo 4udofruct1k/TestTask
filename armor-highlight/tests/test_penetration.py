@@ -66,6 +66,15 @@ class ModulesTest(unittest.TestCase):
         details = [Detail(1.0, 1.0, Mat(200), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('engineHealth')), 'hull')]
         self.assertEqual(modules(details), ['engineHealth'])
 
+    def test_shell_travels_ten_calibres_inside(self):
+        # Калибр 100 мм: после листа 100 мм на 2 м снаряд летит до 2 + 0.1 + 1.0 м; двигатель на 3.5 м недостижим.
+        # Гусеница перед бронёй (без урона) отсчёт не начинает.
+        track = Detail(0.5, 1.0, Mat(20, damage=0.0, extra=Extra('leftTrack0Health')), 'chassis')
+        armor = Detail(2.0, 1.0, Mat(100), 'hull')
+        near = Detail(3.0, 1.0, Mat(0, damage=0.0, extra=Extra('gunner1Health')), 'hull')
+        far = Detail(3.5, 1.0, Mat(0, damage=0.0, extra=Extra('engineHealth')), 'hull')
+        self.assertEqual(modules([track, armor, near, far]), ['leftTrack0Health', 'gunner1Health'])
+
     def test_ricochet_stops_the_shell(self):
         details = [Detail(1.0, 0.2, Mat(50), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('gunnerHealth')), 'hull')]
         self.assertEqual(modules(details, ricochet=lambda shell, cos, mat: cos < 0.5), [])

@@ -14,6 +14,9 @@ LITTLE_PIERCED = 2
 GREAT_PIERCED = 3
 
 _MAX_HIT_ANGLE_BOUND = math.pi / 2.0 - 1e-05
+# Сколько калибров снаряд пролетает внутри танка после пробития основной брони. Считает сервер, в клиенте этого
+# нет; значение — из справки Wargaming (статьи о механике пробития для Blitz и консольной версии).
+INSIDE_CALIBERS = 10.0
 
 
 def probability(piercingPercent, randomization):
@@ -113,12 +116,16 @@ def modulesAlong(details, fullPiercingPower, shell, shouldRicochet, penetrationA
     # Тот же проход по слоям, что в evaluate(), но не до решающего листа, а пока у снаряда есть пробитие:
     # за пробитой бронёй он идёт дальше, к модулям внутри — если они есть в клиентской модели столкновений.
     # Пробитие — лучший бросок (номинал + разброс): модули, которые выстрел в эту точку может задеть.
+    # После пробития основной брони (лист с уроном) снаряд летит внутри не дальше INSIDE_CALIBERS калибров.
     names = []
     isJet = False
     jetStartDist = None
+    insideLimit = None
     piercingPower = fullPiercingPower * (1.0 + shell.piercingPowerRandomization)
     ignoredMaterials = set()
     for cDetails in details:
+        if insideLimit is not None and cDetails.dist > insideLimit:
+            break
         if isJet:
             jetDist = cDetails.dist - jetStartDist
             if jetDist > 0.0:
@@ -144,6 +151,9 @@ def modulesAlong(details, fullPiercingPower, shell, shouldRicochet, penetrationA
             ignoredMaterials.add((cDetails.compName, matInfo.kind))
         if piercingPower <= 0.0:
             break
+        if insideLimit is None and matInfo.vehicleDamageFactor:
+            # dist — метры, калибр — мм.
+            insideLimit = cDetails.dist + matInfo.armor * 0.001 + INSIDE_CALIBERS * shell.caliber * 0.001
         if jetLossPPByDist > 0.0:
             isJet = True
             jetStartDist = cDetails.dist + matInfo.armor * 0.001

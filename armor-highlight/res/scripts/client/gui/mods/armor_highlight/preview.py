@@ -13,7 +13,7 @@ from helpers import dependency
 from messenger import MessengerEntry
 from skeletons.gui.shared.utils import IHangarSpace
 
-from gui.mods.armor_highlight import config, log, logException, palette
+from gui.mods.armor_highlight import collision_probe, config, log, logException, palette
 from gui.mods.armor_highlight.highlighter import Highlighter, screenResolution, timer
 from gui.mods.armor_highlight.penetration import UNDEFINED, moduleLabel
 from gui.mods.armor_highlight.sampler import PreviewSampler
@@ -236,6 +236,8 @@ class ViewMode(object):
             self.__highlighter.start()
         sampler = self.__sampler
         sampleKey = sampler.prepare(entity, shot, self.__distance, settings.gradientSteps)
+        if config.debug:
+            collision_probe.probe(entity.typeDescriptor)
         screenW, screenH = screenResolution()
         cursor = GUI.mcursor().position
         cursorPx = ((cursor[0] + 1.0) * 0.5 * screenW, (1.0 - cursor[1]) * 0.5 * screenH)
