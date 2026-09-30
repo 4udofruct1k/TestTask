@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-# Настройки мода. Свои: панель в ангаре (panel.py, Ctrl+Shift+Y) и файл settings.json рядом с preferences.xml
-# клиента — без других модов (ModsSettingsAPI не нужен). Описание пунктов панели — ITEMS.
+# Настройки мода. Окно — в «Настройках модификаций» (ModsSettingsAPI), если он установлен; без него — своя панель
+# в ангаре (panel.py, Ctrl+Shift+Y). Значения всегда хранятся и в своём файле settings.json рядом с preferences.xml
+# клиента: ничего не теряется, если ModsSettingsAPI удалить или поставить. Описание пунктов — ITEMS.
 import json
 import os
 
@@ -11,6 +12,13 @@ from gui.mods.armor_highlight import log, logException, palette
 
 # Увеличить, если значения по умолчанию должны заменить сохранённые.
 FILE_VERSION = 1
+LINKAGE = 'max.armor_highlight'
+# Версия шаблона окна ModsSettingsAPI: при смене ModsSettingsAPI берёт значения из шаблона — это наши текущие.
+TEMPLATE_VERSION = 9
+# Пункты, которые в окне — ползунки по вариантам; остальные варианты — выпадающие списки.
+_STEP_SLIDERS = frozenset(('aimRadius', 'cellSize', 'gradientSteps', 'searchStep', 'focusRadius', 'prefetch'))
+# Вторая колонка окна.
+_COLUMN2 = ('colorFull', 'colorHalf', 'colorZero', 'gradientSteps', 'opacity', 'colourMode')
 FILE_DIR = 'mods_armor_highlight'
 FILE_NAME = 'settings.json'
 
@@ -25,6 +33,8 @@ AIM_RADII = (40, 60, 80, 120, 160)
 # Шаг поиска мелких зон: None — подобрать по размеру цели, иначе уровень сетки (16 px -> 4, ...).
 SEARCH_STEPS = (None, 16, 8, 4, 2)
 FOCUS_RADII = (0, 10, 20, 40)
+# Доля круга пересчёта на расчёт танка заранее, %.
+PREFETCH_SHARES = (0, 10, 25, 50)
 COLOUR_MODES = ('texture', 'memory', 'tint255', 'tint1')
 COLOUR_MODE_LABELS = (u'текстуры из пакета', u'текстуры в памяти', u'colour 0–255', u'colour 0–1')
 # Цвета на выбор в панели: (hex, название).
@@ -47,6 +57,7 @@ DEFAULTS = {'enabled': True,
  'showWhileMoving': True,
  'showInArcade': True,
  'stickyTarget': True,
+ 'aimInfo': True,
  'appearDelayMs': 100,
  'mode': 0,
  'aimRadius': 1,
@@ -55,6 +66,7 @@ DEFAULTS = {'enabled': True,
  'focusRadius': 2,
  'frameBudgetMs': 3,
  'previewBudgetMs': 10,
+ 'prefetch': 2,
  'colorFull': palette.DEFAULT_FULL,
  'colorHalf': palette.DEFAULT_HALF,
  'colorZero': palette.DEFAULT_ZERO,
@@ -78,6 +90,8 @@ ITEMS = (('enabled', 'bool', u'Подсветка', None, u'Выключено �
  ('showWhileMoving', 'bool', u'Показывать в движении', None, u'Выключено — только когда свой танк стоит.'),
  ('showInArcade', 'bool', u'Показывать в аркадном режиме', None, u'Выключено — только в снайперском.'),
  ('stickyTarget', 'bool', u'Держать цель, когда прицел ушёл', None, u'Подсветка остаётся на последней цели, пока прицел не на другом противнике.'),
+ ('prefetch', 'choice', u'Прогрузка танка заранее', tuple((u'выкл' if share == 0 else u'%d%%' % share for share in PREFETCH_SHARES)), u'Какая доля расчёта идёт на весь танк вне круга, от прицела наружу: при переводе прицела там уже есть картинка. FPS не меняется, круг обновляется на эту долю медленнее.'),
+ ('aimInfo', 'bool', u'Подпись у прицела', None, u'Шанс пробития в точке прицеливания и модули на пути снаряда (те, что есть в клиентской модели танка).'),
  ('frameBudgetMs', 'int', u'Нагрузка в бою', (1, 10, 1, u' мс/кадр'), u'Всё время мода за кадр. Больше — быстрее прорисовка, ниже FPS.'),
  ('previewBudgetMs', 'int', u'Нагрузка в просмотре', (5, 50, 5, u' мс/кадр'), u'То же в ангаре.'),
  ('searchStep', 'choice', u'Шаг поиска (вся цель)', tuple((u'авто' if step is None else u'%d px' % step for step in SEARCH_STEPS)), u'Только для «вся цель, с уточнением».'),
@@ -110,6 +124,120 @@ def _settingsPath():
     return os.path.join(os.path.dirname(prefs), FILE_DIR, FILE_NAME)
 
 
+_MODIFIER_KEYS = (('ctrl', (Keys.KEY_LCONTROL, Keys.KEY_RCONTROL)), ('alt', (Keys.KEY_LALT, Keys.KEY_RALT)), ('shift', (Keys.KEY_LSHIFT, Keys.KEY_RSHIFT)))
+
+
+def _hotkeyToApi(hotkey):
+    # Формат ModsSettingsAPI: список клавиш, модификатор — список из левой и правой.
+    keys = [ list(pair) for flag, pair in _MODIFIER_KEYS if hotkey.get(flag) ]
+    keys.append(hotkey.get('key'))
+    return keys
+
+
+def _hotkeyFromApi(keys):
+    hotkey = {'key': None, 'ctrl': False, 'alt': False, 'shift': False}
+    for key in keys or ():
+        if isinstance(key, (list, tuple)):
+            for flag, pair in _MODIFIER_KEYS:
+                if set(key) & set(pair):
+                    hotkey[flag] = True
+
+        else:
+            modifier = [ flag for flag, pair in _MODIFIER_KEYS if key in pair ]
+            if modifier:
+                hotkey[modifier[0]] = True
+            else:
+                hotkey['key'] = key
+
+    return hotkey if isinstance(hotkey['key'], int) else None
+
+
+def _tooltip(header, body):
+    return '{HEADER}%s{/HEADER}{BODY}%s{/BODY}' % (header.encode('utf-8'), body.encode('utf-8'))
+
+
+def _control(templates, item, value):
+    # Элемент окна ModsSettingsAPI. Если в установленной версии нет нужного элемента или он падает — вариант
+    # попроще, а не пропажа всего окна.
+    key, kind, label, options, hint = item
+    text = label.encode('utf-8')
+    tooltip = _tooltip(label, hint) if hint else None
+    try:
+        if kind == 'bool':
+            return templates.createCheckbox(text, key, bool(value), tooltip=tooltip)
+        if kind == 'hotkey':
+            return templates.createHotkey(text, key, _hotkeyToApi(value), tooltip=tooltip)
+        if kind == 'colour':
+            return templates.createColorChoice(text, key, '#' + value, tooltip=tooltip)
+        if kind == 'int':
+            low, high, step, unit = options
+            return templates.createSlider(text, key, int(value), low, high, step, '{{value}}' + unit.encode('utf-8'), tooltip=tooltip)
+        labels = [ option.encode('utf-8') for option in options ]
+        if key in _STEP_SLIDERS:
+            return templates.createStepSlider(text, key, labels, int(value), tooltip=tooltip)
+        return templates.createDropdown(text, key, labels, int(value), tooltip=tooltip)
+    except Exception:
+        logException('ModsSettingsAPI template %s' % key)
+
+    if kind == 'choice':
+        try:
+            return templates.createDropdown(text, key, [ option.encode('utf-8') for option in options ], int(value))
+        except Exception:
+            logException('ModsSettingsAPI template %s (dropdown)' % key)
+
+    return None
+
+
+def _template(templates, values):
+    column1 = []
+    column2 = []
+    try:
+        column1.append(templates.createLabel('Просмотр на танке в ангаре — пункт «Подсветка брони: просмотр» в списке модов.'))
+    except Exception:
+        logException('ModsSettingsAPI template label')
+
+    for item in ITEMS:
+        if item[0] == 'enabled':
+            continue
+        control = _control(templates, item, values[item[0]])
+        if control is not None:
+            (column2 if item[0] in _COLUMN2 else column1).append(control)
+
+    return {'modDisplayName': 'Подсветка брони',
+     'settingsVersion': TEMPLATE_VERSION,
+     'enabled': bool(values['enabled']),
+     'column1': column1,
+     'column2': column2}
+
+
+def _fromApi(saved):
+    # Значения окна -> наши.
+    kinds = dict(((item[0], item[1]) for item in ITEMS))
+    changes = {}
+    for key, value in (saved or {}).iteritems():
+        key = str(key)
+        kind = kinds.get(key)
+        try:
+            if kind is None:
+                continue
+            if kind == 'bool':
+                changes[key] = bool(value)
+            elif kind == 'hotkey':
+                hotkey = _hotkeyFromApi(value)
+                if hotkey is not None:
+                    changes[key] = hotkey
+            elif kind == 'colour':
+                colour = str(value).lstrip('#').lower()
+                if len(colour) == 6:
+                    changes[key] = colour
+            else:
+                changes[key] = int(round(float(value)))
+        except (TypeError, ValueError):
+            continue
+
+    return changes
+
+
 def _valid(key, value):
     default = DEFAULTS[key]
     if isinstance(default, bool):
@@ -126,6 +254,8 @@ class Settings(object):
     def __init__(self):
         self.values = dict(DEFAULTS)
         self.path = None
+        # Окно в ModsSettingsAPI есть: своя панель тогда не нужна.
+        self.hasApi = False
         self.__listeners = []
 
     def load(self):
@@ -147,7 +277,38 @@ class Settings(object):
         except Exception:
             logException('settings.load')
 
+        try:
+            self.__registerApi()
+        except Exception:
+            logException('ModsSettingsAPI')
+
         log('settings: %s (%s)', self.describe(), self.path.encode('utf-8'))
+
+    def __registerApi(self):
+        try:
+            from gui.modsSettingsApi import g_modsSettingsApi, templates
+        except ImportError:
+            log('ModsSettingsAPI not found, settings: panel in the hangar, %s', hotkeyName(PANEL_KEY))
+            return
+
+        template = _template(templates, self.values)
+        saved = g_modsSettingsApi.getModSettings(LINKAGE, template)
+        if saved:
+            g_modsSettingsApi.registerCallback(LINKAGE, self.__onApiChanged)
+            # В окне уже есть сохранённые значения: они главнее, свой файл догоняет их.
+            self.values.update(_fromApi(saved))
+            self.save()
+        else:
+            g_modsSettingsApi.setModTemplate(LINKAGE, template, self.__onApiChanged)
+        self.hasApi = True
+        log('ModsSettingsAPI: settings window registered, %d + %d controls', len(template['column1']), len(template['column2']))
+
+    def __onApiChanged(self, linkage, newSettings):
+        try:
+            if linkage == LINKAGE:
+                self.update(_fromApi(newSettings))
+        except Exception:
+            logException('ModsSettingsAPI callback')
 
     def save(self):
         if self.path is None:
@@ -209,6 +370,10 @@ class Settings(object):
         return bool(self.values['stickyTarget'])
 
     @property
+    def aimInfo(self):
+        return bool(self.values['aimInfo'])
+
+    @property
     def appearDelay(self):
         return _number(self.values['appearDelayMs'], DEFAULTS['appearDelayMs']) / 1000.0
 
@@ -219,6 +384,10 @@ class Settings(object):
     @property
     def previewFrameBudget(self):
         return max(1.0, _number(self.values['previewBudgetMs'], DEFAULTS['previewBudgetMs'])) / 1000.0
+
+    @property
+    def prefetchShare(self):
+        return PREFETCH_SHARES[_index(self.values['prefetch'], PREFETCH_SHARES, DEFAULTS['prefetch'])] / 100.0
 
     @property
     def cellPx(self):

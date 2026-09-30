@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-# Панель настроек в ангаре — своя, не зависит от других модов. Ctrl+Shift+Y открывает и закрывает её;
-# если установлен ModsList API, её открывает и пункт «Подсветка брони: настройки» в списке модов.
+# Панель настроек в ангаре — запасная: основное окно в ModsSettingsAPI. Ctrl+Shift+Y открывает и закрывает её
+# всегда (на случай, если окна мода там не видно); без ModsSettingsAPI — и пункт «Подсветка брони: настройки»
+# в ModsList API.
 # Стрелки вверх/вниз — пункт, влево/вправо — значение, Enter — переключить, задать клавишу или выполнить действие.
 # Значения сразу сохраняются (settings.py) и применяются.
 import GUI
@@ -12,9 +13,15 @@ from gui.mods.armor_highlight import log, logException, palette
 from gui.mods.armor_highlight.settings import COLOUR_PRESETS, ITEMS, PANEL_KEY, hotkeyMatches, hotkeyName
 
 MODS_LIST_ID = 'max.armor_highlight.settings'
-# Под текстом режима просмотра (он с 0.5 вниз), перед интерфейсом лобби.
-_TEXT_POSITION = (-0.97, 0.2)
+# Вверху по центру, над танком, перед интерфейсом лобби (0.5); подложка — за текстом.
+_TEXT_POSITION = (-0.33, 0.8)
 _TEXT_DEPTH = 0.45
+_PLATE_DEPTH = 0.46
+_PLATE_PADDING = (0.015, 0.02)
+_PLATE_WIDTH = 0.7
+# Высота строки в clip-координатах (оценка: ~22 px при 1080 строках) и сколько пунктов видно сразу.
+_LINE_HEIGHT = 0.042
+_VISIBLE_ITEMS = 9
 _MODIFIERS = frozenset((Keys.KEY_LCONTROL, Keys.KEY_RCONTROL, Keys.KEY_LSHIFT, Keys.KEY_RSHIFT, Keys.KEY_LALT, Keys.KEY_RALT))
 # Действия в конце списка: (ключ, подпись).
 _ACTIONS = (('view', u'Просмотр на танке'), ('reset', u'Сбросить все настройки'))
@@ -28,8 +35,10 @@ class SettingsPanel(object):
         self.__inLobby = False
         self.__subscribed = False
         self.__text = None
+        self.__plate = None
         self.__textValue = None
         self.__index = 0
+        self.__top = 0
         self.__capturing = False
         self.__confirmReset = False
 
@@ -38,7 +47,9 @@ class SettingsPanel(object):
         return self.__text is not None
 
     def register(self):
-        # Пункт в списке модов, если он есть. Без него — только Ctrl+Shift+Y.
+        # Пункт в списке модов, если он есть. Без него — только Ctrl+Shift+Y. С ModsSettingsAPI пункт не нужен.
+        if self.__settings.hasApi:
+            return
         try:
             from gui.modsListApi import g_modsListApi
         except ImportError:
@@ -70,6 +81,24 @@ class SettingsPanel(object):
     def open(self):
         if self.isOpen or not self.__inLobby:
             return
+        lines = 4 + _VISIBLE_ITEMS + 2
+        try:
+            plate = GUI.Simple(palette.texturePath(palette.nearestColour((0, 0, 0)), palette.nearestOpacity(80)))
+            plate.materialFX = GUI.Simple.eMaterialFX.BLEND
+            plate.widthMode = GUI.Simple.eSizeMode.CLIP
+            plate.heightMode = GUI.Simple.eSizeMode.CLIP
+            plate.horizontalPositionMode = GUI.Simple.ePositionMode.CLIP
+            plate.verticalPositionMode = GUI.Simple.ePositionMode.CLIP
+            plate.horizontalAnchor = GUI.Simple.eHAnchor.LEFT
+            plate.verticalAnchor = GUI.Simple.eVAnchor.TOP
+            plate.position = (_TEXT_POSITION[0] - _PLATE_PADDING[0], _TEXT_POSITION[1] + _PLATE_PADDING[1], _PLATE_DEPTH)
+            plate.size = (_PLATE_WIDTH, lines * _LINE_HEIGHT + 2 * _PLATE_PADDING[1])
+            plate.visible = True
+            GUI.addRoot(plate)
+            self.__plate = plate
+        except Exception:
+            logException('SettingsPanel.plate')
+
         text = GUI.Text('')
         text.horizontalPositionMode = GUI.Simple.ePositionMode.CLIP
         text.verticalPositionMode = GUI.Simple.ePositionMode.CLIP
@@ -89,11 +118,15 @@ class SettingsPanel(object):
     def close(self):
         if self.__text is None:
             return
-        try:
-            GUI.delRoot(self.__text)
-        except Exception:
-            logException('SettingsPanel.close')
+        for root in (self.__text, self.__plate):
+            if root is None:
+                continue
+            try:
+                GUI.delRoot(root)
+            except Exception:
+                logException('SettingsPanel.close')
 
+        self.__plate = None
         self.__text = None
         self.__textValue = None
         self.__capturing = False
@@ -214,26 +247,36 @@ class SettingsPanel(object):
     def __render(self):
         if self.__text is None:
             return
-        lines = [u'Подсветка брони — настройки. %s — закрыть.' % hotkeyName(PANEL_KEY), u'Стрелки вверх/вниз — пункт, влево/вправо — значение, Enter — переключить.', u'']
-        for idx, item in enumerate(ITEMS):
-            marker = u'> ' if idx == self.__index else u'    '
-            lines.append(u'%s%s: %s' % (marker, item[2], self.__valueText(item)))
-
-        for idx, (action, label) in enumerate(_ACTIONS):
-            marker = u'> ' if len(ITEMS) + idx == self.__index else u'    '
+        count = len(ITEMS) + len(_ACTIONS)
+        # Видно _VISIBLE_ITEMS пунктов подряд; окно едет за выбранным.
+        if self.__index < self.__top:
+            self.__top = self.__index
+        elif self.__index >= self.__top + _VISIBLE_ITEMS:
+            self.__top = self.__index - _VISIBLE_ITEMS + 1
+        lines = [u'ПОДСВЕТКА БРОНИ — НАСТРОЙКИ   (%s — закрыть)' % hotkeyName(PANEL_KEY), u'Стрелки вверх/вниз — пункт, влево/вправо — значение, Enter — переключить', u'']
+        lines.append(u'    …' if self.__top > 0 else u'')
+        for idx in xrange(self.__top, min(count, self.__top + _VISIBLE_ITEMS)):
+            marker = u'>  ' if idx == self.__index else u'     '
+            if idx < len(ITEMS):
+                item = ITEMS[idx]
+                lines.append(u'%s%s:  %s' % (marker, item[2], self.__valueText(item)))
+                continue
+            action, label = _ACTIONS[idx - len(ITEMS)]
             if action == 'view':
-                label = u'%s: %s (Enter)' % (label, u'открыт' if self.__viewMode.isActive else u'закрыт')
+                label = u'%s: %s  (Enter)' % (label, u'открыт' if self.__viewMode.isActive else u'закрыт')
             elif self.__confirmReset:
                 label = u'%s — нажмите Enter ещё раз' % label
             else:
-                label = u'%s (Enter)' % label
+                label = u'%s  (Enter)' % label
             lines.append(marker + label)
 
-        lines.append(u'')
+        lines.append(u'    …' if self.__top + _VISIBLE_ITEMS < count else u'')
         if self.__capturing:
             lines.append(u'Нажмите новую клавишу или сочетание для вкл/выкл в бою. Backspace — отмена.')
         elif self.__index < len(ITEMS) and ITEMS[self.__index][4]:
             lines.append(ITEMS[self.__index][4])
+        else:
+            lines.append(u'')
         self.__setText(u'\n'.join(lines))
 
     def __setText(self, value):

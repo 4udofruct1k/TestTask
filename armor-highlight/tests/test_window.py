@@ -180,6 +180,25 @@ class AimWindowTest(unittest.TestCase):
         cold.setAim((100.0, 0.0))
         self.assertEqual(len(coverage(cold.rects()[0])), 0)
 
+    def test_prefetch_reaches_base_level(self):
+        # Доля 50%: со временем весь танк посчитан до основы, и после перевода прицела картинка сразу точная.
+        area = (-160, -85, 160, 85)
+        window = AimWindow(3, LEVELS, (-100.0, 0.0), 40, 2500, 3, 4, area, 0.5)
+        for _ in range(200):
+            window.setAim((-100.0, 0.0))
+            run(window, tank, 3)
+
+        window.setAim((100.0, 0.0))
+        self.assertEqual(coverage(window.rects()[0]), expected(tank, (100.0, 0.0), 40, 3))
+        # Без доли — только грубая картинка первого уровня.
+        off = AimWindow(3, LEVELS, (-100.0, 0.0), 40, 2500, 3, 4, area, 0.0)
+        for _ in range(200):
+            off.setAim((-100.0, 0.0))
+            run(off, tank, 3)
+
+        off.setAim((100.0, 0.0))
+        self.assertEqual(len(coverage(off.rects()[0])), 0)
+
     def test_exact_after_first_pass(self):
         aim = (-20.0, 10.0)
         window = AimWindow(3, LEVELS, aim, 60, 2500, 3)

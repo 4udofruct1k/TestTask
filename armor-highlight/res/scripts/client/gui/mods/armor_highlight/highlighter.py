@@ -125,6 +125,9 @@ class Highlighter(object):
         self.stats = Stats()
         # Последний кадр: якорь в пикселях, лучи камеры и длина луча — для точечного расчёта под курсором.
         self.anchor = None
+        # Центр прицела в пикселях экрана и размер экрана за последний кадр — для подписи у прицела.
+        self.aimPx = None
+        self.screen = None
         self.rays = None
         self.rayLength = 0.0
 
@@ -205,6 +208,8 @@ class Highlighter(object):
             # Область у прицела обновляет лимит пересчёта на кадр в setAim.
             lattice.setAim(lattice.aim)
         self.anchor = (ax, ay)
+        self.aimPx = aimPx
+        self.screen = (screenW, screenH)
         self.rays = rays
         self.rayLength = (anchorWorld - cameraPos).length + RAY_EXTRA_LENGTH
         computeStart = timer()
@@ -331,7 +336,7 @@ class Highlighter(object):
         mode = settings.mode
         drawable = range(settings.gradientSteps)
         if mode == 'aim':
-            lattice = AimWindow(settings.cellPx, drawable, aim, settings.aimRadius, config.aimMaxCells, config.aimCoarseLevels, config.aimEdgePx, area)
+            lattice = AimWindow(settings.cellPx, drawable, aim, settings.aimRadius, config.aimMaxCells, config.aimCoarseLevels, config.aimEdgePx, area, settings.prefetchShare)
             lattice.tolerancePx = config.rebuildTolerancePx
         else:
             fullPass = mode in _FULL_PASS_MODES

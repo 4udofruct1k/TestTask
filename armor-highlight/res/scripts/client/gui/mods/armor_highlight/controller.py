@@ -12,8 +12,10 @@ from helpers import dependency
 from messenger import MessengerEntry
 from skeletons.gui.battle_session import IBattleSessionProvider
 
-from gui.mods.armor_highlight import config, log, logException
+from gui.mods.armor_highlight import config, log, logException, penetration
+from gui.mods.armor_highlight.aiminfo import AimInfo
 from gui.mods.armor_highlight.highlighter import Highlighter, timer
+from gui.mods.armor_highlight.preview import modulesText
 from gui.mods.armor_highlight.sampler import BattleSampler
 
 _CTRL_MODE = aih_constants.CTRL_MODE_NAME
@@ -32,6 +34,7 @@ class ArmorHighlightController(object):
         self.__isStarted = False
         self.__callbackID = None
         self.__highlighter = Highlighter(settings)
+        self.__aimInfo = AimInfo()
         self.__sampler = None
         self.__crosshairCtrl = None
         self.__feedbackCtrl = None
@@ -74,6 +77,7 @@ class ArmorHighlightController(object):
         InputHandler.g_instance.onKeyDown -= self.__onKeyDown
         self.__settings.removeListener(self.__onSettingsChanged)
         self.__highlighter.stop()
+        self.__aimInfo.destroy()
         self.__sampler = None
         self.__resetBattleState()
         log('stopped in battle')
@@ -89,6 +93,8 @@ class ArmorHighlightController(object):
         self.__inactiveReason = 'starting'
         self.__lastErrorLogAt = None
         self.__suppressedErrors = 0
+        # Цели, для которых слои под прицелом уже записаны в лог.
+        self.__layersLogged = set()
 
     # --- события: только сохраняем состояние (2.5) ---
 
@@ -159,7 +165,27 @@ class ArmorHighlightController(object):
                 sampleKey = self.__sampler.prepare(player, target, shellDir, self.__piercingMultiplier, team, self.__settings.gradientSteps)
                 reason = self.__highlighter.frame(target, aimWorld, self.__sampler, sampleKey, markerWorld=markerWorld)
                 self.__setInactiveReason(reason)
+                self.__updateAimInfo(target, aimWorld if reason is None else None)
         self.__logStatsIfDue()
+
+    def __updateAimInfo(self, target, aimWorld):
+        # Подпись у прицела: шанс пробития в точке прицеливания и модули на пути снаряда.
+        highlighter = self.__highlighter
+        if aimWorld is None or not self.__settings.aimInfo or highlighter.aimPx is None:
+            self.__aimInfo.hide()
+            return
+        info = self.__sampler.describeAt(aimWorld)
+        if info is None:
+            self.__aimInfo.hide()
+            return
+        prob, modules, details = info
+        text = (u'нет данных' if prob is None else u'%d%%' % int(prob * 100.0 + 0.5)) + modulesText(modules)
+        self.__aimInfo.show(text, highlighter.aimPx, highlighter.screen)
+        if config.debug and target.id not in self.__layersLogged:
+            # Один раз на цель: все слои под прицелом — есть ли в клиентской модели внутренние модули.
+            self.__layersLogged.add(target.id)
+            name = getattr(getattr(getattr(target, 'typeDescriptor', None), 'type', None), 'name', target.id)
+            log('aim layers (%s): %s', name, penetration.describeLayers(details))
 
     def __updateStillness(self, player, now):
         if player is None or not hasattr(player, 'getOwnVehicleSpeeds'):
@@ -226,6 +252,7 @@ class ArmorHighlightController(object):
 
     def __hide(self, reason):
         self.__highlighter.reset()
+        self.__aimInfo.hide()
         self.__setInactiveReason(reason)
 
     def __deactivate(self, reason):

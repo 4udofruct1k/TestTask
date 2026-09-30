@@ -15,7 +15,7 @@ from skeletons.gui.shared.utils import IHangarSpace
 
 from gui.mods.armor_highlight import config, log, logException, palette
 from gui.mods.armor_highlight.highlighter import Highlighter, screenResolution, timer
-from gui.mods.armor_highlight.penetration import UNDEFINED
+from gui.mods.armor_highlight.penetration import UNDEFINED, moduleLabel
 from gui.mods.armor_highlight.sampler import PreviewSampler
 
 MODS_LIST_ID = 'max.armor_highlight.view'
@@ -36,6 +36,17 @@ _SHELL_KINDS = {'ARMOR_PIERCING': u'ББ',
 # Подсказка лежит перед интерфейсом лобби (0.5), квадраты подсветки — за ним (config.overlayDepth).
 _TEXT_DEPTH = 0.45
 _TEXT_POSITION = (-0.97, 0.5)
+
+
+def modulesText(names):
+    # « · модули: гусеница, орудие» или пусто.
+    labels = []
+    for name in names:
+        label = moduleLabel(name)
+        if label not in labels:
+            labels.append(label)
+
+    return u' · модули: ' + u', '.join(labels) if labels else u''
 
 
 def _unicode(value):
@@ -256,16 +267,18 @@ class ViewMode(object):
         if highlighter.rays is None:
             return u'Под курсором: —'
         ray, point = highlighter.rays.get(cursor[0], cursor[1])
-        evaluated = self.__sampler.evaluate(point, point + ray.scale(highlighter.rayLength))
+        end = point + ray.scale(highlighter.rayLength)
+        evaluated = self.__sampler.evaluate(point, end)
         if evaluated is None:
             return u'Под курсором: мимо танка'
         result, prob, percent = evaluated
+        modules = modulesText(self.__sampler.modules(point, end))
         if result == UNDEFINED:
-            return u'Под курсором: нет данных о броне'
+            return u'Под курсором: нет данных о броне' + modules
         if percent is None:
-            return u'Под курсором: не пробивает (рикошет или только модули)'
+            return u'Под курсором: не пробивает (рикошет или только модули)' + modules
         needed = percent / 100.0 * self.__sampler.fullPiercingPower
-        return u'Под курсором: пробитие %d%%, нужно ~%d мм' % (int(prob * 100.0 + 0.5), int(needed + 0.5))
+        return u'Под курсором: пробитие %d%%, нужно ~%d мм' % (int(prob * 100.0 + 0.5), int(needed + 0.5)) + modules
 
     def __setState(self, state):
         if state != self.__state:

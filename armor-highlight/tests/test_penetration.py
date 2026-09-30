@@ -37,6 +37,46 @@ def run(details, fullPP=200.0, ricochet=NO_RICOCHET, jet=0.0):
     return pen.evaluate(details, fullPP, SHELL, MIN_PP, MAX_PP, ricochet, PLAIN_ARMOR, jet)[:2]
 
 
+class Extra(object):
+
+    def __init__(self, name):
+        self.name = name
+
+
+def modules(details, fullPP=200.0, ricochet=NO_RICOCHET):
+    return pen.modulesAlong(details, fullPP, SHELL, ricochet, PLAIN_ARMOR, 0.0)
+
+
+class ModulesTest(unittest.TestCase):
+
+    def test_outer_module_and_modules_behind_pierced_armor(self):
+        # Гусеница (экран без урона), броня 100 мм пробита, за ней двигатель — оба на пути снаряда.
+        details = [Detail(1.0, 1.0, Mat(20, damage=0.0, extra=Extra('leftTrack0Health')), 'chassis'),
+         Detail(2.0, 1.0, Mat(100), 'hull'),
+         Detail(3.0, 1.0, Mat(0, damage=0.0, extra=Extra('engineHealth')), 'hull')]
+        self.assertEqual(modules(details), ['leftTrack0Health', 'engineHealth'])
+        self.assertEqual([ pen.moduleLabel(name) for name in modules(details) ], [u'гусеница', u'двигатель'])
+
+    def test_not_pierced_armor_stops_the_shell(self):
+        details = [Detail(1.0, 1.0, Mat(300), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('ammoBayHealth')), 'hull')]
+        self.assertEqual(modules(details), [])
+
+    def test_module_behind_armor_reached_by_the_best_roll(self):
+        # 200 мм пробития против 200 мм брони: пробивает в половине выстрелов — двигатель задеть можно.
+        details = [Detail(1.0, 1.0, Mat(200), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('engineHealth')), 'hull')]
+        self.assertEqual(modules(details), ['engineHealth'])
+
+    def test_ricochet_stops_the_shell(self):
+        details = [Detail(1.0, 0.2, Mat(50), 'hull'), Detail(2.0, 1.0, Mat(0, damage=0.0, extra=Extra('gunnerHealth')), 'hull')]
+        self.assertEqual(modules(details, ricochet=lambda shell, cos, mat: cos < 0.5), [])
+
+    def test_labels(self):
+        self.assertEqual(pen.moduleLabel('gunner1Health'), u'наводчик')
+        self.assertEqual(pen.moduleLabel('gunHealth'), u'орудие')
+        self.assertEqual(pen.moduleLabel('radioman1Health'), u'радист')
+        self.assertEqual(pen.moduleLabel('radioHealth'), u'рация')
+
+
 class ProbabilityTest(unittest.TestCase):
 
     def test_bounds(self):

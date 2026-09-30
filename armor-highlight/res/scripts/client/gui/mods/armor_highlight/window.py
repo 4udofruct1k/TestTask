@@ -18,8 +18,9 @@
 #      смена цвета), потом однородная. Новый круг начинается не чаще раза за кадр.
 # Область расчёта чуть шире круга и квантована, чтобы порядок не перестраивался каждый кадр.
 # Посчитанное хранится, пока сетка жива: прицел ушёл и вернулся — картинка сразу на месте.
-# Заранее: в конце каждого круга пересчёта — немного крупных блоков по всей цели (area), от прицела наружу.
-# Когда прицел резко уходит на новое место цели, там сразу есть грубая картинка, и круг не обрывается.
+# Заранее: в конце каждого круга пересчёта — доля prefetchShare блоков по всей цели (area): сначала крупные, потом
+# мельче до основы, каждый уровень от прицела наружу; потом всё заново, чтобы посчитанное не устаревало. Когда
+# прицел уходит на другое место цели, там уже есть картинка — грубая или готовая, — и круг не обрывается.
 #
 # Растр: у каждой полосы (строки блоков основы области расчёта) — интервалы по строкам ячеек; у поделённых блоков
 # свои строки по их листьям. Куски по _CHUNK_ROWS строк: одинаковые интервалы соседних строк — один прямоугольник;
@@ -106,7 +107,7 @@ def refineOrder(u, v, radius, level, topLevel):
 
 class AimWindow(object):
 
-    def __init__(self, cellPx, drawable, aim, radius, maxCells, coarseLevels, edgePx=4, area=None):
+    def __init__(self, cellPx, drawable, aim, radius, maxCells, coarseLevels, edgePx=4, area=None, prefetchShare=0.25):
         # aim — центр прицела в пикселях от якоря; обновляется каждый кадр через setAim().
         self.cellPx = cellPx
         # Ключ ячейки в пикселях: точка расчёта — ((i + 0.5) * keyScale, (j + 0.5) * keyScale) от якоря.
@@ -149,9 +150,14 @@ class AimWindow(object):
         self.__localRows = {}
         self.__chunks = {}
         self.__clipCenter = None
-        # Блоки для расчёта заранее и сколько из них уже пройдено.
-        self.__prefetch = self.__prefetchKeys(area, aim) if area is not None else []
+        # Расчёт заранее: область цели, текущий уровень, его блоки от прицела, пройдено, номер прохода.
+        self.__prefetchArea = area
+        self.__prefetchShare = prefetchShare
+        self.__prefetchTop = max(self.level + 1, self.topLevel - 1)
+        self.__prefetchLevel = self.__prefetchTop
+        self.__prefetch = None
         self.__prefetchPos = 0
+        self.__prefetchPass = 0
         self.__framesSinceRects = _RECTS_EVERY_FRAMES
         # Круг сдвинулся: пересобрать сразу, без ожидания.
         self.__geometryDirty = True
@@ -295,21 +301,35 @@ class AimWindow(object):
         for key in later:
             yield key
 
-        # Заранее: крупные блоки цели вне круга — понемногу, около 1/16 круга пересчёта.
-        quota = max(32, len(blocks) // 16)
+        # Заранее: блоки цели вне круга — доля prefetchShare круга пересчёта.
+        if self.__prefetchArea is None or self.__prefetchShare <= 0.0:
+            return
+        quota = max(16, int(len(blocks) * self.__prefetchShare))
         cache = self.cache
-        prefetch = self.__prefetch
-        while quota > 0 and self.__prefetchPos < len(prefetch):
-            key = prefetch[self.__prefetchPos]
+        while quota > 0:
+            if self.__prefetch is None:
+                self.__prefetch = self.__prefetchKeys(self.__prefetchArea, self.__aim, self.__prefetchLevel)
+                self.__prefetchPos = 0
+                yield BUSY
+            if self.__prefetchPos >= len(self.__prefetch):
+                # Уровень пройден: следующий мельче; после основы — новый проход сверху.
+                self.__prefetch = None
+                if self.__prefetchLevel > self.level:
+                    self.__prefetchLevel -= 1
+                else:
+                    self.__prefetchLevel = self.__prefetchTop
+                    self.__prefetchPass += 1
+                continue
+            key = self.__prefetch[self.__prefetchPos]
             self.__prefetchPos += 1
-            if key in cache:
+            # В первый проход — только непосчитанное, дальше — пересчёт, чтобы не устаревало.
+            if self.__prefetchPass == 0 and key in cache:
                 continue
             quota -= 1
             yield key
 
-    def __prefetchKeys(self, area, aim):
-        # Крупные блоки (уровень под верхним) по габаритам цели, от прицела наружу.
-        level = max(self.level + 1, self.topLevel - 1)
+    def __prefetchKeys(self, area, aim, level):
+        # Блоки уровня level по габаритам цели, от прицела наружу.
         size = 1 << level
         cell = float(self.cellPx)
         x0, y0, x1, y1 = area
@@ -436,14 +456,17 @@ class AimWindow(object):
         # Для строки статистики.
         pending = sum((1 for key in self.__refresh if key not in self.cache))
         cells = sum((len(xrange(iLo, iHi + 1, 1 << self.level)) for _, iLo, iHi in self.__drawRows))
-        return 'cell=%dpx step=%d aim area r=%dpx cells=%d split=%d detail/cycle=%d pending=%d cycles=%d' % (self.cellPx,
+        return 'cell=%dpx step=%d aim area r=%dpx cells=%d split=%d detail/cycle=%d pending=%d cycles=%d prefetch=level %d pass %d cached %d' % (self.cellPx,
          1 << self.level,
          self.radius,
          cells,
          len(self.__split),
          self.lastDetail,
          pending,
-         self.cycles)
+         self.cycles,
+         self.__prefetchLevel,
+         self.__prefetchPass,
+         len(self.cache))
 
     # --- растр ---
 

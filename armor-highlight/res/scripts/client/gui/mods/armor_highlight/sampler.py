@@ -108,6 +108,26 @@ class BattleSampler(object):
                 self.__checkVanilla(hitPoint, collision, result)
         return _valueFor(result, prob, self.__steps)
 
+    def describeAt(self, hitPoint):
+        # Точка прицеливания (маркер орудия на цели) и направление снаряда — как у ванильного индикатора:
+        # (вероятность пробития или None, модули на пути снаряда, слои для лога) или None без данных.
+        # Фугас с новой механикой считается по урону, а не по пробитию: подписи нет, цвета — ванильные.
+        if self.__isModernHE:
+            return None
+        resolver = self.__resolver
+        details = resolver._getAllCollisionDetails(hitPoint, self.__shellDir, self.__target)
+        if not details:
+            return None
+        shell = self.__shell
+        dist = (hitPoint - self.__ownPosition).length
+        fullPiercingPower = resolver._computePiercingPowerAtDist(self.__ppDesc, dist, self.__maxDist, self.__piercingMultiplier)
+        fullPiercingPower *= computeDistanceFactor(shell, dist, 'pierceFactor')
+        result, prob, _ = penetration.evaluate(details, fullPiercingPower, shell, self.__minPP, self.__maxPP, resolver._shouldRicochet, resolver._computePenetrationArmor, self.__jetLoss)
+        if result == penetration.UNDEFINED:
+            prob = None
+        modules = penetration.modulesAlong(details, fullPiercingPower, shell, resolver._shouldRicochet, resolver._computePenetrationArmor, self.__jetLoss)
+        return (prob, modules, details)
+
     def __checkVanilla(self, hitPoint, collision, result):
         vanilla = self.__resolver.getShotResult(hitPoint, collision, self.__shellDir, excludeTeam=self.__team, piercingMultiplier=self.__piercingMultiplier)
         self.checks += 1
@@ -168,8 +188,8 @@ class PreviewSampler(object):
         self.__penetrationArmor = lambda shell, cos, matInfo: penetration.penetrationArmor(shell, cos, matInfo, extra.hasNormalization, normalization)
         return (id(entity), id(vDesc), id(shot), distance)
 
-    def evaluate(self, start, end):
-        # (результат, вероятность, piercingPercent) или None, если луч не попал в танк.
+    def __details(self, start, end):
+        # Слои брони по лучу или None, если луч не попал в танк.
         hits = self.__collisions.collideAllWorld(start, end)
         if not hits:
             return None
@@ -182,7 +202,21 @@ class PreviewSampler(object):
             materials = self.__materials.get(hit[3])
             details.append(_Detail(hit[0], hit[1], materials.get(hit[2]) if materials is not None else None, hit[3]))
 
+        return details
+
+    def evaluate(self, start, end):
+        # (результат, вероятность, piercingPercent) или None, если луч не попал в танк.
+        details = self.__details(start, end)
+        if details is None:
+            return None
         return penetration.evaluate(details, self.fullPiercingPower, self.__shell, self.__minPP, self.__maxPP, self.__shouldRicochet, self.__penetrationArmor, self.__jetLoss)
+
+    def modules(self, start, end):
+        # Модули на пути снаряда (имена) — для подписи под курсором.
+        details = self.__details(start, end)
+        if details is None:
+            return []
+        return penetration.modulesAlong(details, self.fullPiercingPower, self.__shell, self.__shouldRicochet, self.__penetrationArmor, self.__jetLoss)
 
     def sample(self, start, end):
         evaluated = self.evaluate(start, end)
