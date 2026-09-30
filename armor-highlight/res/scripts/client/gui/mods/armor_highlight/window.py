@@ -1,26 +1,44 @@
 # -*- coding: utf-8 -*-
-# Область вокруг центра прицела — по логике 0.3.0. Без BigWorld и GUI — тестируется офлайн (tests/test_window.py).
+# Область вокруг центра прицела. Без BigWorld и GUI — тестируется офлайн (tests/test_window.py).
 #
 # Координаты: ячейка (i, j) — квадрат cellPx x cellPx с левым верхним углом (i * cellPx, j * cellPx) пикселей
-# от якоря на цели, значение — результат в центре ячейки. Уровень k — ячейки с шагом 2**k, их (i, j) кратны 2**k,
-# поэтому посчитанное на крупном уровне годится и на мелком.
+# от якоря на цели. Блок уровня k — квадрат 2**k ячеек, его (i, j) кратны 2**k. Значение блока — результат
+# в центре его левой верхней ячейки, поэтому блок и его левый верхний потомок делят один расчёт.
 #
-# Круг радиуса radius px вокруг центра прицела. Если ячеек в нём больше maxCells, шаг удваивается.
-# Порядок расчёта:
-#   1. Непосчитанные ячейки области — от крупного уровня (шаг 2**coarseLevels ячеек) к мелкому, в каждом уровне
-#      от центра. Круг сразу заполняется грубо и за несколько кадров становится точным: пока ячейка не посчитана,
-#      рисуется значение ближайшей посчитанной крупной ячейки над ней.
-#   2. Пересчёт по кругу: ячейки мелкого уровня по очереди от центра, каждая не больше раза за кадр. Картинка
-#      обновляется целиком за несколько кадров и следит за поворотом башни и угла обзора.
+# Круг радиуса radius px вокруг центра прицела. Основа — блоки уровня level: если ячеек в круге больше maxCells,
+# основа крупнее ячейки из настроек.
+# Порядок расчёта (как в 0.3.0):
+#   1. Непосчитанные блоки области — от уровня level + coarseLevels к основе, в каждом уровне от центра. Круг сразу
+#      закрашен грубо: пока блок не посчитан, рисуется значение ближайшего посчитанного крупного блока над ним.
+#   2. Круг пересчёта, снова и снова: сначала уточнение, затем каждый блок основы. Блок, у которого хоть один из
+#      8 соседей того же уровня показывает другое (другой цвет или край силуэта), делится на 4 — и так до ячейки
+#      из настроек. Однородная броня остаётся крупными блоками и расчёта не тратит; граница, пропавшая при
+#      повороте цели, снова становится одним блоком. Новый круг начинается не чаще раза за кадр.
 # Область расчёта чуть шире круга и квантована, чтобы порядок не перестраивался каждый кадр.
 # Посчитанное хранится, пока сетка жива: прицел ушёл и вернулся — картинка сразу на месте.
 #
-# Край круга не зависит от шага ячеек: строки ячеек обрезаются по кругу точно по горизонтали, полосками высотой
-# edgePx по вертикали. Внутренняя часть строки остаётся одним прямоугольником, отдельные — только полоски у края.
+# Растр: у каждой полосы (строки блоков основы области расчёта) — интервалы по строкам ячеек; у поделённых блоков
+# свои строки по их листьям. Куски по _CHUNK_ROWS строк: одинаковые интервалы соседних строк — один прямоугольник;
+# куски кэшируются и пересобираются, только когда меняются их полосы. Затем прямоугольники обрезаются по кругу —
+# точно по горизонтали, полосками высотой edgePx по вертикали; целиком лежащие в круге не трогаются.
 import math
+import sys
+import time
+
+from gui.mods.armor_highlight.lattice import BUSY
 
 MAX_LEVEL = 8
 _MISSING = object()
+# Столько проверок границ подряд — и nextKey() отдаёт BUSY, чтобы свериться с бюджетом кадра.
+_CHECKS_PER_CALL = 64
+# Новые значения попадают в картинку не чаще раза в столько кадров (квадраты всё равно едут за целью каждый кадр,
+# а сдвиг самого круга за прицелом — сразу) и не больше чем по столько полос за раз: сборка на 1 px — миллисекунды.
+_RECTS_EVERY_FRAMES = 2
+# Время на пересборку полос за раз, с; остальные — в следующий раз, пока показываются прежними.
+_REBUILD_SECONDS = 0.0015
+_CHUNK_ROWS = 16
+_timer = time.clock if sys.platform == 'win32' else time.time
+_NEIGHBOURS = ((-1, 0), (1, 0), (0, -1), (0, 1), (1, 1), (-1, -1), (1, -1), (-1, 1))
 
 
 def gridLevel(radius, maxCells):
@@ -63,8 +81,8 @@ def keyLevel(i, j, maxLevel):
 
 
 def refineOrder(u, v, radius, level, topLevel):
-    # (порядок, пересчёт): порядок — ячейки уровней от topLevel до level, в каждом от центра (с повторами:
-    # крупная ячейка есть и в мелких уровнях); пересчёт — ячейки уровня level от центра.
+    # (порядок, пересчёт): порядок — блоки уровней от topLevel до level, в каждом от центра (с повторами:
+    # крупный блок есть и в мелких уровнях); пересчёт — блоки уровня level от центра.
     order = []
     refresh = []
     for lvl in xrange(topLevel, level - 1, -1):
@@ -96,21 +114,38 @@ class AimWindow(object):
         self.hasPicture = True
         self.stale = False
         self.cycles = 0
+        # Расчётов уточнения в последнем законченном круге.
+        self.lastDetail = 0
+        self.__detail = 0
         self.__masks = tuple((~((1 << lvl) - 1) for lvl in xrange(self.level + 1, self.topLevel + 1)))
+        # Поделённые блоки (i, j, уровень), уровень от 1 до level.
+        self.__split = set()
         self.__aim = aim
         self.__computeKey = None
         # Порядок расчёта для центра, сдвинутого на кратное шагу верхнего уровня, — тот же, только сдвинутый:
-        # (u mod M, v mod M, r) -> (порядок, число ячеек пересчёта).
+        # (u mod M, v mod M, r) -> (порядок, число блоков пересчёта).
         self.__patterns = {}
         self.__order = []
         self.__orderPos = 0
         self.__refresh = []
-        self.__cursor = 0
-        self.__refreshLeft = 0
+        self.__cycle = None
+        self.__cycleStarted = False
+        # Область меняется — номер растёт; «готово» — когда закончен круг, начатый уже для этой области.
+        self.__epoch = 0
+        self.__cycleEpoch = 0
         self.__drawRows = ()
-        self.__rowRuns = {}
-        self.__dirtyRows = set()
+        # Строки блоков области расчёта: j -> (iLo, iHi). Полосы: j -> (iLo, iHi, строки), строки поделённых блоков
+        # основы: (i, j) -> строки. Куски: номер -> (подпись полос, прямоугольники без обрезки).
+        self.__areaRows = {}
+        self.__bandKey = None
+        self.__bands = {}
+        self.__dirtyBands = set()
+        self.__localRows = {}
+        self.__chunks = {}
         self.__clipCenter = None
+        self.__framesSinceRects = _RECTS_EVERY_FRAMES
+        # Круг сдвинулся: пересобрать сразу, без ожидания.
+        self.__geometryDirty = True
         self.__rects = []
         self.__rectsDirty = True
         self.setAim(aim)
@@ -118,22 +153,28 @@ class AimWindow(object):
     # --- прицел ---
 
     def setAim(self, aim):
-        # Вызывается каждый кадр: круг для рисования, область расчёта и лимит пересчёта на кадр.
+        # Вызывается каждый кадр: круг для рисования, область расчёта, новый круг пересчёта разрешён.
         self.__aim = aim
+        self.__cycleStarted = False
+        self.__framesSinceRects += 1
         cell = float(self.cellPx)
         u = aim[0] / cell
         v = aim[1] / cell
         radius = self.radius / cell
         step = 1 << self.level
-        # Строки блоков, задевающих круг (центр не дальше радиуса плюс шаг); лишнее отрежет край круга.
-        drawRows = rowRanges(u, v, radius + step, step)
+        # Строки блоков, задевающих круг: запас — шаг и полоска края (край режется по центру полоски, её крайние
+        # строки шире своей окружности). Лишнее отрежет край круга.
+        group = max(1, self.edgePx // self.cellPx)
+        drawRows = rowRanges(u, v, radius + step + group, step)
         if drawRows != self.__drawRows:
             self.__drawRows = drawRows
-            self.__rectsDirty = True
+            self.__geometryDirty = True
         quant = 2 * step
         qu = int(round(u / quant)) * quant
         qv = int(round(v / quant)) * quant
-        qr = (int(math.ceil(radius / quant)) + 1) * quant
+        # Область расчёта покрывает круг пересчёта (круг рисования и кольцо блоков вокруг) при любом сдвиге
+        # квантованного центра.
+        qr = (int(math.ceil((radius + group + 3 * step) / quant)) + 1) * quant
         computeKey = (qu, qv, qr)
         if computeKey != self.__computeKey:
             self.__computeKey = computeKey
@@ -142,21 +183,29 @@ class AimWindow(object):
             bv = qv % period
             pattern = self.__patterns.get((bu, bv, qr))
             if pattern is None:
-                order, refresh = refineOrder(bu, bv, qr, self.level, self.topLevel)
-                pattern = self.__patterns[bu, bv, qr] = (order, len(refresh))
-            order, refreshCount = pattern
+                pattern = self.__patterns[bu, bv, qr] = refineOrder(bu, bv, qr, self.level, self.topLevel)
+            order, refresh = pattern
             du = qu - bu
             dv = qv - bv
             if du or dv:
                 order = [ (i + du, j + dv) for i, j in order ]
-            # Ячейки пересчёта — последний, мелкий уровень порядка.
+                refresh = [ (i + du, j + dv) for i, j in refresh ]
             self.__order = order
-            self.__refresh = order[len(order) - refreshCount:]
+            self.__refresh = refresh
+        # Границы полос растра — по области, квантованной крупнее (8 шагов): при движении прицела полосы
+        # пересобираются целиком редко, а не каждые 2 шага.
+        bandQuant = 8 * step
+        bu = int(round(u / bandQuant)) * bandQuant
+        bv = int(round(v / bandQuant)) * bandQuant
+        br = (int(math.ceil((radius + group + 3 * step) / bandQuant)) + 1) * bandQuant
+        bandKey = (bu, bv, br)
+        if bandKey != self.__bandKey:
+            self.__bandKey = bandKey
+            self.__areaRows = dict(((j, (iLo, iHi)) for j, iLo, iHi in rowRanges(bu, bv, br, step)))
+            self.__geometryDirty = True
             self.__orderPos = 0
-            self.__cursor = 0
+            self.__epoch += 1
             self.done = False
-        # За кадр каждая ячейка пересчитывается не больше раза.
-        self.__refreshLeft = len(self.__refresh)
 
     @property
     def aim(self):
@@ -164,13 +213,17 @@ class AimWindow(object):
 
     @property
     def stepPx(self):
-        # Сторона ячейки на экране с учётом шага: при большом круге шаг растёт.
+        # Сторона блока основы на экране: при большом круге она больше ячейки из настроек.
         return self.cellPx << self.level
+
+    @property
+    def splitCount(self):
+        return len(self.__split)
 
     # --- расчёт ---
 
     def nextKey(self):
-        # Сначала непосчитанные ячейки от крупного уровня к мелкому, затем пересчёт по кругу; None — на этот кадр всё.
+        # Ключ для расчёта, BUSY (много проверок подряд — пора свериться с бюджетом) или None (на этот кадр всё).
         cache = self.cache
         order = self.__order
         pos = self.__orderPos
@@ -183,32 +236,144 @@ class AimWindow(object):
                 return key
 
         self.__orderPos = pos
-        self.done = True
-        refresh = self.__refresh
-        if self.__refreshLeft <= 0 or not refresh:
-            return None
-        self.__refreshLeft -= 1
-        idx = self.__cursor % len(refresh)
-        if idx == len(refresh) - 1:
+        while True:
+            if self.__cycle is None:
+                if self.__cycleStarted:
+                    return None
+                self.__cycleStarted = True
+                self.__detail = 0
+                self.__cycleEpoch = self.__epoch
+                self.__cycle = self.__runCycle()
+            key = next(self.__cycle, None)
+            if key is not None:
+                return key
+            self.__cycle = None
             self.cycles += 1
-        self.__cursor += 1
-        return refresh[idx]
+            self.lastDetail = self.__detail
+            self.done = self.__cycleEpoch == self.__epoch
+
+    def __runCycle(self):
+        # Круг пересчёта: уточнение по уровням от центра, затем основа — блоки рисования и кольцо блоков вокруг
+        # (соседи крайних блоков: их устаревшие значения держали бы ложные границы).
+        for key in self.__refine():
+            yield key
+
+        cell = float(self.cellPx)
+        step = 1 << self.level
+        group = max(1, self.edgePx // self.cellPx)
+        u = self.__aim[0] / cell
+        v = self.__aim[1] / cell
+        # Кольцо: диагональный сосед крайнего блока рисования — дальше чем на шаг по радиусу.
+        blocks = [ (i, j) for j, iLo, iHi in rowRanges(u, v, self.radius / cell + group + 3 * step, step) for i in xrange(iLo, iHi + 1, step) ]
+        half = step * 0.5
+        blocks.sort(key=lambda key: (key[0] + half - u) ** 2 + (key[1] + half - v) ** 2)
+        yield BUSY
+        for key in blocks:
+            yield key
+
+    def __refine(self):
+        level = self.level
+        if level < 1:
+            return
+        ax, ay = self.__aim
+        u = ax / float(self.cellPx)
+        v = ay / float(self.cellPx)
+        step = 1 << level
+        # Блоки основы от центра; потомки идут в порядке родителей, то есть тоже от центра.
+        candidates = [ (i, j) for j, iLo, iHi in self.__drawRows for i in xrange(iLo, iHi + 1, step) ]
+        half = step * 0.5
+        candidates.sort(key=lambda key: (key[0] + half - u) ** 2 + (key[1] + half - v) ** 2)
+        yield BUSY
+        split = self.__split
+        checks = 0
+        while level >= 1 and candidates:
+            half = 1 << level - 1
+            deeper = []
+            for i, j in candidates:
+                checks += 1
+                if checks >= _CHECKS_PER_CALL:
+                    checks = 0
+                    yield BUSY
+                if self.__isBoundary(i, j, level):
+                    children = ((i + half, j), (i, j + half), (i + half, j + half))
+                    for child in children:
+                        self.__detail += 1
+                        yield child
+
+                    if (i, j, level) not in split:
+                        split.add((i, j, level))
+                        self.__blockChanged(i, j)
+                    deeper.append((i, j))
+                    deeper.extend(children)
+                elif (i, j, level) in split:
+                    self.__unsplit(i, j, level)
+
+            candidates = deeper
+            level -= 1
+
+    def __valueAt(self, i, j, level):
+        # Показанное значение блока уровня level с углом (i, j): его расчёт или ближайшего крупного блока над ним.
+        get = self.cache.get
+        for lvl in xrange(level, self.topLevel + 1):
+            mask = ~((1 << lvl) - 1)
+            value = get((i & mask, j & mask), _MISSING)
+            if value is not _MISSING:
+                return value
+
+        return _MISSING
+
+    def __isBoundary(self, i, j, level):
+        # Отличается ли от блока хоть один из 8 соседей того же уровня. Всё, что не рисуется (мимо цели, нет
+        # данных), — одно значение: край силуэта — тоже граница.
+        drawable = self.drawable
+        value = self.__valueAt(i, j, level)
+        if value is _MISSING:
+            return False
+        value = value if value in drawable else None
+        size = 1 << level
+        for dx, dy in _NEIGHBOURS:
+            other = self.__valueAt(i + dx * size, j + dy * size, level)
+            if other is _MISSING:
+                continue
+            if (other if other in drawable else None) != value:
+                return True
+
+        return False
+
+    def __unsplit(self, i, j, level):
+        # Блок снова однородный: убрать деление и расчёты потомков, кроме общего с блоком.
+        self.__split.discard((i, j, level))
+        half = 1 << level - 1
+        cache = self.cache
+        for ci, cj in ((i, j), (i + half, j), (i, j + half), (i + half, j + half)):
+            if level > 1 and (ci, cj, level - 1) in self.__split:
+                self.__unsplit(ci, cj, level - 1)
+            if ci != i or cj != j:
+                cache.pop((ci, cj), None)
+
+        self.__blockChanged(i, j)
+
+    def __blockChanged(self, i, j):
+        mask = ~((1 << self.level) - 1)
+        bi = i & mask
+        bj = j & mask
+        self.__localRows.pop((bi, bj), None)
+        self.__dirtyBands.add(bj)
+        self.__rectsDirty = True
 
     def store(self, key, value):
-        # value — значение ячейки key, которую вернул nextKey().
+        # value — значение ключа key, который вернул nextKey().
         cache = self.cache
         old = cache.get(key, _MISSING)
         cache[key] = value
         if old is not _MISSING and old == value:
             return
-        # Крупная ячейка подменяет ещё не посчитанные мелкие под собой: строки j .. j + 2**top - 1.
         i, j = key
+        self.__blockChanged(i, j)
         top = keyLevel(i, j, self.topLevel)
-        if top <= self.level:
-            self.__dirtyRows.add(j)
-        else:
-            self.__dirtyRows.update(xrange(j, j + (1 << top), 1 << self.level))
-        self.__rectsDirty = True
+        if top > self.level:
+            # Крупный блок подменяет ещё не посчитанные блоки основы под собой: полосы j .. j + 2**top - 1.
+            self.__dirtyBands.update(xrange(j, j + (1 << top), 1 << self.level))
 
     def probe(self):
         # Перепроверки, как в lattice.py, не нужны: круг и так пересчитывается непрерывно.
@@ -217,28 +382,82 @@ class AimWindow(object):
     def summary(self):
         # Для строки статистики.
         pending = sum((1 for key in self.__refresh if key not in self.cache))
-        return 'cell=%dpx step=%d aim area r=%dpx cells=%d pending=%d cycles=%d' % (self.cellPx,
+        cells = sum((len(xrange(iLo, iHi + 1, 1 << self.level)) for _, iLo, iHi in self.__drawRows))
+        return 'cell=%dpx step=%d aim area r=%dpx cells=%d split=%d detail/cycle=%d pending=%d cycles=%d' % (self.cellPx,
          1 << self.level,
          self.radius,
-         len(self.__refresh),
+         cells,
+         len(self.__split),
+         self.lastDetail,
          pending,
          self.cycles)
 
     # --- растр ---
 
-    def __buildRow(self, j, iLo, iHi):
-        # Интервалы строки j: (значение, i0, i1), i1 не включён.
+    def __buildLocal(self, bi, bj):
+        # Строки поделённого блока основы по его листьям: кортеж на строку ячеек, интервалы (значение, i0, i1).
+        step = 1 << self.level
+        drawable = self.drawable
+        split = self.__split
+        grid = [ [None] * step for _ in xrange(step) ]
+        stack = [(bi, bj, self.level)]
+        while stack:
+            i, j, level = stack.pop()
+            if level >= 1 and (i, j, level) in split:
+                half = 1 << level - 1
+                stack.extend(((i, j, level - 1), (i + half, j, level - 1), (i, j + half, level - 1), (i + half, j + half, level - 1)))
+                continue
+            value = self.__valueAt(i, j, level)
+            value = value if value in drawable else None
+            size = 1 << level
+            x0 = i - bi
+            for r in xrange(j - bj, j - bj + size):
+                grid[r][x0:x0 + size] = [value] * size
+
+        rows = []
+        for line in grid:
+            row = []
+            start = 0
+            value = line[0]
+            for c in xrange(1, step):
+                other = line[c]
+                if other != value:
+                    if value is not None:
+                        row.append((value, bi + start, bi + c))
+                    value = other
+                    start = c
+
+            if value is not None:
+                row.append((value, bi + start, bi + step))
+            rows.append(tuple(row))
+
+        return rows
+
+    def __buildBand(self, j, iLo, iHi):
+        # Строки полосы блоков основы j: интервалы (значение, x0, x1) в пикселях, блоки подряд; у поделённых —
+        # их собственные строки.
         step = 1 << self.level
         get = self.cache.get
         masks = self.__masks
         drawable = self.drawable
-        runs = []
-        runValue = None
-        runStart = iLo
+        split = self.__split
+        level = self.level
+        # Куски полосы: (False, слитые интервалы однородных блоков подряд) или (True, строки поделённого блока).
+        items = []
+        uniform = []
         for i in xrange(iLo, iHi + 1, step):
+            if level >= 1 and (i, j, level) in split:
+                local = self.__localRows.get((i, j))
+                if local is None:
+                    local = self.__localRows[i, j] = self.__buildLocal(i, j)
+                if uniform:
+                    items.append((False, uniform))
+                    uniform = []
+                items.append((True, local))
+                continue
             value = get((i, j), _MISSING)
             if value is _MISSING:
-                # Пока ячейка не посчитана, показываем значение ближайшей посчитанной крупной ячейки над ней.
+                # Пока блок не посчитан, показываем значение ближайшего посчитанного крупного блока над ним.
                 value = None
                 for mask in masks:
                     parent = get((i & mask, j & mask), _MISSING)
@@ -247,112 +466,162 @@ class AimWindow(object):
                         break
 
             if value not in drawable:
-                value = None
-            if value != runValue:
-                if runValue is not None:
-                    runs.append((runValue, runStart, i))
-                runValue = value
-                runStart = i
+                continue
+            if uniform and uniform[-1][0] == value and uniform[-1][2] == i:
+                uniform[-1] = (value, uniform[-1][1], i + step)
+            else:
+                uniform.append((value, i, i + step))
 
-        if runValue is not None:
-            runs.append((runValue, runStart, iHi + step))
-        return tuple(runs)
+        if uniform:
+            items.append((False, uniform))
+        cell = self.cellPx
+        if len(items) <= 1 and not (items and items[0][0]):
+            row = tuple(((v, a * cell, b * cell) for v, a, b in items[0][1])) if items else ()
+            return [row] * step
+        rows = []
+        for r in xrange(step):
+            row = []
+            for isLocal, data in items:
+                for run in (data[r] if isLocal else data):
+                    if row and row[-1][0] == run[0] and row[-1][2] == run[1]:
+                        row[-1] = (run[0], row[-1][1], run[2])
+                    else:
+                        row.append(run)
+
+            rows.append(tuple(((v, a * cell, b * cell) for v, a, b in row)))
+
+        return rows
 
     def rects(self):
         # [(value, x0, y0, x1, y1)] в пикселях от якоря и признак, что список изменился с прошлого вызова.
-        # Часть строки ячеек, целиком лежащая в круге, — прямоугольники на всю высоту строки (одинаковые у соседних
-        # строк сливаются); у края — полоски высотой edgePx, обрезанные по кругу (одинаковые соседние сливаются).
+        # Центр круга для обрезки — прицел с точностью 2 px: иначе картинка пересобиралась бы каждый кадр.
         ax, ay = self.__aim
-        center = (int(math.floor(ax + 0.5)), int(math.floor(ay + 0.5)))
+        center = (int(math.floor(ax * 0.5 + 0.5)) * 2, int(math.floor(ay * 0.5 + 0.5)) * 2)
         if center != self.__clipCenter:
             self.__clipCenter = center
-            self.__rectsDirty = True
-        if not self.__rectsDirty:
+            self.__geometryDirty = True
+        if not self.__geometryDirty and (not self.__rectsDirty or self.__framesSinceRects < _RECTS_EVERY_FRAMES):
             return (self.__rects, False)
+        self.__framesSinceRects = 0
+        self.__geometryDirty = False
         self.__rectsDirty = False
-        rowRuns = self.__rowRuns
-        for j in self.__dirtyRows:
-            rowRuns.pop(j, None)
-
-        self.__dirtyRows.clear()
         cx, cy = center
-        r2 = self.radius * self.radius
-        step = 1 << self.level
         cell = self.cellPx
-        height = step * cell
-        edge = max(cell, min(self.edgePx, height))
-        rects = []
-        opened = {}
-        lastJ = None
-        for j, iLo, iHi in self.__drawRows:
-            entry = rowRuns.get(j)
-            if entry is None or entry[0] != iLo or entry[1] != iHi:
-                entry = rowRuns[j] = (iLo, iHi, self.__buildRow(j, iLo, iHi))
-            y0 = j * cell
-            y1 = y0 + height
-            # Полоски строки: (ys, ye, xl, xr) — часть круга в полоске, пустая вне круга.
-            slivers = []
-            for ys in xrange(y0, y1, edge):
-                ye = min(ys + edge, y1)
-                dy = (ys + ye) * 0.5 - cy
+        step = 1 << self.level
+        chunkRows = max(_CHUNK_ROWS, step)
+        radius = self.radius
+        # Видимые строки ячеек и полосы в них.
+        rowLo = int(math.floor((cy - radius) / cell)) - 1
+        rowHi = int(math.ceil((cy + radius) / cell)) + 1
+        areaRows = self.__areaRows
+        bands = self.__bands
+        # 1. Устаревшие полосы: сначала ближние к прицелу, пока хватает времени; остальные — в следующий раз.
+        dirtyChunks = set()
+        if self.__dirtyBands:
+            start = _timer()
+            order = sorted(self.__dirtyBands, key=lambda j: abs((j + step * 0.5) * cell - cy))
+            for j in order:
+                visible = j in areaRows and j + step > rowLo and j <= rowHi
+                if not visible:
+                    bands.pop(j, None)
+                    self.__dirtyBands.discard(j)
+                    dirtyChunks.add(j // chunkRows)
+                    continue
+                if j in bands and _timer() - start > _REBUILD_SECONDS:
+                    self.__rectsDirty = True
+                    continue
+                iLo, iHi = areaRows[j]
+                bands[j] = (iLo, iHi, self.__buildBand(j, iLo, iHi))
+                self.__dirtyBands.discard(j)
+                dirtyChunks.add(j // chunkRows)
+
+        # 2. Куски без обрезки: пересобираются, если изменились их полосы или границы области.
+        chunks = self.__chunks
+        found = []
+        for chunk in xrange(rowLo // chunkRows, rowHi // chunkRows + 1):
+            j0 = chunk * chunkRows
+            signature = tuple(((j, areaRows[j]) for j in xrange(j0, j0 + chunkRows, step) if j in areaRows))
+            entry = chunks.get(chunk)
+            if entry is None or chunk in dirtyChunks or entry[0] != signature:
+                entry = chunks[chunk] = (signature, self.__buildChunk(signature))
+            found.extend(entry[1])
+
+        # 3. Обрезка по кругу: полоски высотой edgePx, край — по центру полоски.
+        group = max(1, self.edgePx // cell)
+        r2 = radius * radius
+        clips = {}
+
+        def clipOf(g):
+            clip = clips.get(g)
+            if clip is None:
+                dy = (g + 0.5) * group * cell - cy
                 rest = r2 - dy * dy
                 if rest <= 0.0:
-                    slivers.append((ys, ye, cx, cx))
-                    continue
-                width = math.sqrt(rest)
-                slivers.append((ys, ye, int(math.floor(cx - width + 0.5)), int(math.floor(cx + width + 0.5))))
+                    clip = (cx, cx)
+                else:
+                    width = math.sqrt(rest)
+                    clip = (int(math.floor(cx - width + 0.5)), int(math.floor(cx + width + 0.5)))
+                clips[g] = clip
+            return clip
 
-            # Часть строки внутри круга во всех полосках: [inner0, inner1).
-            inner0 = max((sliver[2] for sliver in slivers))
-            inner1 = min((sliver[3] for sliver in slivers))
-            runs = [ (value, i0 * cell, i1 * cell) for value, i0, i1 in entry[2] ]
-            if lastJ is None or j != lastJ + step:
-                opened = {}
-            current = {}
-            if inner0 < inner1:
-                for value, x0, x1 in runs:
-                    a = max(x0, inner0)
-                    b = min(x1, inner1)
-                    if a >= b:
-                        continue
-                    run = (value, a, b)
-                    idx = opened.get(run)
-                    if idx is None:
-                        idx = len(rects)
-                        rects.append([value, a, y0, b, y1])
-                    else:
-                        rects[idx][4] = y1
-                    current[run] = idx
-
-            opened = current
-            lastJ = j
+        rects = []
+        for value, x0, r0, x1, r1 in found:
+            g0 = r0 // group
+            g1 = (r1 - 1) // group
+            top = clipOf(g0)
+            bottom = clipOf(g1)
+            # Круг выпуклый: самая узкая строка прямоугольника — верхняя или нижняя.
+            if top[0] <= x0 and x1 <= top[1] and bottom[0] <= x0 and x1 <= bottom[1]:
+                rects.append((value, x0, r0 * cell, x1, r1 * cell))
+                continue
             last = None
-            for ys, ye, xl, xr in slivers:
-                pieces = []
-                if xl < xr:
-                    spans = ((xl, min(xr, inner0)), (max(xl, inner1), xr)) if inner0 < inner1 else ((xl, xr),)
-                    for s0, s1 in spans:
-                        for value, x0, x1 in runs:
-                            a = max(x0, s0)
-                            b = min(x1, s1)
-                            if a < b:
-                                pieces.append((value, a, b))
-
-                pieces = tuple(pieces)
-                if last is not None and last[0] == pieces:
-                    for idx in last[1]:
-                        rects[idx][4] = ye
-
+            for g in xrange(g0, g1 + 1):
+                xl, xr = clipOf(g)
+                a = x0 if x0 > xl else xl
+                b = x1 if x1 < xr else xr
+                if a >= b:
+                    last = None
                     continue
-                idxs = []
-                for value, a, b in pieces:
-                    idxs.append(len(rects))
-                    rects.append([value, a, ys, b, ye])
-
-                last = (pieces, idxs)
+                y0 = max(r0, g * group) * cell
+                y1 = min(r1, (g + 1) * group) * cell
+                if last is not None and last[1] == a and last[3] == b and last[4] == y0:
+                    last[4] = y1
+                else:
+                    last = [value, a, y0, b, y1]
+                    rects.append(last)
 
         rects = [ tuple(rect) for rect in rects ]
         if rects == self.__rects:
             return (self.__rects, False)
         self.__rects = rects
         return (rects, True)
+
+    def __buildChunk(self, signature):
+        # Прямоугольники куска без обрезки: (значение, x0, строка0, x1, строка1), x в пикселях, строки — в ячейках.
+        bands = self.__bands
+        rects = []
+        opened = {}
+        lastRow = None
+        for j, (iLo, iHi) in signature:
+            entry = bands.get(j)
+            if entry is None or entry[0] != iLo or entry[1] != iHi:
+                entry = bands[j] = (iLo, iHi, self.__buildBand(j, iLo, iHi))
+            row = j
+            for runs in entry[2]:
+                if lastRow is None or row != lastRow + 1:
+                    opened = {}
+                current = {}
+                for piece in runs:
+                    idx = opened.get(piece)
+                    if idx is None:
+                        idx = len(rects)
+                        rects.append([piece[0], piece[1], row, piece[2], row + 1])
+                    else:
+                        rects[idx][4] = row + 1
+                    current[piece] = idx
+
+                opened = current
+                lastRow = row
+                row += 1
+
+        return [ tuple(rect) for rect in rects ]

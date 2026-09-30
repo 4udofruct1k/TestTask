@@ -117,6 +117,8 @@ class Highlighter(object):
         # preview — режим просмотра в ангаре: там свой бюджет расчёта на кадр.
         self.__settings = settings
         self.__preview = preview
+        # Сглаженное время сборки картинки за кадр, с.
+        self.__renderTime = 0.0
         self.__overlay = None
         self.__lattice = None
         self.__shown = None
@@ -209,6 +211,8 @@ class Highlighter(object):
         # Вся цель, каждая ячейка: «за один кадр» — без бюджета (игра замирает), «в фоне» — не меньше 25 мс.
         mode = lattice.mode
         budget = settings.previewFrameBudget if self.__preview else settings.frameBudget
+        # Бюджет — на всё время мода за кадр: сборка картинки прошлого кадра вычитается из расчёта.
+        budget = max(budget * 0.25, budget - self.__renderTime)
         if mode == 'blocking':
             budget = config.fullPassMaxSeconds
         elif mode == 'background':
@@ -235,7 +239,9 @@ class Highlighter(object):
             # Квадраты создаются не больше config.quadsCreatePerFrame за кадр: в 0.6–0.7 они создавались все сразу,
             # и игра замирала, когда картинке требовалось много новых квадратов.
             self.__overlay.update(rects, changed, ax, ay, screenW, screenH)
-        self.stats.addActive(computed, renderStart - computeStart, timer() - renderStart)
+        renderTime = timer() - renderStart
+        self.__renderTime = self.__renderTime * 0.7 + renderTime * 0.3
+        self.stats.addActive(computed, renderStart - computeStart, renderTime)
         return None
 
     def __hide(self):

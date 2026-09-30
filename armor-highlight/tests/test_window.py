@@ -5,6 +5,7 @@ import unittest
 
 import support
 support.installPackages()
+from gui.mods.armor_highlight.lattice import BUSY
 from gui.mods.armor_highlight.window import AimWindow, rowRanges
 
 LEVELS = range(7)
@@ -32,10 +33,38 @@ def run(window, scene, cell, limit=None):
         key = window.nextKey()
         if key is None:
             break
+        if key is BUSY:
+            continue
         window.store(key, value(*key))
         keys.append(key)
 
     return keys
+
+
+def settle(window, scene, cell, limit=50):
+    # Кадры, пока не закончится круг пересчёта для текущей области (с уточнением).
+    for _ in range(limit):
+        window.setAim(window.aim)
+        run(window, scene, cell)
+        if window.done:
+            return
+    raise AssertionError('window did not settle')
+
+
+def mismatches(window, scene, aim, radius):
+    # Пиксели круга (радиус минус 2 px — край режется полосками), где нарисовано не то, что в сцене.
+    cells = coverage(window.rects()[0])
+    bad = []
+    for y in range(int(aim[1] - radius), int(aim[1] + radius) + 1):
+        for x in range(int(aim[0] - radius), int(aim[0] + radius) + 1):
+            if math.hypot(x + 0.5 - aim[0], y + 0.5 - aim[1]) > radius - 2:
+                continue
+            want = scene(x, y)
+            want = want if want in LEVELS else None
+            if cells.get((x, y)) != want:
+                bad.append((x, y))
+
+    return bad
 
 
 def frames(window, scene, cell, count):
@@ -59,26 +88,24 @@ def coverage(rects):
 
 
 def expected(scene, aim, radius, cell, step=1, edge=4):
-    # Пиксели круга, как их рисует окно: строки блоков step ячеек режутся на полоски высотой edge px, в полоске —
-    # пиксели x из [xl, xr) по кругу с центром в округлённом прицеле. Значение — сцена в центре левой верхней ячейки блока.
+    # Пиксели круга, как их рисует окно: строки ячеек группами по edge // cell обрезаются по кругу с центром
+    # в округлённом до 2 px прицеле. Значение — сцена в центре левой верхней ячейки блока основы (без уточнения).
     out = {}
     value = atCell(scene, cell)
-    cx = int(math.floor(aim[0] + 0.5))
-    cy = int(math.floor(aim[1] + 0.5))
-    height = step * cell
-    edge = max(cell, min(edge, height))
-    r = int(radius) + height
+    # Центр обрезки — прицел, округлённый до 2 px.
+    cx = int(math.floor(aim[0] * 0.5 + 0.5)) * 2
+    cy = int(math.floor(aim[1] * 0.5 + 0.5)) * 2
+    group = max(1, edge // cell)
+    r = int(radius) + step * cell
     for y in range(cy - r, cy + r):
-        y0 = y // height * height
-        ys = y0 + (y - y0) // edge * edge
-        ye = min(ys + edge, y0 + height)
-        dy = (ys + ye) * 0.5 - cy
+        g = (y // cell) // group
+        dy = (g + 0.5) * group * cell - cy
         rest = radius * radius - dy * dy
         if rest <= 0.0:
             continue
         width = math.sqrt(rest)
         for x in range(int(math.floor(cx - width + 0.5)), int(math.floor(cx + width + 0.5))):
-            v = value(x // height * step, y // height * step)
+            v = value(x // (step * cell) * step, y // (step * cell) * step)
             if v is not None:
                 out[x, y] = v
 
@@ -157,8 +184,53 @@ class AimWindowTest(unittest.TestCase):
     def test_step_grows_for_huge_circle(self):
         window = AimWindow(1, LEVELS, (0.0, 0.0), 160, 2500, 3)
         self.assertEqual(window.level, 3)
-        run(window, tank, 1)
-        self.assertEqual(coverage(window.rects()[0]), expected(tank, (0.0, 0.0), 160, 1, 8))
+        self.assertEqual(window.stepPx, 8)
+
+    def test_refines_boundaries_to_cell(self):
+        # Основа 4 px (1 px, радиус 80), граница цветов и край силуэта не по сетке основы — уточняются до 1 px.
+        scene = lambda x, y: None if x >= 47 else (5 if x < 13 else 1)
+        aim = (0.0, 0.0)
+        window = AimWindow(1, LEVELS, aim, 80, 2500, 3)
+        self.assertEqual(window.stepPx, 4)
+        settle(window, scene, 1)
+        self.assertEqual(mismatches(window, scene, aim, 80), [])
+        fine = [ key for key in window.cache if key[0] % 4 or key[1] % 4 ]
+        self.assertGreater(len(fine), 0)
+        self.assertLess(len(fine), math.pi * 80 * 80 / 8, 'only blocks on boundaries are refined')
+
+    def test_refines_round_silhouette(self):
+        scene = lambda x, y: 3 if (x - 10) ** 2 + (y - 5) ** 2 < 50 ** 2 else None
+        aim = (0.0, 0.0)
+        window = AimWindow(1, LEVELS, aim, 80, 2500, 3)
+        settle(window, scene, 1)
+        self.assertLessEqual(len(mismatches(window, scene, aim, 80)), 3)
+
+    def test_tank_is_nearly_exact(self):
+        aim = (20.0, -10.0)
+        window = AimWindow(1, LEVELS, aim, 80, 2500, 3)
+        settle(window, tank, 1)
+        bad = mismatches(window, tank, aim, 80)
+        self.assertLess(len(bad), 0.01 * math.pi * 78 * 78, len(bad))
+
+    def test_uniform_stays_coarse(self):
+        window = AimWindow(1, LEVELS, (0.0, 0.0), 80, 2500, 3)
+        settle(window, lambda x, y: 3, 1)
+        self.assertEqual(window.splitCount, 0)
+        self.assertEqual([ key for key in window.cache if key[0] % 4 or key[1] % 4 ], [])
+
+    def test_boundary_gone_is_merged_back(self):
+        scene = lambda x, y: 5 if x < 13 else 1
+        window = AimWindow(1, LEVELS, (0.0, 0.0), 80, 2500, 3)
+        settle(window, scene, 1)
+        self.assertGreater(window.splitCount, 0)
+        uniform = lambda x, y: 1
+        for _ in range(6):
+            window.setAim(window.aim)
+            run(window, uniform, 1)
+
+        self.assertEqual(window.splitCount, 0)
+        self.assertEqual([ key for key in window.cache if key[0] % 4 or key[1] % 4 ], [])
+        self.assertEqual(mismatches(window, uniform, (0.0, 0.0), 80), [])
 
     def test_one_pixel_cells(self):
         aim = (5.0, 5.0)
