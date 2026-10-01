@@ -1,10 +1,15 @@
 /**
- * Шкала блока бюджета: сколько осталось из всего дохода и каким цветом.
+ * Блок бюджета: сколько свободных денег сейчас и каким цветом (3.2).
+ *
+ * «Осталось» — деньги, которые есть на самом деле: свободное к началу
+ * месяца, плюс пришедшее, минус ушедшее и отложенное в копилки.
+ * Цвет — от плана месяца: первого числа месяц не провален только потому,
+ * что зарплата ещё не пришла.
  */
 
 import { describe, expect, it } from 'vitest';
-import { budgetGauge, monthSummary, NEAR_TARGET_MARGIN } from '../src/engine';
-import type { BudgetDocument } from '../src/domain/types';
+import { budgetGauge, NEAR_TARGET_MARGIN, savingsLedger } from '../src/engine';
+import type { BudgetDocument, FixedItemMonthly } from '../src/domain/types';
 import { dailyRoutineExpenses, emptyDoc, expense, goal, monthly, R } from './fixtures';
 
 const CAT_SALARY = 'c-salary';
@@ -12,11 +17,17 @@ const CAT_FOOD = 'c-food';
 const CAT_TECH = 'c-tech';
 const CAT_HOME = 'c-home';
 
-/** Условия К1: доход 120 000, постоянные 37 000, рутина 28 400. */
+const TODAY = '2026-03-16';
+
+/**
+ * Условия К1, учёт начат в марте: доход 120 000, постоянные 37 000,
+ * рутина 16 дней по 1 775. Чисел у позиций нет — случились с первого.
+ * План месяца и факт на сегодня здесь совпадают: 54 600.
+ */
 function baseDoc(target?: number): BudgetDocument {
   const doc = emptyDoc();
-  doc.settings.firstMonth = '2026-01';
-  if (target !== undefined) doc.settings.targets = [{ fromMonth: '2026-01', amount: target }];
+  doc.settings.firstMonth = '2026-03';
+  if (target !== undefined) doc.settings.targets = [{ fromMonth: '2026-03', amount: target }];
   doc.fixedItems = [
     monthly('Зарплата', 'INCOME', CAT_SALARY, [{ fromMonth: '2026-01', amount: R(120000) }]),
     monthly('Аренда', 'EXPENSE', CAT_HOME, [{ fromMonth: '2026-01', amount: R(35000) }]),
@@ -27,94 +38,86 @@ function baseDoc(target?: number): BudgetDocument {
   return doc;
 }
 
-const TODAY = '2026-03-16';
+/** Зарплата двумя частями с числами, как у пользователя: 5-го и 20-го. */
+function splitSalary(doc: BudgetDocument, first = 5, second = 20): BudgetDocument {
+  const half = R(60000);
+  const rest = monthly('Зарплата, остаток', 'INCOME', CAT_SALARY, [
+    { fromMonth: '2026-01', amount: half },
+  ]) as FixedItemMonthly;
+  const advance = monthly('Зарплата, аванс', 'INCOME', CAT_SALARY, [
+    { fromMonth: '2026-01', amount: half },
+  ]) as FixedItemMonthly;
+  rest.dueDay = first;
+  advance.dueDay = second;
+  doc.fixedItems = [rest, advance, ...doc.fixedItems.filter((f) => f.kind !== 'INCOME')];
+  return doc;
+}
 
-describe('величины шкалы', () => {
+describe('величины блока', () => {
   const gauge = budgetGauge(baseDoc(), '2026-03', TODAY);
 
-  it('полная шкала — весь доход месяца', () => expect(gauge.total).toBe(R(120000)));
-  it('потрачено — постоянные плюс переменные', () => expect(gauge.spent).toBe(R(65400)));
+  it('доход месяца — 120 000', () => expect(gauge.total).toBe(R(120000)));
+  it('потрачено по сегодня — постоянные плюс траты', () => expect(gauge.spent).toBe(R(65400)));
   it('осталось 54 600', () => expect(gauge.left).toBe(R(54600)));
-
-  it('осталось это в точности накопление месяца', () => {
-    expect(gauge.left).toBe(monthSummary(baseDoc(), '2026-03', TODAY).net);
-  });
-
-  it('потрачено и осталось в сумме дают весь доход', () => {
-    expect(gauge.spent + gauge.left).toBe(gauge.total);
-  });
-
-  it('заполнение — доля неистраченного, она же ставка накопления', () => {
-    expect(gauge.fill).toBeCloseTo(0.455, 6);
-    expect(gauge.fill).toBeCloseTo(monthSummary(baseDoc(), '2026-03', TODAY).savingsRate!, 9);
-  });
+  it('ничего не ждём', () => expect(gauge.pending).toBe(0));
 });
 
-describe('цвет шкалы', () => {
-  it('без цели зелёная, пока не ушли в минус', () => {
-    expect(budgetGauge(baseDoc(), '2026-03', TODAY).state).toBe('SAFE');
-  });
-
-  it('без цели красная при перерасходе', () => {
+describe('осталось — это деньги, которые есть', () => {
+  it('стартовая сумма входит в «Осталось»', () => {
     const doc = baseDoc();
-    doc.expenses.push(expense('2026-03-10', R(90000), CAT_TECH, 'ONE_OFF'));
+    doc.settings.startingBalance = R(50000);
     const gauge = budgetGauge(doc, '2026-03', TODAY);
-    expect(gauge.left).toBeLessThan(0);
-    expect(gauge.state).toBe('SHORT');
-    // Ниже нуля шкала не опускается
-    expect(gauge.fill).toBe(0);
+    expect(gauge.carried).toBe(R(50000));
+    expect(gauge.left).toBe(R(104600));
   });
 
-  it('осталось заметно больше цели — зелёная', () => {
-    expect(budgetGauge(baseDoc(R(30000)), '2026-03', TODAY).state).toBe('SAFE');
+  it('зарплата с числом впереди ещё не пришла', () => {
+    const gauge = budgetGauge(splitSalary(baseDoc()), '2026-03', TODAY);
+    // 16 марта: остаток 5-го пришёл, аванс 20-го — нет
+    expect(gauge.received).toBe(R(60000));
+    expect(gauge.pending).toBe(R(60000));
+    expect(gauge.nextIncomeDate).toBe('2026-03-20');
+    expect(gauge.left).toBe(R(60000) - R(65400));
   });
 
-  it('осталось подошло к цели вплотную — оранжевая', () => {
-    // 54 600 против цели 50 000: запас 9,2%, меньше порога в 15%
-    expect(budgetGauge(baseDoc(R(50000)), '2026-03', TODAY).state).toBe('NEAR');
-  });
-
-  it('осталось меньше цели — красная', () => {
-    expect(budgetGauge(baseDoc(R(60000)), '2026-03', TODAY).state).toBe('SHORT');
-  });
-
-  it('граница между зелёной и оранжевой ровно на пороге', () => {
-    const left = R(54600);
-    const justSafe = Math.floor(left / (1 + NEAR_TARGET_MARGIN)) - 1;
-    const justNear = Math.floor(left / (1 + NEAR_TARGET_MARGIN)) + 1;
-    expect(budgetGauge(baseDoc(justSafe), '2026-03', TODAY).state).toBe('SAFE');
-    expect(budgetGauge(baseDoc(justNear), '2026-03', TODAY).state).toBe('NEAR');
-  });
-
-  it('граница между оранжевой и красной — ровно цель', () => {
-    const left = R(54600);
-    expect(budgetGauge(baseDoc(left), '2026-03', TODAY).state).toBe('NEAR');
-    expect(budgetGauge(baseDoc(left + 1), '2026-03', TODAY).state).toBe('SHORT');
-  });
-});
-
-describe('граничные случаи', () => {
-  it('без дохода шкала пустая', () => {
+  it('случай из жизни: первое число, зарплата 5-го и 20-го, свободно только стартовое', () => {
     const doc = emptyDoc();
-    doc.settings.firstMonth = '2026-01';
-    const gauge = budgetGauge(doc, '2026-03', TODAY);
-    expect(gauge.total).toBe(0);
-    expect(gauge.fill).toBe(0);
-    expect(gauge.state).toBe('SAFE');
+    doc.settings.firstMonth = '2026-10';
+    doc.settings.startingBalance = R(40000);
+    splitSalary(doc);
+    const gauge = budgetGauge(doc, '2026-10', '2026-10-01');
+    expect(gauge.left).toBe(R(40000));
+    expect(gauge.pending).toBe(R(120000));
+    expect(gauge.spent).toBe(0);
   });
 
-  it('ничего не потрачено — шкала полная', () => {
-    const doc = emptyDoc();
-    doc.settings.firstMonth = '2026-01';
-    doc.fixedItems = [
-      monthly('Зарплата', 'INCOME', CAT_SALARY, [{ fromMonth: '2026-01', amount: R(120000) }]),
-    ];
+  it('трата с будущей датой ещё не потрачена', () => {
+    const doc = baseDoc();
+    doc.expenses.push(expense('2026-03-25', R(10000), CAT_TECH, 'ONE_OFF'));
     const gauge = budgetGauge(doc, '2026-03', TODAY);
-    expect(gauge.fill).toBe(1);
-    expect(gauge.left).toBe(R(120000));
+    expect(gauge.left).toBe(R(54600));
+    // А в плане месяца она уже есть
+    expect(gauge.net).toBe(R(44600));
   });
 
-  it('удержание налога уменьшает и шкалу, и остаток', () => {
+  it('остатки прошлых месяцев лежат в «Осталось»', () => {
+    const doc = baseDoc();
+    doc.settings.firstMonth = '2026-01';
+    // Январь и февраль без трат: по 120 000 − 37 000 = 83 000
+    const gauge = budgetGauge(doc, '2026-03', TODAY);
+    expect(gauge.carried).toBe(R(166000));
+    expect(gauge.left).toBe(R(166000) + R(54600));
+  });
+
+  it('то же число, что «свободно» на экране накоплений', () => {
+    const doc = splitSalary(baseDoc());
+    doc.settings.firstMonth = '2026-01';
+    doc.settings.startingBalance = R(25000);
+    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-02', amount: R(7000) }, { month: '2026-03', amount: R(3000) }])];
+    expect(budgetGauge(doc, '2026-03', TODAY).left).toBe(savingsLedger(doc, TODAY).free);
+  });
+
+  it('удержание налога уменьшает и доход, и остаток', () => {
     const doc = baseDoc();
     doc.fixedItems[0]!.taxPercent = 13;
     const gauge = budgetGauge(doc, '2026-03', TODAY);
@@ -123,140 +126,183 @@ describe('граничные случаи', () => {
   });
 });
 
-describe('риска цели на шкале', () => {
-  it('стоит там, где цель относится ко всему доходу', () => {
-    const gauge = budgetGauge(baseDoc(R(30000)), '2026-03', TODAY);
-    expect(gauge.targetMark).toBeCloseTo(30000 / 120000, 9);
+describe('копилки', () => {
+  it('отложенное в этом месяце вычитается из «Осталось»', () => {
+    const doc = baseDoc();
+    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-03', amount: R(10000) }])];
+    const gauge = budgetGauge(doc, '2026-03', TODAY);
+    expect(gauge.earmarked).toBe(R(10000));
+    expect(gauge.left).toBe(R(44600));
+  });
+
+  it('отложенное раньше тоже не свободно', () => {
+    const doc = baseDoc();
+    doc.settings.firstMonth = '2026-01';
+    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-02', amount: R(10000) }])];
+    const gauge = budgetGauge(doc, '2026-03', TODAY);
+    expect(gauge.carried).toBe(R(156000));
+    expect(gauge.earmarked).toBe(0);
+  });
+
+  it('закрытая копилка метку снимает — как на экране накоплений', () => {
+    const doc = baseDoc();
+    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-03', amount: R(10000) }])];
+    doc.goals[0]!.archived = true;
+    expect(budgetGauge(doc, '2026-03', TODAY).left).toBe(R(54600));
+  });
+
+  it('взнос в копилку не красит шкалу: отложить — это и есть накопить', () => {
+    const plain = budgetGauge(baseDoc(R(50000)), '2026-03', TODAY).state;
+    const doc = baseDoc(R(50000));
+    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-03', amount: R(30000) }])];
+    expect(budgetGauge(doc, '2026-03', TODAY).state).toBe(plain);
+  });
+});
+
+describe('шкала из трёх частей', () => {
+  it('свободно, ещё придёт и ушло вместе дают всю шкалу', () => {
+    const doc = splitSalary(baseDoc());
+    doc.settings.startingBalance = R(20000);
+    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-03', amount: R(5000) }])];
+    const gauge = budgetGauge(doc, '2026-03', TODAY);
+    const scale = gauge.carried + gauge.total;
+    expect(gauge.left + gauge.pending + gauge.spent + gauge.earmarked).toBe(scale);
+    expect(gauge.fill).toBeCloseTo(gauge.left / scale, 9);
+    expect(gauge.pendingFill).toBeCloseTo(gauge.pending / scale, 9);
+  });
+
+  it('первое число: заливка — только стартовое, остальное «ещё придёт»', () => {
+    const doc = emptyDoc();
+    doc.settings.firstMonth = '2026-10';
+    doc.settings.startingBalance = R(40000);
+    splitSalary(doc);
+    const gauge = budgetGauge(doc, '2026-10', '2026-10-01');
+    expect(gauge.fill).toBeCloseTo(40000 / 160000, 9);
+    expect(gauge.pendingFill).toBeCloseTo(120000 / 160000, 9);
+  });
+
+  it('ниже нуля заливка не опускается', () => {
+    const doc = baseDoc();
+    doc.expenses.push(expense('2026-03-10', R(90000), CAT_TECH, 'ONE_OFF'));
+    const gauge = budgetGauge(doc, '2026-03', TODAY);
+    expect(gauge.left).toBeLessThan(0);
+    expect(gauge.fill).toBe(0);
+  });
+
+  it('без денег шкалы нет', () => {
+    const doc = emptyDoc();
+    doc.settings.firstMonth = '2026-03';
+    const gauge = budgetGauge(doc, '2026-03', TODAY);
+    expect(gauge.fill).toBe(0);
+    expect(gauge.pendingFill).toBe(0);
+    expect(gauge.state).toBe('SAFE');
+  });
+});
+
+describe('цвет — от плана месяца', () => {
+  it('зарплата ещё не пришла — это не провал', () => {
+    // Аванс 20-го впереди, «Осталось» в минусе, но месяц по плану идёт хорошо
+    const gauge = budgetGauge(splitSalary(baseDoc(R(30000))), '2026-03', TODAY);
+    expect(gauge.left).toBeLessThan(0);
+    expect(gauge.state).toBe('SAFE');
+  });
+
+  it('без цели зелёная, пока план не ушёл в минус', () => {
+    expect(budgetGauge(baseDoc(), '2026-03', TODAY).state).toBe('SAFE');
+  });
+
+  it('без цели красная при перерасходе', () => {
+    const doc = baseDoc();
+    doc.expenses.push(expense('2026-03-10', R(90000), CAT_TECH, 'ONE_OFF'));
+    expect(budgetGauge(doc, '2026-03', TODAY).state).toBe('SHORT');
+  });
+
+  it('заметно больше цели — зелёная', () => {
+    expect(budgetGauge(baseDoc(R(30000)), '2026-03', TODAY).state).toBe('SAFE');
+  });
+
+  it('вплотную к цели — оранжевая', () => {
+    // 54 600 против цели 50 000: запас 9,2%, меньше порога в 15%
+    expect(budgetGauge(baseDoc(R(50000)), '2026-03', TODAY).state).toBe('NEAR');
+  });
+
+  it('меньше цели — красная', () => {
+    expect(budgetGauge(baseDoc(R(60000)), '2026-03', TODAY).state).toBe('SHORT');
+  });
+
+  it('граница между зелёной и оранжевой ровно на пороге', () => {
+    const net = R(54600);
+    const justSafe = Math.floor(net / (1 + NEAR_TARGET_MARGIN)) - 1;
+    const justNear = Math.floor(net / (1 + NEAR_TARGET_MARGIN)) + 1;
+    expect(budgetGauge(baseDoc(justSafe), '2026-03', TODAY).state).toBe('SAFE');
+    expect(budgetGauge(baseDoc(justNear), '2026-03', TODAY).state).toBe('NEAR');
+  });
+
+  it('граница между оранжевой и красной — ровно цель', () => {
+    const net = R(54600);
+    expect(budgetGauge(baseDoc(net), '2026-03', TODAY).state).toBe('NEAR');
+    expect(budgetGauge(baseDoc(net + 1), '2026-03', TODAY).state).toBe('SHORT');
+  });
+});
+
+describe('риска цели — где заливка должна остаться к концу месяца', () => {
+  /** Закрытый месяц: всё пришло и ушло, заливка там, где месяц кончился. */
+  function closedFebruary(target: number, contribution = 0): BudgetDocument {
+    const doc = baseDoc();
+    doc.settings.firstMonth = '2026-01';
+    doc.settings.targets = [{ fromMonth: '2026-01', amount: target }];
+    doc.expenses = dailyRoutineExpenses('2026-02', 28, R(1000), CAT_FOOD);
+    if (contribution > 0) doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-02', amount: contribution }])];
+    return doc;
+  }
+
+  it('в закрытом месяце заливка правее риски ровно тогда, когда шкала не красная', () => {
+    // Февраль: 120 000 − 37 000 − 28 000 = 55 000
+    for (const target of [R(10000), R(40000), R(55000), R(60000), R(90000)]) {
+      const gauge = budgetGauge(closedFebruary(target), '2026-02', TODAY);
+      expect(gauge.fill >= gauge.targetMark!).toBe(gauge.state !== 'SHORT');
+    }
+  });
+
+  it('то же с копилкой: отложенное засчитано в цель', () => {
+    for (const target of [R(10000), R(40000), R(55000), R(60000)]) {
+      const gauge = budgetGauge(closedFebruary(target, R(20000)), '2026-02', TODAY);
+      expect(gauge.fill >= gauge.targetMark!).toBe(gauge.state !== 'SHORT');
+    }
   });
 
   it('без цели риски нет', () => {
     expect(budgetGauge(baseDoc(), '2026-03', TODAY).targetMark).toBeNull();
   });
 
-  it('цель больше дохода — риска упирается в край', () => {
-    expect(budgetGauge(baseDoc(R(200000)), '2026-03', TODAY).targetMark).toBe(1);
-  });
-
-  it('без дохода риски нет: шкалы тоже нет', () => {
-    const doc = emptyDoc();
-    doc.settings.firstMonth = '2026-01';
-    doc.settings.targets = [{ fromMonth: '2026-01', amount: R(30000) }];
-    expect(budgetGauge(doc, '2026-03', TODAY).targetMark).toBeNull();
-  });
-
-  it('заполнение выше риски ровно тогда, когда шкала не красная', () => {
-    for (const target of [R(10000), R(30000), R(50000), R(54600), R(70000)]) {
-      const gauge = budgetGauge(baseDoc(target), '2026-03', TODAY);
-      const above = gauge.fill >= gauge.targetMark!;
-      expect(above).toBe(gauge.state !== 'SHORT');
-    }
-  });
-});
-
-/**
- * Нулевая цель — законный ответ «в этом месяце не откладываю» (1.6).
- * От «цель не задана» она отличается тем, что сказана вслух: запись есть,
- * версионность работает, прошлые месяцы сохраняют свою цель.
- */
-describe('нулевая цель', () => {
-  it('сохраняется как цель, а не как её отсутствие', () => {
-    const doc = baseDoc(0);
-    expect(budgetGauge(doc, '2026-03', TODAY).target).toBe(0);
-  });
-
-  it('риски на шкале не рисует', () => {
+  it('нулевая цель риски не рисует', () => {
     expect(budgetGauge(baseDoc(0), '2026-03', TODAY).targetMark).toBeNull();
   });
 
-  it('шкала зелёная, пока не ушли в минус', () => {
-    expect(budgetGauge(baseDoc(0), '2026-03', TODAY).state).toBe('SAFE');
-  });
-
-  it('шкала красная при перерасходе — как и без цели', () => {
-    const doc = baseDoc(0);
-    doc.expenses.push(expense('2026-03-10', R(90000), CAT_TECH, 'ONE_OFF'));
-    expect(budgetGauge(doc, '2026-03', TODAY).state).toBe('SHORT');
-  });
-
-  it('прошлые месяцы сохраняют прежнюю цель', () => {
+  it('цель, целиком закрытая копилками, риски не рисует', () => {
     const doc = baseDoc(R(30000));
-    doc.settings.targets.push({ fromMonth: '2026-03', amount: 0 });
-    expect(budgetGauge(doc, '2026-02', TODAY).target).toBe(R(30000));
-    expect(budgetGauge(doc, '2026-03', TODAY).target).toBe(0);
+    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-03', amount: R(30000) }])];
+    expect(budgetGauge(doc, '2026-03', TODAY).targetMark).toBeNull();
   });
 });
 
-/**
- * «Осталось» — свободные деньги: не потраченные и никуда не отложенные.
- * Взнос в копилку не трата (1.7), но и свободными эти деньги уже не назвать.
- * Условия К1: net месяца 54 600.
- */
-describe('копилки', () => {
-  function withContribution(amount: number, target?: number): BudgetDocument {
-    const doc = baseDoc(target);
-    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-03', amount }])];
-    return doc;
-  }
-
-  it('отложенное в копилку вычитается из «Осталось»', () => {
-    const gauge = budgetGauge(withContribution(R(10000)), '2026-03', TODAY);
-    expect(gauge.net).toBe(R(54600));
-    expect(gauge.earmarked).toBe(R(10000));
-    expect(gauge.left).toBe(R(44600));
+describe('нулевая цель', () => {
+  it('сохраняется как цель, а не как её отсутствие', () => {
+    expect(budgetGauge(baseDoc(0), '2026-03', TODAY).target).toBe(0);
   });
 
-  it('потрачено, отложено и осталось в сумме дают весь доход', () => {
-    const gauge = budgetGauge(withContribution(R(10000)), '2026-03', TODAY);
-    expect(gauge.spent + gauge.earmarkedFromMonth + gauge.left).toBe(gauge.total);
+  it('шкала зелёная, пока план не ушёл в минус', () => {
+    expect(budgetGauge(baseDoc(0), '2026-03', TODAY).state).toBe('SAFE');
   });
 
-  it('взносы других месяцев «Осталось» этого месяца не трогают', () => {
+  it('прошлые месяцы сохраняют прежнюю цель', () => {
     const doc = baseDoc();
-    doc.goals = [goal('Отпуск', R(100000), [{ month: '2026-02', amount: R(10000) }])];
-    expect(budgetGauge(doc, '2026-03', TODAY).left).toBe(R(54600));
-  });
-
-  it('отложили больше остатка — излишек из прошлых накоплений, в минус месяц не уходит', () => {
-    const gauge = budgetGauge(withContribution(R(80000)), '2026-03', TODAY);
-    expect(gauge.earmarked).toBe(R(80000));
-    expect(gauge.earmarkedFromMonth).toBe(R(54600));
-    expect(gauge.left).toBe(0);
-  });
-
-  it('при перерасходе взнос остатка не уменьшает: его там нет', () => {
-    const doc = withContribution(R(5000));
-    doc.expenses.push(expense('2026-03-10', R(90000), CAT_TECH, 'ONE_OFF'));
-    const gauge = budgetGauge(doc, '2026-03', TODAY);
-    expect(gauge.earmarkedFromMonth).toBe(0);
-    expect(gauge.left).toBe(gauge.net);
-  });
-
-  it('взнос в копилку не красит шкалу: отложить — это и есть накопить', () => {
-    // net 54 600 против цели 50 000 — оранжевый с копилкой и без неё одинаково
-    const without = budgetGauge(baseDoc(R(50000)), '2026-03', TODAY).state;
-    const withJar = budgetGauge(withContribution(R(30000), R(50000)), '2026-03', TODAY).state;
-    expect(withJar).toBe(without);
-  });
-
-  it('риска сдвигается на отложенное: заливка выше неё ровно тогда, когда шкала не красная', () => {
-    for (const target of [R(10000), R(30000), R(50000), R(54600), R(70000)]) {
-      const gauge = budgetGauge(withContribution(R(20000), target), '2026-03', TODAY);
-      if (gauge.targetMark === null) {
-        // Цель целиком закрыта копилками — значит и net её покрывает
-        expect(gauge.state).not.toBe('SHORT');
-        continue;
-      }
-      expect(gauge.fill >= gauge.targetMark).toBe(gauge.state !== 'SHORT');
-    }
-  });
-
-  it('цель, целиком закрытая копилками, риски не рисует', () => {
-    expect(budgetGauge(withContribution(R(30000), R(30000)), '2026-03', TODAY).targetMark).toBeNull();
-  });
-
-  it('взносы закрытой копилки остаются в истории месяца', () => {
-    const doc = withContribution(R(10000));
-    doc.goals[0]!.archived = true;
-    expect(budgetGauge(doc, '2026-03', TODAY).left).toBe(R(44600));
+    doc.settings.firstMonth = '2026-01';
+    doc.settings.targets = [
+      { fromMonth: '2026-01', amount: R(30000) },
+      { fromMonth: '2026-03', amount: 0 },
+    ];
+    expect(budgetGauge(doc, '2026-02', TODAY).target).toBe(R(30000));
+    expect(budgetGauge(doc, '2026-03', TODAY).target).toBe(0);
   });
 });

@@ -17,6 +17,7 @@ export * from './target';
 export * from './gauge';
 export * from './goals';
 export * from './schedule';
+export * from './cash';
 export * from './calendar';
 export * from './oneoff';
 export * from './runway';

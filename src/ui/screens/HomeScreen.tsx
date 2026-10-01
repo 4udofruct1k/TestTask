@@ -66,14 +66,24 @@ export function HomeScreen(): JSX.Element {
       <TopBar title={monthTitle(month)} sub={month === currentMonth ? dayTitle(today) : undefined} />
       <div className="scroll" {...swipe}>
         <div className="body">
-          {/* 1. Бюджет месяца: крупно сколько осталось, под ним шкала.
-              «Осталось» — свободные деньги: не потраченные и не отложенные в копилки.
-              Тап по числу записывает разовый доход — деньги пришли, и это
-              первое место, где их ждёшь увидеть. Зарплата правится отдельной
-              кнопкой в подвале: она про постоянный доход, а не про приход */}
+          {/* 1. Бюджет месяца. Крупно — свободные деньги сейчас: свободное к началу
+              месяца (стартовая сумма и остатки прошлых месяцев без копилок),
+              плюс пришедшее, минус ушедшее и отложенное. Не пришедшая ещё
+              зарплата сюда не входит — она лежит на шкале светлой полосой.
+              Тап по числу записывает разовый доход, подпись «Доход» в подвале
+              открывает постоянный доход */}
           <div className={`hero hero--${gauge.state}`}>
-            {/* Залитая часть — то, что осталось. Подрезается справа, как заряд */}
+            {/* Залитая часть — свободно сейчас. Подрезается справа, как заряд */}
             <div className="hero-fill" style={{ clipPath: `inset(0 ${100 - gauge.fill * 100}% 0 0)` }} />
+            {/* Сразу за ней — то, что ещё придёт в этом месяце: в день зарплаты
+                эта полоса становится заливкой */}
+            {gauge.pendingFill > 0 && (
+              <div
+                className="hero-pending"
+                style={{ left: `${gauge.fill * 100}%`, width: `${gauge.pendingFill * 100}%` }}
+                aria-hidden="true"
+              />
+            )}
             {gauge.targetMark !== null && (
               <span className="hero-target" style={{ left: `${gauge.targetMark * 100}%` }} aria-hidden="true" />
             )}
@@ -84,8 +94,14 @@ export function HomeScreen(): JSX.Element {
               </button>
               <div className="hero-foot">
                 <button className="hero-chip" onClick={() => setIncomeOpen(true)}>
-                  Весь бюджет {formatAmount(gauge.total)}
+                  Доход {formatAmount(gauge.total)}
                 </button>
+                {gauge.pending > 0 && (
+                  <span>
+                    Ещё придёт {formatAmount(gauge.pending)}
+                    {gauge.nextIncomeDate ? ` · ${dayShort(gauge.nextIncomeDate)}` : ''}
+                  </span>
+                )}
                 {gauge.target === null ? (
                   <span>Цель не задана</span>
                 ) : gauge.target === 0 ? (
@@ -93,8 +109,6 @@ export function HomeScreen(): JSX.Element {
                 ) : (
                   <span>Цель {formatAmount(gauge.target)}</span>
                 )}
-                {/* Отложенное в копилки вычтено из «Осталось» — подвал говорит, сколько,
-                    иначе потраченное и остаток перестали бы сходиться с бюджетом молча */}
                 {gauge.earmarked > 0 && <span>В копилки {formatAmount(gauge.earmarked)}</span>}
                 {/* Удержание показывается, только когда оно включено */}
                 {block.taxWithheld > 0 && <span>Удержано {formatAmount(block.taxWithheld)}</span>}
@@ -141,9 +155,19 @@ export function HomeScreen(): JSX.Element {
               </div>
 
               <p className="card-p">
-                Пришло <b>{formatAmount(schedule.income.done)}</b> из{' '}
-                {formatAmount(schedule.income.total)}, оплачено{' '}
-                <b>{formatAmount(schedule.expense.done)}</b> из {formatAmount(schedule.expense.total)}.
+                {schedule.income.total > 0 && (
+                  <>
+                    Пришло <b>{formatAmount(schedule.income.done)}</b> из {formatAmount(schedule.income.total)}
+                  </>
+                )}
+                {schedule.income.total > 0 && schedule.expense.total > 0 && ', '}
+                {schedule.expense.total > 0 && (
+                  <>
+                    {schedule.income.total > 0 ? 'оплачено' : 'Оплачено'}{' '}
+                    <b>{formatAmount(schedule.expense.done)}</b> из {formatAmount(schedule.expense.total)}
+                  </>
+                )}
+                .
               </p>
 
               {schedule.events.map((event) => (
@@ -219,7 +243,7 @@ export function HomeScreen(): JSX.Element {
           <div className="rows">
             <ExpandableRow
               title="Постоянные"
-              subtitle={`${positions(fixed.length)}${summary.reserved > 0 ? `, резерв ${formatAmount(summary.reserved)}` : ''}`}
+              subtitle={`${positions(fixed.filter((item) => item.kind === 'EXPENSE').length)}${summary.reserved > 0 ? `, резерв ${formatAmount(summary.reserved)}` : ''}`}
               value={formatAmount(summary.fixedExpense)}
             >
               {fixed

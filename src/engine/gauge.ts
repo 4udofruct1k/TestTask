@@ -1,17 +1,24 @@
 /**
  * Шкала месяца для блока бюджета на главной (3.2).
  *
- * Полная шкала — весь доход месяца, заполнение — то, что из него ещё
- * свободно: не потрачено и не отложено в копилки. `весь доход − потрачено`
- * это `net`, накопление месяца; из него вычитается отложенное в копилки
- * в этом месяце — оно не потрачено, но уже и не свободно.
+ * «Осталось» — свободные деньги на сегодня: то, что было свободно к началу
+ * месяца (стартовая сумма и остатки прошлых месяцев без копилок), плюс
+ * пришедшее в этом месяце, минус ушедшее и отложенное в копилки. Это то же
+ * самое число, что «свободно» на экране накоплений (2.16): одно понятие —
+ * одна величина на всех экранах.
  *
- * Цвет шкалы по-прежнему считается от `net`: взнос в копилку — это и есть
- * накопление, и красить блок за то, что деньги отложили, было бы абсурдом.
+ * Шкала — все деньги месяца: свободное к началу плюс весь доход месяца.
+ * На ней три части: свободно сейчас, ещё придёт, ушло и отложено.
+ * Сумма трёх частей — вся шкала, поэтому в день зарплаты заливка растёт,
+ * а с каждой тратой убывает, как заряд.
+ *
+ * Цвет шкалы считается от `net` — плана месяца, а не от того, пришла ли уже
+ * зарплата: первого числа месяц не провален только потому, что ещё рано.
  */
 
 import type { BudgetDocument, DateStr, Money, MonthKey } from '../domain/types';
-import { contributionsOfMonth } from './goals';
+import { monthCash } from './cash';
+import { carriedInto, earmarkedIn } from './savings';
 import { monthSummary } from './summary';
 import { targetAt } from './target';
 
@@ -30,27 +37,32 @@ export type GaugeState =
   | 'SHORT';
 
 export interface BudgetGauge {
-  /** Весь доход месяца, он же полная шкала */
+  /** Весь доход месяца по плану — подпись «Доход» */
   total: Money;
-  /** Потрачено всего, с постоянными */
+  /** Свободно к началу месяца: стартовая сумма и остатки прошлых месяцев без копилок */
+  carried: Money;
+  /** Пришло в этом месяце по сегодня */
+  received: Money;
+  /** Ушло в этом месяце по сегодня — окно «Потрачено» */
   spent: Money;
-  /** total − spent: накопление месяца, вместе с отложенным в копилки */
-  net: Money;
-  /** Взносы в копилки за месяц, все целиком */
+  /** Ещё придёт в этом месяце */
+  pending: Money;
+  /** Ближайший приход, если что-то ещё впереди */
+  nextIncomeDate: DateStr | null;
+  /** Отложено в активные копилки в этом месяце */
   earmarked: Money;
-  /**
-   * Часть взносов, покрытая остатком этого месяца. Остальное пришло
-   * из накоплений прошлых месяцев (1.7) и свободные деньги месяца не трогает
-   */
-  earmarkedFromMonth: Money;
-  /** net − earmarkedFromMonth: свободно, не потрачено и никуда не отложено. Это «Осталось» */
+  /** Свободно сейчас: carried + received − spent − earmarked. Это «Осталось» */
   left: Money;
+  /** План месяца: доход минус стоимость месяца. От него считается цвет */
+  net: Money;
   target: Money | null;
-  /** Доля заполнения, 0..1 */
+  /** Свободно сейчас, доля шкалы 0..1 */
   fill: number;
+  /** Ещё придёт, доля шкалы 0..1. Рисуется сразу за заливкой */
+  pendingFill: number;
   /**
-   * Где на шкале стоит цель, 0..1. Заполнение выше риски — цель ещё
-   * закрывается, ниже — уже нет. null, если цель не задана.
+   * Где должна остаться заливка к концу месяца, чтобы цель выполнилась, 0..1.
+   * null — цели нет, она нулевая или закрыта копилками целиком.
    */
   targetMark: number | null;
   state: GaugeState;
@@ -58,39 +70,38 @@ export interface BudgetGauge {
 
 export function budgetGauge(doc: BudgetDocument, month: MonthKey, today: DateStr): BudgetGauge {
   const summary = monthSummary(doc, month, today);
+  const cash = monthCash(doc, month, today);
   const target = targetAt(doc, month);
 
   const total = summary.totalIncome;
-  const spent = summary.monthCost;
-  const net = summary.net;
-  const earmarked = contributionsOfMonth(doc.goals, month);
-  // Взнос сначала берётся из остатка месяца. Если отложили больше, чем
-  // осталось, излишек пришёл из прошлых накоплений и в минус месяц не уводит
-  const earmarkedFromMonth = Math.min(earmarked, Math.max(0, net));
-  const left = net - earmarkedFromMonth;
+  const carried = carriedInto(doc, month, today);
+  const earmarked = earmarkedIn(doc, month);
+  const left = carried + cash.received - cash.paid - earmarked;
 
-  // Отложенное в копилки уже засчитано в цель: риска сдвигается на него.
-  // Так «заливка выше риски» по-прежнему означает ровно «net >= цели»
-  const uncovered = target === null ? null : target - earmarkedFromMonth;
+  // Долг прошлых месяцев шкалу не растягивает: она про деньги, которые есть
+  const scale = Math.max(0, carried) + total;
+  const share = (value: number): number => (scale > 0 ? Math.min(1, Math.max(0, value / scale)) : 0);
+
+  // К концу месяца заливка придёт к carried + net − earmarked. Цель выполнена,
+  // когда net >= target, то есть заливка не левее carried + target − earmarked.
+  // Отложенное в копилки засчитывается в цель: риска сдвигается вместе с ним
+  const goalLine = target !== null && target > 0 ? carried + target - earmarked : null;
 
   return {
     total,
-    spent,
-    net,
+    carried,
+    received: cash.received,
+    spent: cash.paid,
+    pending: cash.pendingIncome,
+    nextIncomeDate: cash.nextIncomeDate,
     earmarked,
-    earmarkedFromMonth,
     left,
+    net: summary.net,
     target,
-    // Потратить больше дохода можно, но шкала ниже нуля не опускается
-    fill: total > 0 ? Math.min(1, Math.max(0, left / total)) : 0,
-    // Цель больше всего дохода недостижима — риска упирается в край.
-    // Нулевая цель риски не рисует: линия у пустого края ничего не значит.
-    // Цель, целиком закрытая копилками, — тоже
-    targetMark:
-      target !== null && target > 0 && uncovered !== null && uncovered > 0 && total > 0
-        ? Math.min(1, uncovered / total)
-        : null,
-    state: resolveState(net, target),
+    fill: share(left),
+    pendingFill: Math.min(share(cash.pendingIncome), 1 - share(left)),
+    targetMark: goalLine !== null && goalLine > 0 && scale > 0 ? share(goalLine) : null,
+    state: resolveState(summary.net, target),
   };
 }
 

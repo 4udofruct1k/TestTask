@@ -8,10 +8,14 @@
  *
  * Это по-прежнему не остаток на счетах: приложение не знает про реальные
  * счета и не делает вид, что знает (2.12).
+ *
+ * Текущий месяц входит по факту на сегодня (2.14), а не планом: зарплата,
+ * которая придёт 5-го, первого числа в кучу ещё не легла.
  */
 
 import { compareMonth, monthKeyOf } from '../domain/dates';
 import type { BudgetDocument, DateStr, Money, MonthKey } from '../domain/types';
+import { monthCash } from './cash';
 import { accountedMonths } from './runway';
 import { monthSummary } from './summary';
 
@@ -54,8 +58,9 @@ export function savingsLedger(doc: BudgetDocument, today: DateStr): SavingsLedge
   const months: SavingsMonth[] = [];
 
   for (const month of accountedMonths(doc, today)) {
-    const net = monthSummary(doc, month, today).net;
     const isCurrent = compareMonth(month, currentMonth) >= 0;
+    // Закрытый месяц — итогом, текущий — тем, что уже случилось
+    const net = isCurrent ? monthCash(doc, month, today).net : monthSummary(doc, month, today).net;
     if (isCurrent) current += net;
     else closed += net;
     running += net;
@@ -86,6 +91,38 @@ export function earmarkedTotal(doc: BudgetDocument): Money {
   for (const goal of doc.goals) {
     if (goal.archived) continue;
     for (const contribution of goal.contributions) sum += contribution.amount;
+  }
+  return sum;
+}
+
+/** Взносы активных копилок, сделанные в этом месяце. */
+export function earmarkedIn(doc: BudgetDocument, month: MonthKey): Money {
+  let sum = 0;
+  for (const goal of doc.goals) {
+    if (goal.archived) continue;
+    for (const contribution of goal.contributions) {
+      if (contribution.month === month) sum += contribution.amount;
+    }
+  }
+  return sum;
+}
+
+/**
+ * Свободные деньги на начало месяца: стартовая сумма и остатки закрытых
+ * месяцев до него, без того, что к этому моменту лежит в активных копилках.
+ * Месяцы до него закрыты, поэтому берутся итогом.
+ */
+export function carriedInto(doc: BudgetDocument, month: MonthKey, today: DateStr): Money {
+  let sum = doc.settings.startingBalance;
+  for (const m of accountedMonths(doc, today)) {
+    if (compareMonth(m, month) >= 0) break;
+    sum += monthSummary(doc, m, today).net;
+  }
+  for (const goal of doc.goals) {
+    if (goal.archived) continue;
+    for (const contribution of goal.contributions) {
+      if (compareMonth(contribution.month, month) < 0) sum -= contribution.amount;
+    }
   }
   return sum;
 }

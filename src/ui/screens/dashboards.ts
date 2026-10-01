@@ -413,7 +413,8 @@ export function factsOf(
     case 'runway': {
       const data = runway(doc, month, today);
       return [
-        { label: 'Накоплено', value: formatRub(data.accumulated) },
+        // План: месяц досчитан до конца. «Накоплено» на экране накоплений — по факту на сегодня
+        { label: 'Накоплено к концу месяца', value: formatRub(data.accumulated) },
         {
           label: 'Типичный месяц',
           value: data.typicalMonthCost === null ? '—' : formatRub(data.typicalMonthCost),
