@@ -20,6 +20,11 @@ import { SettingsScreen } from './screens/SettingsScreen';
 
 export function App({ repository }: { repository: BudgetRepository }): JSX.Element {
   const status = useBudget((s) => s.status);
+  // «Заполнить заново» — только поверх настоящих данных. После сброса
+  // документ пустой, и это обычный первый запуск
+  const hasData = useBudget(
+    (s) => s.doc !== null && (s.doc.fixedItems.length > 0 || s.doc.expenses.length > 0 || s.doc.goals.length > 0),
+  );
   const error = useBudget((s) => s.error);
   const journal = useBudget((s) => s.journal);
   const restoredFrom = useBudget((s) => s.restoredFrom);
@@ -65,7 +70,7 @@ export function App({ repository }: { repository: BudgetRepository }): JSX.Eleme
     return (
       <div className="app">
         <OnboardingScreen
-          repeat={status === 'ready'}
+          repeat={status === 'ready' && hasData}
           onDone={() => {
             setOnboarding(false);
             useUi.getState().go('home');

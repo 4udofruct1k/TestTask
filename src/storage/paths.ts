@@ -10,7 +10,15 @@ export const dailyBackupPath = (day: string): string => `${BACKUP_DIR}/${day}.js
 /** Снимок перед цепочкой миграций. В ротацию не входит и не удаляется автоматически. */
 export const preMigrationPath = (version: number): string => `${BACKUP_DIR}/pre-migration-v${version}.json`;
 
+/**
+ * Снимок перед сбросом. В ротацию не входит: сброс делают, когда уверены,
+ * а жалеют о нём через неделю — к этому времени суточный снимок уже удалён.
+ * Хранится один, последний: каждый следующий сброс его перезаписывает.
+ */
+export const PRE_RESET_PATH = `${BACKUP_DIR}/pre-reset.json`;
+
 const DAILY_RE = /^\d{4}-\d{2}-\d{2}\.json$/;
 
 export const isDailyBackup = (name: string): boolean => DAILY_RE.test(name);
 export const isPreMigrationBackup = (name: string): boolean => name.startsWith('pre-migration-v');
+export const isPreResetBackup = (name: string): boolean => name === 'pre-reset.json';

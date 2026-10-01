@@ -9,7 +9,7 @@
 import { validateDocument, type Fatal, type Fix } from '../domain/validate';
 import { CURRENT_SCHEMA_VERSION, type BudgetDocument } from '../domain/types';
 import { atomicWrite, dropStaleTmp, type WriteResult } from './atomic';
-import { dailyBackup, listBackups, preMigrationBackup, type BackupInfo } from './backups';
+import { dailyBackup, listBackups, preMigrationBackup, preResetBackup, type BackupInfo } from './backups';
 import { parseEnvelope, serialize, serializePretty, wrap } from './envelope';
 import type { FileAccess } from './files';
 import { migrate } from './migrations';
@@ -211,6 +211,21 @@ export class BudgetRepository {
 
     await dailyBackup(this.files, this.clock.nowIso().slice(0, 10));
     return { status: 'OK', doc: result.doc, journal: result.fixed };
+  }
+
+  /**
+   * Сброс всех данных (3.8). Сначала дописывается всё, что ещё ждёт записи,
+   * — иначе снимок потерял бы последние секунды работы. Потом снимок вне
+   * ротации, и только затем новый документ ложится в файл сразу, без
+   * отложенной записи: закрой приложение посреди первого запуска — и старые
+   * данные вернулись бы при следующем старте.
+   */
+  async reset(doc: BudgetDocument): Promise<WriteResult> {
+    const pendingWrite = await this.flush();
+    if (!pendingWrite.ok) return pendingWrite;
+    await preResetBackup(this.files);
+    this.pending = doc;
+    return this.flush();
   }
 
   listBackups(): Promise<BackupInfo[]> {

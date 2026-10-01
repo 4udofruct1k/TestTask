@@ -22,14 +22,17 @@ export function ContributionForm({ open, onClose, goalId }: Props): JSX.Element 
   const month = monthKeyOf(today);
 
   const active = doc.goals.filter((g) => !g.archived);
-  const [selected, setSelected] = useState(goalId ?? active[0]?.id ?? '');
+  const firstActiveId = active[0]?.id ?? '';
+  const [selected, setSelected] = useState(goalId ?? firstActiveId);
   const [raw, setRaw] = useState('');
 
+  // Зависимость — строка, а не массив active: тот собирается заново на каждой
+  // отрисовке, и сброс срабатывал после каждого нажатия, стирая введённую сумму
   useEffect(() => {
     if (!open) return;
-    setSelected(goalId ?? active[0]?.id ?? '');
+    setSelected(goalId ?? firstActiveId);
     setRaw('');
-  }, [open, goalId, active]);
+  }, [open, goalId, firstActiveId]);
 
   const amount = parseAmount(raw);
   const valid = amount !== null && amount > 0 && selected !== '';

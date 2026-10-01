@@ -14,11 +14,12 @@ import {
   listBackups,
   migrate,
   preMigrationBackup,
+  rotate,
   serialize,
   wrap,
   type Clock,
 } from '../src/storage';
-import { BACKUP_DIR, DATA_FILE, TMP_FILE, preMigrationPath } from '../src/storage/paths';
+import { BACKUP_DIR, DATA_FILE, PRE_RESET_PATH, TMP_FILE, preMigrationPath } from '../src/storage/paths';
 import { monthSummary } from '../src/engine';
 import { validateDocument } from '../src/domain/validate';
 import { CURRENT_SCHEMA_VERSION, type BudgetDocument } from '../src/domain/types';
@@ -491,5 +492,56 @@ describe('миграция 4→5 — число месяца у постоянн
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe('FROM_FUTURE');
+  });
+});
+
+describe('сброс всех данных', () => {
+  it('снимок «Перед сбросом» содержит прежний документ, в файле — новый', async () => {
+    const files = new MemoryFiles();
+    await seed(files, docWithSalary());
+    const repo = makeRepo(files, new FixedClock('2026-10-01T09:00:00Z'));
+    await repo.load();
+
+    const result = await repo.reset(emptyDoc());
+    expect(result.ok).toBe(true);
+
+    const snapshot = await files.read(PRE_RESET_PATH);
+    expect(snapshot).not.toBeNull();
+    expect(snapshot).toContain('Зарплата');
+
+    const reloaded = await makeRepo(files, new FixedClock('2026-10-01T09:01:00Z')).load();
+    if (reloaded.status !== 'OK') throw new Error('документ не открылся');
+    expect(reloaded.doc.fixedItems).toEqual([]);
+  });
+
+  it('несохранённая правка попадает в снимок, а не теряется', async () => {
+    const files = new MemoryFiles();
+    await seed(files, emptyDoc());
+    const repo = makeRepo(files, new FixedClock('2026-10-01T09:00:00Z'));
+    await repo.load();
+
+    // Правка ещё ждёт отложенной записи — сброс обязан сначала её дописать
+    repo.scheduleSave(docWithSalary());
+    await repo.reset(emptyDoc());
+
+    expect(await files.read(PRE_RESET_PATH)).toContain('Зарплата');
+  });
+
+  it('снимок перед сбросом виден в списке и не уходит в ротацию', async () => {
+    const files = new MemoryFiles();
+    await seed(files, docWithSalary());
+    const repo = makeRepo(files, new FixedClock('2026-10-01T09:00:00Z'));
+    await repo.load();
+    await repo.reset(emptyDoc());
+
+    // Восемь суточных снимков: ротация оставит семь, снимок сброса не тронет
+    for (let day = 2; day <= 9; day++) {
+      await files.write(`${BACKUP_DIR}/2026-10-0${day}.json`, '{}');
+    }
+    await rotate(files);
+
+    const list = await repo.listBackups();
+    expect(list.some((b) => b.preReset)).toBe(true);
+    expect(list.filter((b) => !b.preReset && !b.preMigration)).toHaveLength(7);
   });
 });

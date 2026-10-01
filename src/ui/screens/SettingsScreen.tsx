@@ -15,7 +15,17 @@ import { activeCategories, days as daysWord, months as monthsWord, monthTitleLow
 import type { BackupInfo } from '../../storage';
 import { exportDocument } from '../../platform';
 
-type Dialog = 'firstMonth' | 'forecastDay' | 'window' | 'categories' | 'colors' | 'transfer' | 'backups' | 'onboarding' | null;
+type Dialog =
+  | 'firstMonth'
+  | 'forecastDay'
+  | 'window'
+  | 'categories'
+  | 'colors'
+  | 'transfer'
+  | 'backups'
+  | 'onboarding'
+  | 'reset'
+  | null;
 
 export function SettingsScreen(): JSX.Element {
   const doc = useBudget((s) => s.doc)!;
@@ -62,6 +72,21 @@ export function SettingsScreen(): JSX.Element {
             ))}
           </div>
 
+          {/* Сброс отдельно от остальных строк: это не настройка, а уничтожение данных */}
+          <div className="rows" style={{ marginTop: 12 }}>
+            <button className="setrow" onClick={() => setDialog('reset')}>
+              <span className="row-txt">
+                <span className="row-t" style={{ color: 'var(--alarm)' }}>
+                  Сбросить всё
+                </span>
+                <span className="row-s">история, платежи, копилки — начать с нуля</span>
+              </span>
+              <span className="chev">
+                <IconChevron />
+              </span>
+            </button>
+          </div>
+
           <p className="hint" style={{ padding: '14px 2px 0' }}>
             Данные лежат только на этом устройстве. Удаление приложения уносит всё —
             единственная защита от потери истории это выгруженный файл.
@@ -106,6 +131,7 @@ export function SettingsScreen(): JSX.Element {
       <ColorsSheet open={dialog === 'colors'} onClose={() => setDialog(null)} />
       <TransferSheet open={dialog === 'transfer'} onClose={() => setDialog(null)} onImported={replaceDocument} />
       <BackupsSheet open={dialog === 'backups'} onClose={() => setDialog(null)} onRestored={replaceDocument} />
+      <ResetSheet open={dialog === 'reset'} onClose={() => setDialog(null)} />
     </section>
   );
 }
@@ -286,7 +312,11 @@ function BackupsSheet({
         <div key={backup.name}>
           <div className="sub-i">
             <span className="sub-n">
-              {backup.preMigration ? 'Перед миграцией' : backup.name.replace('.json', '')}
+              {backup.preReset
+                ? 'Перед сбросом'
+                : backup.preMigration
+                  ? 'Перед миграцией'
+                  : backup.name.replace('.json', '')}
               <span className="sub-d">{Math.round(backup.size / 1024)} КБ</span>
             </span>
             <button className="sub-more" style={{ width: 'auto' }} onClick={() => setConfirm(backup.path)}>
@@ -308,6 +338,77 @@ function BackupsSheet({
       {message && <p className="hint">{message}</p>}
       <p className="hint">Хранятся семь последних суточных снимков. Копия перед миграцией не удаляется.</p>
       <p className="hint">{daysWord(7)} истории — этого хватает на «вчера что-то сломал, хочу как было».</p>
+    </Sheet>
+  );
+}
+
+/**
+ * Сброс всех данных (3.8). Двухшаговый: первая кнопка объясняет, что
+ * пропадёт, вторая — красная — стирает. Перед стиранием снимается снимок
+ * «Перед сбросом» вне ротации: передумать можно и через месяц.
+ */
+function ResetSheet({ open, onClose }: { open: boolean; onClose(): void }): JSX.Element {
+  const resetAll = useBudget((s) => s.resetAll);
+  const { setOnboarding } = useUi();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setConfirm(false);
+    setBusy(false);
+    setMessage(null);
+  }, [open]);
+
+  const reset = async (): Promise<void> => {
+    setBusy(true);
+    const error = await resetAll();
+    setBusy(false);
+    if (error !== null) {
+      setMessage(`Не получилось: ${error}. Данные не тронуты.`);
+      return;
+    }
+    // Выбранный месяц и экран от прежнего документа к новому не относятся
+    useUi.setState({ month: null, screen: 'home' });
+    onClose();
+    setOnboarding(true);
+  };
+
+  return (
+    <Sheet open={open} title="Сбросить всё" onClose={onClose}>
+      <p className="card-p">
+        Удалится вся история: траты и доходы, постоянные платежи, копилки, цель по накоплению,
+        свои категории и стартовая сумма. Приложение начнётся с первого запуска.
+      </p>
+      <p className="hint">
+        Тема и цвета останутся — это оформление, а не учёт. Перед сбросом снимается копия
+        «Перед сбросом»: её можно вернуть в «Восстановление из снимка», она не удаляется
+        через неделю, как суточные.
+      </p>
+
+      {confirm ? (
+        <>
+          <p className="hint">Точно? Текущие данные исчезнут с экрана сразу.</p>
+          <button
+            className="save"
+            style={{ background: 'var(--alarm)' }}
+            disabled={busy}
+            onClick={() => void reset()}
+          >
+            {busy ? 'Стираю…' : 'Да, стереть всё'}
+          </button>
+          <button className="sub-more" style={{ marginTop: 10 }} onClick={() => setConfirm(false)}>
+            Нет, оставить как есть
+          </button>
+        </>
+      ) : (
+        <button className="save" style={{ background: 'var(--alarm)' }} onClick={() => setConfirm(true)}>
+          Сбросить
+        </button>
+      )}
+
+      {message && <p className="hint">{message}</p>}
     </Sheet>
   );
 }

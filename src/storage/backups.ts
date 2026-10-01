@@ -12,6 +12,8 @@ import {
   dailyBackupPath,
   isDailyBackup,
   isPreMigrationBackup,
+  isPreResetBackup,
+  PRE_RESET_PATH,
   preMigrationPath,
 } from './paths';
 
@@ -23,6 +25,8 @@ export interface BackupInfo {
   /** Размер в символах — столько показывает список восстановления */
   size: number;
   preMigration: boolean;
+  /** Снимок перед сбросом всех данных — вне ротации, хранится последний */
+  preReset: boolean;
 }
 
 /**
@@ -50,6 +54,15 @@ export async function preMigrationBackup(files: FileAccess, version: number): Pr
   await files.write(preMigrationPath(version), current);
 }
 
+/** Снимок перед сбросом. Перезаписывает предыдущий такой же. */
+export async function preResetBackup(files: FileAccess): Promise<boolean> {
+  const current = await files.read(DATA_FILE);
+  if (current === null) return false;
+  await files.mkdir(BACKUP_DIR);
+  await files.write(PRE_RESET_PATH, current);
+  return true;
+}
+
 /** Хранятся семь последних суточных, старые удаляются. */
 export async function rotate(files: FileAccess): Promise<string[]> {
   const names = await files.list(BACKUP_DIR);
@@ -64,11 +77,17 @@ export async function listBackups(files: FileAccess): Promise<BackupInfo[]> {
   const names = await files.list(BACKUP_DIR);
   const out: BackupInfo[] = [];
   for (const name of names) {
-    if (!isDailyBackup(name) && !isPreMigrationBackup(name)) continue;
+    if (!isDailyBackup(name) && !isPreMigrationBackup(name) && !isPreResetBackup(name)) continue;
     const path = `${BACKUP_DIR}/${name}`;
     const content = await files.read(path);
     if (content === null) continue;
-    out.push({ name, path, size: content.length, preMigration: isPreMigrationBackup(name) });
+    out.push({
+      name,
+      path,
+      size: content.length,
+      preMigration: isPreMigrationBackup(name),
+      preReset: isPreResetBackup(name),
+    });
   }
   return out.sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0));
 }

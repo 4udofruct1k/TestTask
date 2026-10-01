@@ -53,6 +53,12 @@ interface BudgetState {
 
   init(repository: BudgetRepository): Promise<void>;
   startFresh(): void;
+  /**
+   * Сброс всех данных: снимок текущего состояния вне ротации, затем пустой
+   * документ на диск. Тема и цвета не трогаются — это оформление, а не учёт.
+   * Возвращает сообщение об ошибке записи или null.
+   */
+  resetAll(): Promise<string | null>;
 
   addExpense(input: {
     date: DateStr;
@@ -194,6 +200,19 @@ export const useBudget = create<BudgetState>()((set, get) => {
       const doc = createInitialDocument(monthKeyOf(today), nowIso(), makeId);
       set({ status: 'ready', doc, journal: [], error: null });
       repo?.scheduleSave(doc);
+    },
+
+    async resetAll() {
+      const today = get().today;
+      const doc = createInitialDocument(monthKeyOf(today), nowIso(), makeId);
+      if (repo) {
+        const written = await repo.reset(doc);
+        // Не записалось — состояние не трогаем: экран не должен показывать
+        // пустоту, когда в файле лежат старые данные
+        if (!written.ok) return written.message;
+      }
+      set({ status: 'ready', doc, journal: [], error: null, restoredFrom: null, undoEntry: null });
+      return null;
     },
 
     // ------------------------------------------------------------ операции
