@@ -13,6 +13,7 @@ import { activeAmountPeriod, fixedBlock, incomeExpenses, monthSummary, resolveFi
 import { useBudget } from '../../store/budget';
 import { Sheet } from '../components/Sheet';
 import { AmountChoiceSheet } from '../components/AmountChoiceSheet';
+import { DueDayControl } from '../components/DueDayControl';
 import { dayTitle, monthTitleLower } from '../format';
 import { FixedItemForm } from './FixedItemForm';
 
@@ -28,6 +29,7 @@ export function IncomeSheet({ open, month, onClose }: Props): JSX.Element {
   const changeFixedAmount = useBudget((s) => s.changeFixedAmount);
   const correctFixedAmount = useBudget((s) => s.correctFixedAmount);
   const setFixedTaxPercent = useBudget((s) => s.setFixedTaxPercent);
+  const setFixedDueDay = useBudget((s) => s.setFixedDueDay);
 
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -52,10 +54,11 @@ export function IncomeSheet({ open, month, onClose }: Props): JSX.Element {
 
         {income.length === 0 && (
           <p className="hint">
-            Постоянного дохода пока нет. Заведите зарплату — она считается одной суммой на месяц,
-            дат внутри месяца у неё не бывает.
+            Постоянного дохода пока нет. Заведите зарплату — она считается суммой на месяц,
+            а число говорит, когда эта сумма приходит.
           </p>
         )}
+
 
         {income.map((item) => {
           const source = doc.fixedItems.find((f) => f.id === item.itemId);
@@ -83,6 +86,15 @@ export function IncomeSheet({ open, month, onClose }: Props): JSX.Element {
                 percent={source?.taxPercent ?? null}
                 onChange={(value) => setFixedTaxPercent(item.itemId, value)}
               />
+
+              {editable && (
+                <DueDayControl
+                  id={item.itemId}
+                  day={source?.dueDay ?? null}
+                  hint="Какого числа приходит. На сумму месяца не влияет — видно, пришло уже или ещё нет."
+                  onChange={(value) => setFixedDueDay(item.itemId, value)}
+                />
+              )}
 
               {editable && (
                 <button className="link" style={{ marginTop: 10 }} onClick={() => setEditing(item.itemId)}>
@@ -114,6 +126,12 @@ export function IncomeSheet({ open, month, onClose }: Props): JSX.Element {
             </p>
           </>
         )}
+
+        <p className="hint">
+          Зарплата приходит двумя частями? Заведите две позиции — «аванс» и «остаток»: у каждой
+          своя сумма и своё число. Так аванс 20-го и остаток 5-го встанут на свои места,
+          а месяц всё равно получит обе.
+        </p>
 
         <button className="save" onClick={() => setAdding(true)}>
           Добавить постоянный доход

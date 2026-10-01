@@ -20,6 +20,8 @@ export interface ResolvedFixed {
   overridden: boolean;
   /** mode === 'SPREAD': доля годового платежа, а не отдельные деньги */
   isReserve: boolean;
+  /** Число месяца, если задано. На сумму не влияет, отвечает за «уже или ещё» (1.4) */
+  dueDay?: number;
 }
 
 export interface FixedBlock {
@@ -126,6 +128,7 @@ export function resolveFixed(doc: BudgetDocument, month: MonthKey): ResolvedFixe
       tax,
       overridden: override !== undefined,
       isReserve: item.mode === 'SPREAD',
+      ...(item.dueDay !== undefined ? { dueDay: item.dueDay } : {}),
     });
   }
 

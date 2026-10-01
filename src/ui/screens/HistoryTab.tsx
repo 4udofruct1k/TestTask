@@ -98,7 +98,11 @@ export function HistoryTab({ month }: { month: MonthKey }): JSX.Element {
                             {item.isReserve && <span className="tag f">годовой</span>}
                           </span>
                           <span className="e-s">
-                            {item.isReserve ? 'доля годового платежа' : 'каждый месяц'}
+                            {item.isReserve
+                              ? 'доля годового платежа'
+                              : item.dueDay === undefined
+                                ? 'каждый месяц'
+                                : `каждый месяц, ${item.dueDay}-го`}
                             {item.tax > 0
                               ? ` · начислено ${formatAmount(item.gross)}, удержано ${formatAmount(item.tax)}`
                               : ''}

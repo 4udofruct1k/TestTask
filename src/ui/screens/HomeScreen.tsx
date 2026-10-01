@@ -10,6 +10,7 @@ import { formatAmount, formatRub } from '../../domain/money';
 import {
   budgetGauge,
   fixedBlock,
+  fixedProgress,
   hasEnoughHistory,
   monthForecast,
   monthSummary,
@@ -23,7 +24,7 @@ import {
 } from '../../engine';
 import { useBudget } from '../../store/budget';
 import { useUi } from '../../store/ui';
-import { dayTitle, days as daysWord, monthTitle, purchases, positions, spendings } from '../format';
+import { dayTitle, dayShort, days as daysWord, monthTitle, purchases, positions, spendings } from '../format';
 import { TopBar } from '../components/TopBar';
 import { ExpandableRow } from '../components/ExpandableRow';
 import { IncomeSheet } from './IncomeSheet';
@@ -42,6 +43,7 @@ export function HomeScreen(): JSX.Element {
   const gauge = budgetGauge(doc, month, today);
   const forecast = monthForecast(doc, month, today);
   const status = targetStatus(doc, month, today);
+  const schedule = fixedProgress(doc, month, today);
   const fixed = resolveFixed(doc, month);
 
   // Правило красного: темп пробивает потолок до цели. Цвет на экране меняют
@@ -125,7 +127,47 @@ export function HomeScreen(): JSX.Element {
             </div>
           </div>
 
-          {/* 3. До цели. Нулевая цель — сказанное вслух «не откладываю»:
+          {/* 3. Постоянные по датам. Месяц остаётся единицей учёта, но зарплата
+              первого числа ещё не пришла, и экран не должен утверждать обратное */}
+          {schedule.hasDays && (
+            <div className="card">
+              <div className="card-h">
+                <div className="card-t">Постоянные по датам</div>
+                {schedule.next && <div className="card-v">дальше {dayShort(schedule.next.date)}</div>}
+              </div>
+
+              <p className="card-p">
+                Пришло <b>{formatAmount(schedule.income.done)}</b> из{' '}
+                {formatAmount(schedule.income.total)}, оплачено{' '}
+                <b>{formatAmount(schedule.expense.done)}</b> из {formatAmount(schedule.expense.total)}.
+              </p>
+
+              {schedule.events.map((event) => (
+                <div className={`sub-i${event.done ? ' done' : ''}`} key={event.itemId}>
+                  <span className="sub-n">
+                    {event.title}
+                    <span className="sub-d">
+                      {dayShort(event.date)}
+                      {event.done ? (event.kind === 'INCOME' ? ' · пришло' : ' · оплачено') : ''}
+                    </span>
+                  </span>
+                  <span className={`sub-v${event.kind === 'INCOME' ? ' income' : ''}`}>
+                    {event.kind === 'INCOME' ? '+' : ''}
+                    {formatAmount(event.amount)}
+                  </span>
+                </div>
+              ))}
+
+              {(schedule.income.undated > 0 || schedule.expense.undated > 0) && (
+                <p className="hint">
+                  Без числа ещё {formatAmount(schedule.income.undated + schedule.expense.undated)} —
+                  такие позиции считаются за месяц целиком. Число проставляется в карточке позиции.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* 4. До цели. Нулевая цель — сказанное вслух «не откладываю»:
               ни потолка трат, ни уговоров его завести */}
           {status && status.target > 0 ? (
             <div className="card">
@@ -160,7 +202,7 @@ export function HomeScreen(): JSX.Element {
             </div>
           )}
 
-          {/* 4. Разбивка. Пустое состояние показывает, что сделать, а не нули (3.10) */}
+          {/* 5. Разбивка. Пустое состояние показывает, что сделать, а не нули (3.10) */}
           {summary.totalIncome === 0 && summary.monthCost === 0 ? (
             <div className="card">
               <div className="empty" style={{ padding: '18px 4px' }}>

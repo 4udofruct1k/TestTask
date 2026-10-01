@@ -9,6 +9,7 @@ import { activeAmountPeriod, activeSpreadPeriod, amountAt, grossAmountAt, wasAct
 import { useBudget } from '../../store/budget';
 import { Sheet } from '../components/Sheet';
 import { AmountChoiceSheet } from '../components/AmountChoiceSheet';
+import { DueDayControl } from '../components/DueDayControl';
 import { months as monthsWord, monthTitleLower } from '../format';
 
 interface Props {
@@ -23,6 +24,7 @@ export function FixedItemCard({ itemId, onClose }: Props): JSX.Element {
   const correctFixedAmount = useBudget((s) => s.correctFixedAmount);
   const eraseFixedItem = useBudget((s) => s.eraseFixedItem);
   const endFixedItem = useBudget((s) => s.endFixedItem);
+  const setFixedDueDay = useBudget((s) => s.setFixedDueDay);
 
   const [editing, setEditing] = useState(false);
   const [confirmErase, setConfirmErase] = useState(false);
@@ -90,6 +92,19 @@ export function FixedItemCard({ itemId, onClose }: Props): JSX.Element {
               <span className="sub-v">{share === null ? '—' : formatRub(share)}</span>
             </div>
           </>
+        )}
+
+        {item.mode === 'MONTHLY' && (
+          <DueDayControl
+            id={item.id}
+            day={item.dueDay ?? null}
+            hint={
+              item.kind === 'INCOME'
+                ? 'Когда приходит. На сумму месяца не влияет — видно, пришло уже или ещё нет.'
+                : 'Когда списывается. На сумму месяца не влияет — видно, оплачено уже или ещё нет.'
+            }
+            onChange={(value) => setFixedDueDay(item.id, value)}
+          />
         )}
 
         {item.endMonth && (

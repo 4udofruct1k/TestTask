@@ -183,7 +183,7 @@ describe('К3. Миграция 2→3', () => {
     expect(result.doc['goals']).toEqual([]);
     expect((result.doc['settings'] as Record<string, unknown>)['targets']).toEqual([]);
     expect(result.doc['schemaVersion']).toBe(CURRENT_SCHEMA_VERSION);
-    expect(result.applied).toEqual([3, 4]);
+    expect(result.applied).toEqual([3, 4, 5]);
   });
 
   it('суммы месяцев до и после миграции совпадают', () => {
@@ -224,7 +224,7 @@ describe('К3. Миграция 2→3', () => {
 
     const result = migrate(v1);
     if (!result.ok) throw new Error('миграция не прошла');
-    expect(result.applied).toEqual([2, 3, 4]);
+    expect(result.applied).toEqual([2, 3, 4, 5]);
 
     const items = result.doc['fixedItems'] as Record<string, unknown>[];
     // Дата внутри месяца и подтверждение уходят вместе с первой моделью
@@ -460,5 +460,36 @@ describe('запись и жизненный цикл', () => {
     const onDisk = JSON.parse(files.peek(DATA_FILE)!) as { doc: { fixedItems: unknown[] } };
     expect(onDisk.doc.fixedItems).toHaveLength(1);
     repo.dispose();
+  });
+});
+
+describe('миграция 4→5 — число месяца у постоянной позиции', () => {
+  it('документ версии 4 открывается, данные не меняются', () => {
+    const v4 = {
+      schemaVersion: 4,
+      categories: [],
+      expenses: [],
+      fixedItems: [
+        { id: 'f1', title: 'Аренда', kind: 'EXPENSE', categoryId: 'c1', mode: 'MONTHLY', amounts: [{ fromMonth: '2026-01', amount: 3500000 }] },
+      ],
+      overrides: [],
+      goals: [],
+      settings: { firstMonth: '2026-01', startingBalance: 0, targets: [], createdAt: '2026-01-01T00:00:00Z' },
+    };
+
+    const result = migrate(v4);
+    if (!result.ok) throw new Error('миграция не прошла');
+    expect(result.applied).toEqual([5]);
+    expect(result.doc['schemaVersion']).toBe(CURRENT_SCHEMA_VERSION);
+    // Числа у старых позиций нет, и это ровно прежнее поведение
+    expect((result.doc['fixedItems'] as Record<string, unknown>[])[0]!['dueDay']).toBeUndefined();
+    expect(result.doc['fixedItems']).toEqual(v4.fixedItems);
+  });
+
+  it('файл версии 6 не открывается: читать будущую схему как текущую — потерять данные', () => {
+    const result = migrate({ schemaVersion: 6 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('FROM_FUTURE');
   });
 });

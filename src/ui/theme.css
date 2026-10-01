@@ -240,6 +240,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .sub { padding: 0 16px 10px; background: var(--soft); }
 .sub-i { display: flex; align-items: baseline; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
 .sub-i:last-child { border-bottom: 0; }
+/* Случившееся по расписанию приглушено: взгляд должен цепляться за то, что впереди */
+.sub-i.done { opacity: .55; }
+.sub-v.income { color: var(--income-ink); }
 .sub-n { font-weight: 600; }
 .sub-d { color: var(--muted); font-size: 11px; margin-left: 6px; font-weight: 500; }
 .sub-v { margin-left: auto; font-weight: 700; flex: 0 0 auto; }

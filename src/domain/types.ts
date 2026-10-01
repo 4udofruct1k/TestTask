@@ -23,7 +23,7 @@ export type Kind = 'INCOME' | 'EXPENSE';
 export type Flow = 'ROUTINE' | 'ONE_OFF';
 
 /** Версия схемы документа. Растёт на единицу, см. 4.6. */
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 /** Ставка НДФЛ по умолчанию. Подставляется в переключатель, но ничего не включает. */
 export const DEFAULT_TAX_PERCENT = 13;
@@ -79,6 +79,16 @@ export interface FixedItemBase {
    * Применимо только при kind === 'INCOME'.
    */
   taxPercent?: number;
+  /**
+   * Число месяца, когда деньги приходят или списываются, 1..31.
+   * Только для mode === 'MONTHLY': у размазанного платежа дата списания
+   * живёт на периоде (payMonth и payDay).
+   *
+   * На суммы месяца не влияет — месяц остаётся единицей учёта (1.0).
+   * Число отвечает на другой вопрос: что из постоянного уже случилось,
+   * а что ещё впереди. Без него зарплата числится пришедшей первого числа.
+   */
+  dueDay?: number;
 }
 
 /** Сумма, действующая с месяца fromMonth и до следующей записи. */
@@ -105,7 +115,7 @@ export interface SpreadPeriod {
 export type FixedItemMonthly = FixedItemBase & { mode: 'MONTHLY'; amounts: AmountPeriod[] };
 export type FixedItemSpread = FixedItemBase & { mode: 'SPREAD'; spreads: SpreadPeriod[] };
 
-/** Постоянная позиция. Даты не имеет, живёт по месяцам. */
+/** Постоянная позиция. Живёт по месяцам; число месяца — только про «уже или ещё». */
 export type FixedItem = FixedItemMonthly | FixedItemSpread;
 
 // ---------------------------------------------------------------- 1.5

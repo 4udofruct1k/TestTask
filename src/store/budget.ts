@@ -72,6 +72,8 @@ interface BudgetState {
     amount: Money;
     fromMonth: MonthKey;
     note?: string;
+    /** Число месяца, 1..31. Нет — значит не задано (1.4) */
+    dueDay?: number;
   }): void;
   addFixedSpread(input: {
     title: string;
@@ -88,6 +90,8 @@ interface BudgetState {
   correctFixedAmount(id: string, fromMonth: MonthKey, amount: Money): void;
   /** Включить или снять удержание налога с позиции дохода */
   setFixedTaxPercent(id: string, percent: number | null): void;
+  /** Число месяца у помесячной позиции. null — число не задано */
+  setFixedDueDay(id: string, day: number | null): void;
   /** Пропустить платёж в одном месяце */
   skipFixedMonth(id: string, month: MonthKey): void;
   /** Разовое отклонение суммы в одном месяце */
@@ -253,6 +257,7 @@ export const useBudget = create<BudgetState>()((set, get) => {
           amounts: [{ fromMonth: input.fromMonth, amount: input.amount }],
         };
         if (input.note) item.note = input.note;
+        if (input.dueDay !== undefined) item.dueDay = input.dueDay;
         return { ...doc, fixedItems: [...doc.fixedItems, item] };
       });
     },
@@ -313,6 +318,21 @@ export const useBudget = create<BudgetState>()((set, get) => {
           return { ...item, taxPercent: percent };
         }),
       );
+    },
+
+    setFixedDueDay(id, day) {
+      patchDoc((doc) => ({
+        ...doc,
+        fixedItems: doc.fixedItems.map((item) => {
+          if (item.id !== id) return item;
+          const next = { ...item };
+          // Число живёт только у помесячной позиции: у годового платежа
+          // дата списания задаётся периодом (1.4)
+          if (day === null || item.mode !== 'MONTHLY') delete next.dueDay;
+          else next.dueDay = day;
+          return next;
+        }),
+      }));
     },
 
     skipFixedMonth(id, month) {

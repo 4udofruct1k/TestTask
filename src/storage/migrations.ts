@@ -20,6 +20,7 @@ export const MIGRATIONS: Record<number, Migration> = {
   1: migrate1to2,
   2: migrate2to3,
   3: migrate3to4,
+  4: migrate4to5,
 };
 
 export type MigrateResult =
@@ -171,6 +172,18 @@ function migrate2to3(doc: Raw): Raw {
  * иначе она молча покажет доход до удержания и соврёт на 13%.
  */
 function migrate3to4(doc: Raw): Raw {
+  return { ...doc };
+}
+
+/**
+ * 4 → 5. Число месяца у постоянной позиции.
+ *
+ * Преобразовывать нечего: поля dueDay в старых документах нет, а его
+ * отсутствие и означает «число не задано», ровно как было. Миграция
+ * существует ради версии: старая сборка, открыв новый файл, молча
+ * потеряла бы проставленные числа при первой же записи.
+ */
+function migrate4to5(doc: Raw): Raw {
   return { ...doc };
 }
 

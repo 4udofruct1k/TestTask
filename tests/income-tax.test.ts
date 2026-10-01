@@ -166,7 +166,7 @@ describe('миграция 3→4', () => {
     const result = migrate(v3);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.applied).toEqual([4]);
+    expect(result.applied).toEqual([4, 5]);
     expect(result.doc['schemaVersion']).toBe(CURRENT_SCHEMA_VERSION);
 
     const validated = validateDocument(result.doc);

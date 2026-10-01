@@ -62,6 +62,11 @@ export function dayTitle(date: DateStr): string {
   return `${dayOfMonth(date)} ${MONTHS_GENITIVE[monthOf(monthKeyOf(date)) - 1]}`;
 }
 
+/** "2026-10-05" → "5 окт" — короткая дата для расписания постоянных (3.2) */
+export function dayShort(date: DateStr): string {
+  return `${dayOfMonth(date)} ${MONTHS_SHORT[monthOf(monthKeyOf(date)) - 1] ?? ''}`;
+}
+
 /** "2026-03" → "марта 2026" — родительный падеж, для фраз «с ...» */
 export function monthGenitive(month: MonthKey): string {
   return `${MONTHS_GENITIVE[monthOf(month) - 1]} ${yearOf(month)}`;

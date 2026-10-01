@@ -56,6 +56,7 @@ export type FixCode =
   | 'DROPPED_PAY_DAY'
   | 'DROPPED_PAY_MONTH'
   | 'DROPPED_TAX_PERCENT'
+  | 'DROPPED_DUE_DAY'
   | 'FIXED_KIND_FROM_CATEGORY'
   | 'DEDUPED_OVERRIDE'
   | 'DROPPED_ORPHAN_OVERRIDE'
@@ -358,7 +359,22 @@ export function validateDocument(
       endMonth?: string;
       note?: string;
       taxPercent?: number;
+      dueDay?: number;
     };
+
+    // Число месяца: только у помесячной позиции и только 1..31. У размазанного
+    // платежа своя дата списания на периоде, второе поле означало бы два
+    // источника правды об одном и том же
+    const dueDay = raw['dueDay'];
+    if (dueDay !== undefined && dueDay !== null) {
+      if (mode !== 'MONTHLY') {
+        fix('DROPPED_DUE_DAY', `${path}.dueDay`, 'У годового платежа дата списания задаётся периодом, поле убрано');
+      } else if (typeof dueDay !== 'number' || !Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
+        fix('DROPPED_DUE_DAY', `${path}.dueDay`, `Число месяца вне 1..31 (${String(dueDay)}), убрано`);
+      } else {
+        base.dueDay = dueDay;
+      }
+    }
 
     // Удержание применимо только к доходу и только целыми процентами.
     // Кривое значение убирается: отсутствие поля означает «вычета нет»,

@@ -475,3 +475,55 @@ describe('нулевая цель по накоплению', () => {
     expectFatal(doc, 'FRACTIONAL_AMOUNT');
   });
 });
+
+describe('число месяца у постоянной позиции', () => {
+  function docWithFixed(extra: Record<string, unknown>) {
+    const doc = emptyDoc() as unknown as Record<string, unknown>;
+    doc['fixedItems'] = [
+      {
+        id: 'f1',
+        title: 'Аренда',
+        kind: 'EXPENSE',
+        categoryId: 'c-home',
+        mode: 'MONTHLY',
+        amounts: [{ fromMonth: '2026-01', amount: R(35000) }],
+        ...extra,
+      },
+    ];
+    return doc;
+  }
+
+  it('целое 1..31 сохраняется', () => {
+    const res = validateDocument(docWithFixed({ dueDay: 10 }));
+    expect(res.fatal).toEqual([]);
+    expect(res.doc!.fixedItems[0]!.dueDay).toBe(10);
+  });
+
+  it('вне диапазона — чинимая ошибка, позиция остаётся', () => {
+    const res = expectFix(docWithFixed({ dueDay: 32 }), 'DROPPED_DUE_DAY');
+    expect(res.doc!.fixedItems[0]!.dueDay).toBeUndefined();
+    expect(res.doc!.fixedItems).toHaveLength(1);
+  });
+
+  it('дробное число не проходит', () => {
+    const res = expectFix(docWithFixed({ dueDay: 10.5 }), 'DROPPED_DUE_DAY');
+    expect(res.doc!.fixedItems[0]!.dueDay).toBeUndefined();
+  });
+
+  it('у годового платежа число убирается: там дата живёт на периоде', () => {
+    const doc = emptyDoc() as unknown as Record<string, unknown>;
+    doc['fixedItems'] = [
+      {
+        id: 'f2',
+        title: 'Страховка',
+        kind: 'EXPENSE',
+        categoryId: 'c-home',
+        mode: 'SPREAD',
+        spreads: [{ fromMonth: '2026-01', totalAmount: R(12000), months: 12, payDay: 14 }],
+        dueDay: 14,
+      },
+    ];
+    const res = expectFix(doc, 'DROPPED_DUE_DAY');
+    expect(res.doc!.fixedItems[0]!.dueDay).toBeUndefined();
+  });
+});

@@ -16,6 +16,7 @@ export * from './forecast';
 export * from './target';
 export * from './gauge';
 export * from './goals';
+export * from './schedule';
 export * from './calendar';
 export * from './oneoff';
 export * from './runway';

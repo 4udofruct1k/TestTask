@@ -41,6 +41,7 @@ export function FixedItemForm({ open, mode, initialKind = 'EXPENSE', onClose }: 
   const [customMonths, setCustomMonths] = useState('');
   const [payMonth, setPayMonth] = useState<MonthKey>(month);
   const [payDay, setPayDay] = useState('');
+  const [dueDay, setDueDay] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -53,16 +54,27 @@ export function FixedItemForm({ open, mode, initialKind = 'EXPENSE', onClose }: 
     setCustomMonths('');
     setPayMonth(month);
     setPayDay('');
+    setDueDay('');
   }, [open, month, initialKind]);
 
   const categories = doc.categories.filter((c) => !c.archived && (mode === 'SPREAD' ? c.kind === 'EXPENSE' : c.kind === kind));
   const amount = parseAmount(raw);
   const valid = title.trim() !== '' && categoryId !== '' && amount !== null && amount > 0 && (mode === 'MONTHLY' || months >= 2);
 
+  const due = Number(dueDay);
+  const dueValid = dueDay.trim() !== '' && Number.isInteger(due) && due >= 1 && due <= 31;
+
   const submit = (): void => {
     if (!valid || amount === null) return;
     if (mode === 'MONTHLY') {
-      addFixedMonthly({ title: title.trim(), kind, categoryId, amount, fromMonth });
+      addFixedMonthly({
+        title: title.trim(),
+        kind,
+        categoryId,
+        amount,
+        fromMonth,
+        ...(dueValid ? { dueDay: due } : {}),
+      });
     } else {
       addFixedSpread({
         title: title.trim(),
@@ -170,6 +182,24 @@ export function FixedItemForm({ open, mode, initialKind = 'EXPENSE', onClose }: 
             <input id="fpayday" inputMode="numeric" value={payDay} placeholder="1..31" onChange={(e) => setPayDay(e.target.value)} />
           </div>
         </>
+      )}
+
+      {mode === 'MONTHLY' && (
+        <div className="field">
+          <label htmlFor="fdue">Число месяца, если знаете</label>
+          <input
+            id="fdue"
+            inputMode="numeric"
+            value={dueDay}
+            placeholder="1..31"
+            onChange={(e) => setDueDay(e.target.value)}
+          />
+          <p className="hint">
+            {kind === 'INCOME'
+              ? 'Когда приходит. На сумму месяца не влияет — видно, пришло уже или ещё нет.'
+              : 'Когда списывается. На сумму месяца не влияет — видно, оплачено уже или ещё нет.'}
+          </p>
+        </div>
       )}
 
       <div className="field">
