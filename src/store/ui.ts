@@ -7,7 +7,31 @@ import { create } from 'zustand';
 import type { MonthKey } from '../domain/types';
 import { applyPalette, DEFAULT_PALETTE, loadPalette, savePalette, type Palette, type PaletteRole } from '../ui/palette';
 
-export type Screen = 'home' | 'expenses' | 'savings' | 'dashboards' | 'dashboard' | 'calendar' | 'settings';
+/** Разделы бюджета. Остальные экраны — общие разделы дома и главная с плитками */
+export type BudgetScreen = 'home' | 'expenses' | 'savings' | 'dashboards' | 'dashboard' | 'calendar' | 'settings';
+export type Screen = 'hub' | 'shop' | 'cook' | 'food' | 'household' | BudgetScreen;
+
+const BUDGET_SCREENS: readonly Screen[] = ['home', 'expenses', 'savings', 'dashboards', 'dashboard', 'calendar', 'settings'];
+export const isBudgetScreen = (screen: Screen): screen is BudgetScreen => BUDGET_SCREENS.includes(screen);
+
+/** Куда ведёт «Назад». null — дальше некуда, главная с плитками */
+export function parentOf(screen: Screen): Screen | null {
+  switch (screen) {
+    case 'hub':
+      return null;
+    case 'dashboard':
+      return 'dashboards';
+    case 'calendar':
+      return 'expenses';
+    case 'expenses':
+    case 'savings':
+    case 'dashboards':
+    case 'settings':
+      return 'home';
+    default:
+      return 'hub';
+  }
+}
 export type ExpensesTab = 'add' | 'history';
 export type HistoryFilter = 'all' | 'fixed' | 'routine' | 'oneOff';
 export type Theme = 'light' | 'dark';
@@ -41,6 +65,8 @@ interface UiState {
   onboarding: boolean;
 
   go(screen: Screen): void;
+  /** Системная «Назад»: закрыть меню или подняться на уровень. false — уже на главной */
+  back(): boolean;
   openDashboard(id: string): void;
   setDrawer(open: boolean): void;
   setTab(tab: ExpensesTab): void;
@@ -54,7 +80,7 @@ interface UiState {
 }
 
 export const useUi = create<UiState>()((set, get) => ({
-  screen: 'home',
+  screen: 'hub',
   dashboardId: null,
   drawerOpen: false,
   tab: 'add',
@@ -65,6 +91,17 @@ export const useUi = create<UiState>()((set, get) => ({
   onboarding: false,
 
   go: (screen) => set({ screen, drawerOpen: false }),
+  back: () => {
+    const { drawerOpen, screen } = get();
+    if (drawerOpen) {
+      set({ drawerOpen: false });
+      return true;
+    }
+    const parent = parentOf(screen);
+    if (parent === null) return false;
+    set({ screen: parent });
+    return true;
+  },
   openDashboard: (dashboardId) => set({ screen: 'dashboard', dashboardId, drawerOpen: false }),
   setDrawer: (drawerOpen) => set({ drawerOpen }),
   setTab: (tab) => set({ tab }),

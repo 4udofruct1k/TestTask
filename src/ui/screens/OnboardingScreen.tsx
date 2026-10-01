@@ -7,6 +7,7 @@ import { useState, type JSX } from 'react';
 import { monthKeyOf } from '../../domain/dates';
 import { formatRub, parseAmount } from '../../domain/money';
 import { useBudget } from '../../store/budget';
+import { IconBack } from '../icons';
 
 /** Пресеты постоянных платежей — считать самому не нужно. */
 const PRESETS = ['Аренда', 'Связь', 'Интернет', 'Подписки', 'Спортзал'];
@@ -14,10 +15,12 @@ const PRESETS = ['Аренда', 'Связь', 'Интернет', 'Подпис
 interface Props {
   /** Онбординг вызван из настроек, документ уже есть */
   repeat?: boolean;
+  /** Выйти, ничего не создавая: бюджет открыли случайно, с главной с плитками */
+  onExit?: () => void;
   onDone(): void;
 }
 
-export function OnboardingScreen({ repeat, onDone }: Props): JSX.Element {
+export function OnboardingScreen({ repeat, onExit, onDone }: Props): JSX.Element {
   const startFresh = useBudget((s) => s.startFresh);
   const addFixedMonthly = useBudget((s) => s.addFixedMonthly);
   const setMonthlyTarget = useBudget((s) => s.setMonthlyTarget);
@@ -88,7 +91,12 @@ export function OnboardingScreen({ repeat, onDone }: Props): JSX.Element {
   return (
     <section className="pane">
       <div className="bar">
-        <div className="bar-title">{repeat ? 'Заполнить заново' : 'Настроим за минуту'}</div>
+        {onExit && (
+          <button className="icbtn" aria-label="Назад" onClick={onExit}>
+            <IconBack />
+          </button>
+        )}
+        <div className="bar-title">{repeat ? 'Заполнить заново' : 'Настроим бюджет за минуту'}</div>
         <div className="bar-sub">Шаг {step + 1} из 3</div>
       </div>
 

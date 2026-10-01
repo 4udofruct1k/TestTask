@@ -296,6 +296,7 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   visibility: hidden; pointer-events: none;
 }
 .drawer.on { transform: translateX(0); visibility: visible; pointer-events: auto; }
+.nav-hub { margin-bottom: 14px; }
 .drawer-h { font-size: 12px; font-weight: 600; color: #71847A; padding: 0 10px 14px; }
 .nav {
   display: flex; align-items: center; gap: 13px; padding: 12px; border-radius: var(--r-row);

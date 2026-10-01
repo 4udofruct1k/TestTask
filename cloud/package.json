@@ -1,0 +1,7 @@
+{
+  "name": "household-function",
+  "private": true,
+  "description": "Облачная функция «Дома на двоих» для Yandex Cloud Functions. Собирается из корня: npm run build:cloud",
+  "type": "commonjs",
+  "main": "dist/index.js"
+}

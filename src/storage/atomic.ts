@@ -12,15 +12,27 @@ import { DATA_FILE, TMP_FILE } from './paths';
 
 export type WriteResult = { ok: true } | { ok: false; message: string };
 
-export async function atomicWrite(files: FileAccess, data: string): Promise<WriteResult> {
+/** Пара «основной файл и его временный». По умолчанию — документ бюджета. */
+export interface AtomicTarget {
+  file: string;
+  tmp: string;
+}
+
+const BUDGET_TARGET: AtomicTarget = { file: DATA_FILE, tmp: TMP_FILE };
+
+export async function atomicWrite(
+  files: FileAccess,
+  data: string,
+  { file, tmp }: AtomicTarget = BUDGET_TARGET,
+): Promise<WriteResult> {
   try {
     // 2. записать во временный
-    await files.write(TMP_FILE, data);
+    await files.write(tmp, data);
 
     // 3. прочитать обратно и сверить длину — файл маленький, проверка дешёвая
-    const readBack = await files.read(TMP_FILE);
+    const readBack = await files.read(tmp);
     if (readBack === null || readBack.length !== data.length) {
-      await files.remove(TMP_FILE).catch(() => undefined);
+      await files.remove(tmp).catch(() => undefined);
       return {
         ok: false,
         message: `Запись не подтвердилась: ожидалось ${data.length} символов, прочитано ${readBack?.length ?? 0}`,
@@ -28,18 +40,18 @@ export async function atomicWrite(files: FileAccess, data: string): Promise<Writ
     }
 
     // 4. переименование в пределах одной файловой системы атомарно
-    await files.rename(TMP_FILE, DATA_FILE);
+    await files.rename(tmp, file);
     return { ok: true };
   } catch (error) {
-    await files.remove(TMP_FILE).catch(() => undefined);
+    await files.remove(tmp).catch(() => undefined);
     return { ok: false, message: error instanceof Error ? error.message : 'Ошибка записи' };
   }
 }
 
 /** Недописанный временный файл с прошлого запуска — мусор, его удаляют при старте. */
-export async function dropStaleTmp(files: FileAccess): Promise<boolean> {
-  const stale = await files.read(TMP_FILE);
+export async function dropStaleTmp(files: FileAccess, tmp: string = TMP_FILE): Promise<boolean> {
+  const stale = await files.read(tmp);
   if (stale === null) return false;
-  await files.remove(TMP_FILE);
+  await files.remove(tmp);
   return true;
 }

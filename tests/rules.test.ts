@@ -126,3 +126,26 @@ describe('закрытые шторки не показываются краем
     }
   });
 });
+
+/**
+ * Общие данные считаются одним и тем же кодом в телефоне и в облачной
+ * функции. Поэтому в src/household нет ни часов, ни файлов, ни экрана.
+ */
+describe('правило 5 — общие данные собираются и для облака', () => {
+  const files = sources('src/household');
+
+  it('файлы найдены', () => {
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  files.forEach((file) => {
+    it(file, () => {
+      const code = stripComments(read(file));
+      expect(code).not.toMatch(/new\s+Date\b/);
+      expect(code).not.toMatch(/\bDate\.(now|parse|UTC)\b/);
+      for (const source of importsOf(file)) {
+        expect(source).not.toMatch(/(^|\/)(ui|storage|store|platform|engine|domain)(\/|$)|^react|^@capacitor/);
+      }
+    });
+  });
+});

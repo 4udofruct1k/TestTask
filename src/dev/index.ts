@@ -1,20 +1,21 @@
 /** Подключение режима разработки. В сборке для телефона не вызывается. */
 
 import { serialize, wrap, type FileAccess } from '../storage';
-import { DATA_FILE, BACKUP_DIR } from '../storage/paths';
+import { DATA_FILE, BACKUP_DIR, HOUSEHOLD_FILE } from '../storage/paths';
 import { APP_VERSION } from '../version';
 import { nowIso, todayString } from '../ui/clock';
 import { seedDocument } from './seed';
 
 /**
  * ?demo — положить подставной документ на полгода истории.
- * ?fresh — стереть всё и посмотреть первый запуск.
+ * ?fresh — стереть всё, вместе с общими данными дома, и посмотреть первый запуск.
  */
 export async function applyDevFlags(files: FileAccess): Promise<void> {
   const params = new URLSearchParams(location.search);
 
   if (params.has('fresh')) {
     await files.remove(DATA_FILE);
+    await files.remove(HOUSEHOLD_FILE);
     for (const name of await files.list(BACKUP_DIR)) await files.remove(`${BACKUP_DIR}/${name}`);
     return;
   }

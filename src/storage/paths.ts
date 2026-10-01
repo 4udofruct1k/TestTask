@@ -4,6 +4,10 @@ export const DATA_FILE = 'budget.json';
 export const TMP_FILE = 'budget.tmp';
 export const BACKUP_DIR = 'backups';
 
+/** Общие данные дома: последнее состояние облака и очередь своих изменений. */
+export const HOUSEHOLD_FILE = 'household.json';
+export const HOUSEHOLD_TMP = 'household.tmp';
+
 /** Суточный снимок. Участвует в ротации семи. */
 export const dailyBackupPath = (day: string): string => `${BACKUP_DIR}/${day}.json`;
 

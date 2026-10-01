@@ -7,3 +7,4 @@ export * from './migrations';
 export * from './repository';
 export * from './browser-files';
 export * from './capacitor-files';
+export * from './household-files';

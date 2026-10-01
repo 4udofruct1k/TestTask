@@ -1,0 +1,312 @@
+/* Общие разделы дома: главная с плитками, Покупки, Готовка, Питание.
+   Нейтрали, шрифт и тёмная тема — из theme.css: это одно приложение.
+   Свои здесь только цвета плиток и блюд. Классы с приставкой h-,
+   чтобы не задеть экраны бюджета. */
+
+:root {
+  --shop-a: #FFD54F;
+  --shop-b: #F6A623;
+  --shop-ink: #2A1E05;
+  --cook-a: #F08467;
+  --cook-b: #C64F45;
+  --food-a: #4F8FC9;
+  --food-b: #275579;
+
+  --dish-curry: #C08A10;
+  --dish-ragu: #4A7D42;
+  --dish-shrimp: #C9544F;
+  --dish-trout: #2C5A7C;
+  --dish-beef: #7A4B2E;
+
+  --h-ok: #2B8A55;
+  --h-warn: #B67A08;
+  --h-accent-soft: rgba(28, 107, 255, .10);
+}
+
+:root[data-theme='dark'] {
+  --dish-curry: #E0AE3A;
+  --dish-ragu: #7DB26F;
+  --dish-shrimp: #E47C77;
+  --dish-trout: #6FA0C8;
+  --dish-beef: #C98E68;
+
+  --h-ok: #5FC08A;
+  --h-warn: #E0AE3A;
+  --h-accent-soft: rgba(92, 149, 255, .16);
+}
+
+.h-pane { font-variant-numeric: tabular-nums; }
+.h-body { padding: 0 16px 28px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ------------------------------------------------------------ шапки */
+
+.h-bar { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; flex: 0 0 auto; }
+.h-bar h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+.h-sub { margin-left: auto; color: var(--muted); font-size: 13px; text-align: right; }
+.h-back, .h-icon {
+  width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--card);
+  display: grid; place-items: center; cursor: pointer; flex: 0 0 auto; color: inherit; padding: 0;
+}
+.h-back:active, .h-icon:active { background: var(--soft2); }
+
+.h-hello { display: flex; align-items: center; gap: 8px; padding: 20px 0 4px; }
+.h-hello > div { flex: 1; min-width: 0; }
+.h-hello small { display: block; color: var(--muted); font-size: 13px; font-weight: 500; }
+.h-hello h1 { margin: 2px 0 0; font-size: 26px; font-weight: 900; letter-spacing: -.8px; }
+
+/* ------------------------------------------------------------ плитки */
+
+.h-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.h-tile {
+  position: relative; overflow: hidden; border: 0; text-align: left; cursor: pointer; font: inherit;
+  border-radius: 22px; padding: 14px 13px 13px; min-height: 132px; color: #fff;
+  display: flex; flex-direction: column; gap: 4px; transition: transform .12s ease;
+}
+.h-tile:active { transform: scale(.98); }
+.h-tile .t { font-size: 15px; font-weight: 800; letter-spacing: -.2px; position: relative; }
+.h-tile .s { font-size: 11.5px; font-weight: 500; opacity: .92; line-height: 1.3; position: relative; max-width: 100%; }
+.h-tile .s .line { display: block; }
+.h-tile .pic {
+  position: absolute; right: -6px; bottom: -8px; font-size: 44px; line-height: 1;
+  transform: rotate(-12deg); pointer-events: none;
+}
+.h-tile.money { background: linear-gradient(150deg, var(--green-b), var(--green-a)); }
+.h-tile.cook { background: linear-gradient(150deg, var(--cook-b), var(--cook-a)); }
+.h-tile.food { background: linear-gradient(150deg, var(--food-b), var(--food-a)); }
+
+.h-tile.big {
+  grid-column: 1 / -1; min-height: 188px; border-radius: var(--r-hero); padding: 20px 20px 18px;
+  background: linear-gradient(140deg, var(--shop-a), var(--shop-b)); color: var(--shop-ink); gap: 6px;
+}
+.h-tile.big .t { font-size: 28px; font-weight: 900; letter-spacing: -.9px; }
+.h-tile.big .s { font-size: 13.5px; opacity: .85; max-width: 75%; }
+.h-tile.big .pic { font-size: 84px; right: 6px; bottom: 6px; transform: rotate(8deg); }
+.h-tile.big .peek { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; position: relative; max-width: 78%; }
+.h-tile.big .peek span { background: rgba(255, 255, 255, .55); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; font-weight: 600; }
+.h-tile.big .h-total { position: absolute; right: 20px; top: 20px; font-size: 15px; font-weight: 800; }
+
+.h-sync {
+  background: var(--card); border-radius: var(--r-card); padding: 13px 14px; border: 1px solid var(--line);
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center;
+  font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%;
+}
+.h-sync b { font-size: 13.5px; }
+.h-sync > span:last-child { grid-column: 2; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.h-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--h-ok); flex: 0 0 auto; }
+.h-dot.wait { background: var(--h-warn); }
+.h-dot.err { background: var(--alarm); }
+
+/* ------------------------------------------------------------ общие блоки */
+
+.h-card { background: var(--card); border-radius: var(--r-card); padding: 16px; border: 1px solid var(--line); min-width: 0; }
+.h-stack { display: flex; flex-direction: column; gap: 12px; }
+.h-label { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.h-note { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin: 0; }
+.h-note.pad { padding: 8px 2px 0; }
+.h-note.top { margin-top: 8px; }
+.h-who { display: flex; flex-direction: column; gap: 10px; }
+.h-who b { font-size: 17px; font-weight: 800; }
+.h-status { display: flex; align-items: center; gap: 10px; }
+.h-status b { font-size: 14px; }
+
+.h-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.h-day {
+  border: 1px solid var(--line); background: var(--card); border-radius: 13px; padding: 8px 0 7px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; font: inherit; color: inherit;
+}
+.h-day b { font-size: 13px; font-weight: 700; }
+.h-day i { width: 18px; height: 4px; border-radius: 2px; background: var(--dish); }
+.h-day.off i { opacity: .3; }
+/* Сегодня — серой заливкой, без подписи: подпись не влезает в узкую ячейку */
+.h-day.is-today { background: var(--line); }
+.h-day[aria-pressed='true'] { border-color: var(--dish); box-shadow: 0 0 0 1px var(--dish) inset; }
+
+.h-seg { display: flex; background: var(--soft2); border-radius: 15px; padding: 4px; gap: 4px; border: 1px solid var(--line); }
+.h-seg button {
+  flex: 1; border: 0; border-radius: 11px; padding: 10px 6px; background: transparent; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--muted);
+}
+.h-seg button[aria-pressed='true'] { background: var(--ink); color: var(--paper); }
+
+/* ------------------------------------------------------------ продукты-фишки */
+
+.h-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 7px; }
+.h-chips.top { margin-top: 10px; }
+.h-chip { display: flex; align-items: center; gap: 9px; background: var(--soft2); border-radius: 14px; padding: 7px 10px 7px 7px; min-width: 0; }
+.h-chip .h-e {
+  width: 34px; height: 34px; border-radius: 11px; background: var(--card);
+  display: grid; place-items: center; font-size: 19px; flex: 0 0 auto;
+}
+.h-chip .tx { min-width: 0; display: flex; flex-direction: column; }
+.h-chip .tx b { font-size: 13px; font-weight: 600; line-height: 1.2; overflow-wrap: break-word; hyphens: auto; }
+.h-chip .tx small { font-size: 12px; color: var(--muted); line-height: 1.25; overflow-wrap: break-word; hyphens: auto; }
+.h-chip .tx .amt { font-weight: 700; color: var(--ink); font-size: 12.5px; }
+.h-chip.wide { grid-column: 1 / -1; }
+.h-chip.muted { opacity: .6; }
+.h-group { display: flex; flex-direction: column; gap: 6px; }
+.h-group-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+
+/* ------------------------------------------------------------ питание */
+
+.h-meal { display: flex; flex-direction: column; gap: 10px; }
+.h-meal-h { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px; }
+.h-meal-h strong { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+.h-meal-h .dish { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+.h-meal-h .kc { font-size: 13px; font-weight: 700; }
+.h-fresh {
+  display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--h-ok);
+  background: color-mix(in srgb, var(--h-ok) 12%, transparent); padding: 2px 7px; border-radius: 999px; vertical-align: 2px;
+}
+.h-macros { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+.h-macros b { color: var(--ink); font-weight: 700; }
+
+.h-daysum { display: grid; gap: 10px; }
+.h-daysum .big { display: flex; align-items: baseline; gap: 8px; }
+.h-daysum .big b { font-size: 30px; font-weight: 900; letter-spacing: -1px; }
+.h-daysum .big span { color: var(--muted); font-size: 13px; }
+.h-bars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.h-mbar small { display: block; font-size: 11.5px; color: var(--muted); }
+.h-mbar b { display: block; font-size: 13px; font-weight: 700; }
+.h-track { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 4px; }
+.h-track i { display: block; height: 100%; background: var(--dish, var(--blue)); border-radius: 3px; }
+
+/* ------------------------------------------------------------ готовка */
+
+.h-recipe { display: flex; flex-direction: column; gap: 12px; }
+.h-recipe h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.4px; }
+.h-recipe h2::before {
+  content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--dish); margin-right: 8px; vertical-align: 2px;
+}
+.h-recipe .when { font-size: 13px; color: var(--muted); }
+.h-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; line-height: 1.45; }
+.h-steps a { color: var(--blue); }
+.h-steps code { font-size: 12.5px; background: var(--soft2); padding: 1px 5px; border-radius: 6px; }
+.h-split { background: var(--soft2); border-radius: 14px; padding: 11px 13px; font-size: 13.5px; line-height: 1.45; }
+.h-split b { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+
+.h-btn {
+  border: 0; border-radius: 15px; padding: 13px 16px; font: inherit; font-weight: 700; cursor: pointer; width: 100%;
+  background: var(--blue); color: #fff;
+}
+.h-btn:active { background: var(--blue-press); }
+.h-btn:disabled { opacity: .5; cursor: default; }
+.h-btn.ghost { background: var(--h-accent-soft); color: var(--blue); }
+.h-btn.quiet { background: transparent; color: var(--muted); padding: 6px; font-weight: 600; font-size: 13px; }
+.h-steps .h-btn, .h-steps .h-input, .h-steps .h-code { margin-top: 8px; }
+
+.h-uses { display: flex; flex-direction: column; }
+.h-use {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr) 84px auto; gap: 10px; align-items: center;
+  padding: 9px 0; border-top: 1px solid var(--line);
+}
+.h-use:first-child { border-top: 0; }
+.h-use .h-e { width: 38px; height: 38px; border-radius: 12px; background: var(--soft2); display: grid; place-items: center; font-size: 20px; }
+.h-use .tx { min-width: 0; display: flex; flex-direction: column; }
+.h-use .tx b { font-size: 14px; font-weight: 700; }
+.h-use .tx small { font-size: 11.5px; color: var(--muted); }
+.h-use .unit, .h-editline .unit { font-weight: 700; color: var(--muted); min-width: 22px; font-size: 13px; }
+
+/* ------------------------------------------------------------ покупки */
+
+.h-shophead b { font-size: 30px; font-weight: 900; letter-spacing: -1px; display: block; }
+.h-shophead span { font-size: 13px; color: var(--muted); }
+.h-rows { display: flex; flex-direction: column; }
+.h-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  padding: 11px 0; border-top: 1px solid var(--line);
+}
+.h-row:first-child { border-top: 0; }
+.h-row .h-e { width: 42px; height: 42px; border-radius: 13px; background: var(--soft2); display: grid; place-items: center; font-size: 22px; grid-row: 1 / 3; }
+.h-row .nm { font-weight: 700; font-size: 14.5px; min-width: 0; }
+.h-row .h-tag {
+  margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  background: var(--h-accent-soft); color: var(--blue); vertical-align: 1px; white-space: nowrap;
+}
+.h-row .why { font-size: 12px; color: var(--muted); min-width: 0; }
+.h-row .qty { text-align: right; font-weight: 800; font-size: 14.5px; white-space: nowrap; }
+.h-row .act { grid-column: 3; text-align: right; }
+.h-row .act button {
+  border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer;
+  background: var(--ink); color: var(--paper);
+}
+.h-row.done .nm, .h-row.done .qty { text-decoration: line-through; color: var(--muted); }
+.h-row.done .act button, .h-row.stock .act button { background: var(--soft2); color: var(--muted); }
+.h-row.stock { padding: 8px 0; }
+.h-row.stock .h-e { width: 36px; height: 36px; font-size: 19px; }
+.h-row.partial .why { color: var(--h-warn); font-weight: 600; }
+
+.h-edit {
+  grid-column: 1 / -1; display: grid; gap: 8px; background: var(--soft2); border-radius: 16px;
+  padding: 12px; margin-top: 4px; min-width: 0;
+}
+.h-edit label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.h-edit small { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.h-editline { display: flex; gap: 8px; align-items: center; }
+/* width: 0 — иначе собственная ширина поля распирает строку и карточку вбок */
+.h-editline input, .h-use input {
+  flex: 1 1 auto; width: 0; min-width: 0; border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--card); color: var(--ink); font: inherit; font-size: 20px; font-weight: 800;
+  padding: 8px 12px; text-align: right;
+}
+.h-use input { width: 100%; font-size: 17px; padding: 7px 10px; }
+.h-editline input:focus, .h-use input:focus, .h-input:focus { outline: none; border-color: var(--blue); }
+.h-editline input[aria-invalid='true'], .h-use input[aria-invalid='true'] { border-color: var(--alarm); }
+.h-step {
+  width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  font: inherit; font-size: 22px; font-weight: 700; cursor: pointer; color: inherit; flex: 0 0 auto;
+}
+.h-save {
+  flex: 1; border: 0; border-radius: 12px; padding: 11px; background: var(--ink); color: var(--paper);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.h-save:disabled { opacity: .45; cursor: default; }
+.h-save.danger { background: var(--alarm); color: #fff; }
+.h-cancel {
+  border: 0; border-radius: 12px; padding: 11px 14px; background: transparent; color: var(--muted);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+
+.h-syncline { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.h-syncline span { font-size: 12.5px; color: var(--muted); min-width: 0; }
+.h-syncline span.err { color: var(--alarm); }
+.h-syncline button {
+  border: 0; border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer;
+  background: var(--h-accent-soft); color: var(--blue); white-space: nowrap; flex: 0 0 auto;
+}
+.h-syncline button:disabled { opacity: .6; }
+
+details.h-more summary {
+  cursor: pointer; font-weight: 700; font-size: 14px; list-style: none; display: flex; justify-content: space-between;
+}
+details.h-more summary::-webkit-details-marker { display: none; }
+details.h-more summary::after { content: '+'; color: var(--muted); font-weight: 400; }
+details.h-more[open] summary::after { content: '−'; }
+.h-week { margin-top: 12px; }
+.h-week h3 { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.h-wrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; font-size: 13.5px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.h-wrow span:nth-child(2) { color: var(--muted); white-space: nowrap; }
+.h-wrow span:nth-child(3) { font-weight: 700; white-space: nowrap; }
+
+/* ------------------------------------------------------------ облако */
+
+.h-input {
+  width: 100%; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink);
+  font: inherit; font-size: 14px; padding: 10px 12px; resize: vertical; display: block;
+}
+.h-code { display: grid; gap: 6px; background: var(--soft2); border-radius: 14px; padding: 10px 12px; min-width: 0; }
+.h-code small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.h-code small.ok { color: var(--h-ok); }
+.h-code input {
+  width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink);
+  font: 600 13px ui-monospace, 'SFMono-Regular', Menlo, monospace; padding: 8px 10px;
+}
+
+@media (max-width: 370px) {
+  .h-tile .pic { font-size: 36px; }
+  .h-tile.big .pic { font-size: 68px; }
+  .h-use { grid-template-columns: 34px minmax(0, 1fr) 72px auto; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .h-tile { transition: none; }
+}

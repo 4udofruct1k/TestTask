@@ -4,10 +4,10 @@
 
 import type { JSX } from 'react';
 import { useUi, type Screen } from '../../store/ui';
-import { IconCoin, IconDash, IconHome, IconMoon, IconSettings, IconSun, IconVault } from '../icons';
+import { IconBack, IconCoin, IconDash, IconHome, IconMoon, IconSettings, IconSun, IconVault } from '../icons';
 
 const ITEMS: { screen: Screen; label: string; icon: JSX.Element }[] = [
-  { screen: 'home', label: 'Домой', icon: <IconHome /> },
+  { screen: 'home', label: 'Главная бюджета', icon: <IconHome /> },
   { screen: 'expenses', label: 'Расходы', icon: <IconCoin /> },
   { screen: 'savings', label: 'Накопления', icon: <IconVault /> },
   { screen: 'dashboards', label: 'Дашборды', icon: <IconDash /> },
@@ -25,6 +25,10 @@ export function Drawer(): JSX.Element {
         onClick={() => setDrawer(false)}
       />
       <nav className={`drawer${drawerOpen ? ' on' : ''}`} aria-label="Меню" aria-hidden={!drawerOpen}>
+        <button className="nav nav-hub" onClick={() => go('hub')}>
+          <IconBack />
+          Все разделы
+        </button>
         <div className="drawer-h">Бюджет</div>
         {ITEMS.map((item) => (
           <button

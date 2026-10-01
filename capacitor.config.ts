@@ -2,11 +2,13 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 /** Настройки оболочки. Раздел 5.8. */
 const config: CapacitorConfig = {
+  // appId прежний: новая версия ставится поверх «Бюджета» и сохраняет его данные
   appId: 'ru.budget.app',
-  appName: 'Бюджет',
+  appName: 'Дом на двоих',
   webDir: 'dist',
   android: {
-    // Сеть не используется вообще
+    // Сеть — только сводка общих данных с облачной функцией, по HTTPS.
+    // Бюджет в сеть не уходит
     allowMixedContent: false,
   },
   plugins: {

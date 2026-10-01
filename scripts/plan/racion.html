@@ -1,0 +1,1388 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Рацион на неделю на двоих</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F6F3; --surface:#FFFFFF; --ink:#1C292D; --muted:#56666A; --line:#D6DDD8;
+  --curry:#C08A10; --ragu:#4A7D42; --shrimp:#C9544F; --trout:#2C5A7C; --beef:#7A4B2E;
+  --ok:#3B7A4B; --mid:#B97F0C; --low:#B23A3A;
+  --radius-lg:14px; --radius-sm:8px; --band-ink:#FFFFFF;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111719; --surface:#192124; --ink:#E4EBE8; --muted:#98A6A4; --line:#2B3639;
+    --curry:#E0AE3A; --ragu:#7DB26F; --shrimp:#E47C77; --trout:#6FA0C8; --beef:#C98E68;
+    --ok:#6BB47D; --mid:#E0AE3A; --low:#E47C77; --band-ink:#10171A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111719; --surface:#192124; --ink:#E4EBE8; --muted:#98A6A4; --line:#2B3639;
+  --curry:#E0AE3A; --ragu:#7DB26F; --shrimp:#E47C77; --trout:#6FA0C8; --beef:#C98E68;
+  --ok:#6BB47D; --mid:#E0AE3A; --low:#E47C77; --band-ink:#10171A;
+}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 64px);-webkit-text-size-adjust:100%}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  font-size:16px;line-height:1.5;font-variant-numeric:tabular-nums}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+header.top{padding-top:28px;padding-bottom:12px}
+h1{font-size:clamp(2rem,7vw,2.8rem);line-height:1.05;margin:0 0 10px;font-weight:700;letter-spacing:-.02em}
+.lead{margin:0 0 16px;color:var(--muted);max-width:60ch}
+.goal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);border-collapse:separate;border-spacing:0;overflow:hidden}
+.goal{width:100%}
+.goal th,.goal td{padding:7px 8px;text-align:right;font-size:.92rem;white-space:nowrap}
+.goal th:first-child{text-align:left}
+.goal thead th{color:var(--muted);font-weight:500;font-size:.8rem}
+.goal tr.p th,.goal tr.p td{font-weight:700;border-top:1px solid var(--line)}
+.goal tr.t th,.goal tr.t td{color:var(--muted);font-size:.82rem;font-weight:400;padding-top:0}
+
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);
+  border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:8px;padding-bottom:8px}
+nav.tabs a{flex:0 0 auto;color:var(--ink);text-decoration:none;font-weight:500;font-size:.95rem;
+  padding:6px 12px;border-radius:999px}
+nav.tabs a:hover{background:var(--surface)}
+a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+section.block{padding:26px 0 8px}
+h2{font-size:1.45rem;margin:0 0 12px;letter-spacing:-.01em}
+
+/* неделя: полосы блюд + кнопки дней */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px}
+.band{grid-row:1;height:34px;border-radius:var(--radius-sm);color:var(--band-ink);font-size:.78rem;font-weight:500;
+  display:flex;align-items:center;padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.band{justify-content:center;padding:0 2px;font-size:.7rem;letter-spacing:-.01em}
+.band.curry{grid-column:1/2;background:var(--curry)}
+.band.shrimp{grid-column:2/3;background:var(--shrimp)}
+.band.trout{grid-column:3/4;background:var(--trout)}
+.band.ragu{grid-column:4/6;background:var(--ragu)}
+.band.beef{grid-column:6/7;background:var(--beef)}
+.band.trout2{grid-column:7/8;background:var(--trout)}
+.dbtn{grid-row:2;appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:var(--radius-sm);padding:8px 0 6px;font:inherit;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:4px}
+.dbtn b{font-weight:500;font-size:.95rem}
+.dbtn i{width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.dbtn i.off{background:transparent}
+.dbtn[aria-pressed="true"]{border-width:2px;padding:7px 0 5px}
+.dbtn[data-dish="curry"][aria-pressed="true"]{border-color:var(--curry)}
+.dbtn[data-dish="ragu"][aria-pressed="true"]{border-color:var(--ragu)}
+.dbtn[data-dish="shrimp"][aria-pressed="true"]{border-color:var(--shrimp)}
+.dbtn[data-dish="trout"][aria-pressed="true"]{border-color:var(--trout)}
+.dbtn[data-dish="beef"][aria-pressed="true"]{border-color:var(--beef)}
+.legend{font-size:.82rem;color:var(--muted);margin:-6px 0 14px}
+.legend i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ink);margin:0 4px 1px 0}
+
+.day{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px}
+.day[data-dish="curry"]{border-top:4px solid var(--curry)}
+.day[data-dish="ragu"]{border-top:4px solid var(--ragu)}
+.day[data-dish="shrimp"]{border-top:4px solid var(--shrimp)}
+.day[data-dish="trout"]{border-top:4px solid var(--trout)}
+.day[data-dish="beef"]{border-top:4px solid var(--beef)}
+.day-title{margin:0 0 6px;font-size:1.25rem}
+.cook-today{margin:0 0 12px;font-size:.92rem}
+.cook-today span{font-weight:700;margin-right:4px}
+.meals{display:flex;flex-direction:column}
+.meal{padding:12px 0;border-top:1px solid var(--line)}
+.meal header{display:grid;grid-template-columns:1fr auto;column-gap:10px;margin-bottom:6px}
+.meal header strong{font-weight:700}
+.meal header .dish{grid-column:1/2;font-size:.88rem;color:var(--muted)}
+.meal header .rub{grid-column:2/3;grid-row:1/3;align-self:start;font-size:.85rem;color:var(--muted);white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;column-gap:14px}
+.who .kbju{margin-top:4px;font-size:.8rem;color:var(--muted)}
+details.mic{margin-top:8px}
+details.mic summary{cursor:pointer;font-size:.85rem;color:var(--muted)}
+.mt th,.mt td{padding:3px 10px 3px 0;font-size:.85rem;text-align:right;white-space:nowrap}
+.mt th:first-child{text-align:left;font-weight:400}
+.mt thead th{color:var(--muted);font-weight:500}
+.daycost{margin:10px 0 0;font-size:.95rem}
+.prot th,.prot td{padding:7px 8px 7px 0;text-align:left;font-size:.9rem;vertical-align:top;border-top:1px solid var(--line)}
+.prot th{font-weight:500}
+.prot td:nth-child(2){white-space:nowrap;font-weight:700}
+.prot td:nth-child(3){color:var(--muted);font-size:.85rem}
+.shop-group label{grid-template-columns:auto 1fr auto auto}
+.shop-group .c{font-weight:700;white-space:nowrap;min-width:3.6em;text-align:right}
+.shop-group small{grid-column:2/5}
+.sum{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:12px 14px;margin:0 0 12px}
+.sum b{font-size:1.2rem}
+.who em{font-style:normal;font-size:.8rem;color:var(--muted);display:block}
+.who p{margin:0;font-size:.93rem}
+
+.scroll{overflow-x:auto;margin-top:6px}
+table{border-collapse:collapse;width:100%}
+.totals th,.totals td{padding:6px 6px;text-align:right;font-size:.9rem;white-space:nowrap}
+.totals th:first-child{text-align:left}
+.totals thead th{font-weight:500;color:var(--muted);font-size:.8rem;border-bottom:1px solid var(--line)}
+.totals tbody tr:not(.tgt) th,.totals tbody tr:not(.tgt) td{font-weight:700;padding-top:10px}
+.totals tr.tgt th,.totals tr.tgt td{color:var(--muted);font-weight:400;font-size:.8rem;padding-top:0}
+
+/* готовка */
+details.recipe{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);margin-bottom:10px}
+details.recipe summary{cursor:pointer;list-style:none;padding:14px 16px;display:flex;gap:12px;align-items:baseline}
+details.recipe summary::-webkit-details-marker{display:none}
+details.recipe summary .d{flex:0 0 2.2em;font-weight:700}
+details.recipe summary .t{flex:1;font-weight:500}
+details.recipe summary .t small{display:block;color:var(--muted);font-weight:400;font-size:.85rem}
+details.recipe summary::after{content:"+";font-size:1.2rem;color:var(--muted)}
+details.recipe[open] summary::after{content:"−"}
+details.recipe .body{padding:0 16px 16px 16px}
+.recipe ul{margin:0 0 10px;padding-left:1.1em}
+.recipe ol{margin:0 0 10px;padding-left:1.2em}
+.recipe li{margin:2px 0}
+.split{background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;margin:0 0 8px;font-size:.93rem}
+.note{font-size:.88rem;color:var(--muted);margin:0}
+.recipe.curry{border-left:4px solid var(--curry)}
+.recipe.ragu{border-left:4px solid var(--ragu)}
+.recipe.shrimp{border-left:4px solid var(--shrimp)}
+.recipe.trout{border-left:4px solid var(--trout)}
+.recipe.beef{border-left:4px solid var(--beef)}
+
+/* покупки */
+.shop-group{margin-bottom:16px}
+.shop-group h3{font-size:1rem;margin:0 0 6px}
+.shop-group ul{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg)}
+.shop-group li+li{border-top:1px solid var(--line)}
+.shop-group label{display:grid;grid-template-columns:auto 1fr auto auto;column-gap:10px;padding:10px 12px;cursor:pointer;align-items:baseline}
+.shop-group input{width:18px;height:18px;margin:0;align-self:center;accent-color:var(--ragu)}
+.shop-group .q{font-weight:500;white-space:nowrap}
+.shop-group small{grid-column:2/5;color:var(--muted);font-size:.83rem}
+.shop-group input:checked ~ .n,.shop-group input:checked ~ .q{text-decoration:line-through;color:var(--muted)}
+.reset{appearance:none;background:none;border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:6px 14px;font:inherit;font-size:.9rem;cursor:pointer;margin-bottom:12px}
+
+/* витамины */
+.micro th,.micro td{padding:8px 6px;text-align:left;vertical-align:top;font-size:.9rem}
+.micro thead th{color:var(--muted);font-weight:500;font-size:.8rem;border-bottom:1px solid var(--line)}
+.micro tbody tr+tr th,.micro tbody tr+tr td{border-top:1px solid var(--line)}
+.micro tbody th{font-weight:500;min-width:7.5em}
+.micro td{min-width:8.5em}
+.micro small{display:block;color:var(--muted);font-size:.78rem}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:3px 0 4px}
+.bar span{display:block;height:100%}
+td.ok .bar span{background:var(--ok)} td.mid .bar span{background:var(--mid)} td.low .bar span{background:var(--low)}
+td.low b{color:var(--low)} td.mid b{color:var(--mid)}
+.supp{margin:18px 0 0;padding:0;list-style:none}
+.supp li{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:8px}
+.supp li b{display:block;margin-bottom:2px}
+.src{font-size:.82rem;color:var(--muted);margin:8px 0 0}
+footer{padding-top:24px;padding-bottom:40px;color:var(--muted);font-size:.85rem}
+@media (max-width:420px){
+  .band{font-size:.64rem;padding:0 1px;text-overflow:clip}
+  .meal{column-gap:10px}
+  .who p{font-size:.9rem}
+}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+.shop-group.fix ul{border-color:var(--curry);border-width:2px}
+.sum p{margin:4px 0 0}
+.sum .big{font-size:1.35rem;font-weight:700}
+.left{color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="top wrap">
+  <h1>Неделя на двоих</h1>
+  <p class="lead">Готовим после обеда: ужин — свежий, обед следующего дня — остаток. Граммы — сырой или сухой вес, после стрелки — сколько это примерно в готовом виде. Хлеб — куски по 50 г. Посчитано по вашей корзине: еда на неделю обходится в ≈9 605 ₽.</p>
+  <div class="scroll"><table class="goal"><thead><tr><th>в среднем</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody><tr class="p"><th>Макс</th><td>2003</td><td>166</td><td>66</td><td>175</td></tr><tr class="t"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr><tr class="p"><th>Ильвина</th><td>1397</td><td>67</td><td>50</td><td>163</td></tr><tr class="t"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr></tbody></table></div>
+</header>
+
+<nav class="tabs" aria-label="Разделы">
+  <div class="wrap">
+    <a href="#days">Дни</a><a href="#cook">Готовка</a><a href="#shop">Покупки</a><a href="#prot">Цена белка</a><a href="#micro">Витамины</a>
+  </div>
+</nav>
+
+<main class="wrap">
+<section class="block" id="days">
+  <h2>По дням</h2>
+  <div class="week" role="group" aria-label="Дни недели">
+    <div class="band curry">Карри</div>
+    <div class="band shrimp">Креветки</div>
+    <div class="band trout">Форель</div>
+    <div class="band ragu">Рагу</div>
+    <div class="band beef">Говядина</div>
+    <div class="band trout2">Форель</div>
+<button class="dbtn" data-day="Пн" data-dish="curry" aria-pressed="false"><b>Пн</b><i></i></button>
+<button class="dbtn" data-day="Вт" data-dish="shrimp" aria-pressed="false"><b>Вт</b><i></i></button>
+<button class="dbtn" data-day="Ср" data-dish="trout" aria-pressed="false"><b>Ср</b><i></i></button>
+<button class="dbtn" data-day="Чт" data-dish="ragu" aria-pressed="false"><b>Чт</b><i></i></button>
+<button class="dbtn" data-day="Пт" data-dish="ragu" aria-pressed="false"><b>Пт</b><i class="off"></i></button>
+<button class="dbtn" data-day="Сб" data-dish="beef" aria-pressed="false"><b>Сб</b><i></i></button>
+<button class="dbtn" data-day="Вс" data-dish="trout" aria-pressed="false"><b>Вс</b><i></i></button>
+  </div>
+  <p class="legend"><i></i>день готовки. Цвет — что готовим в этот день. Обед понедельника — форель, запечённая в воскресенье: если начинаете с понедельника, первую пачку запеките в воскресенье.</p>
+<section class="day" id="day-Пн" data-dish="curry" hidden>
+<h3 class="day-title">Понедельник</h3>
+<p class="cook-today"><b>Готовим:</b> Утром — намазка на 3 завтрака (5 мин). После обеда — карри и рис (≈45 мин): на ужин и на обед вторника</p>
+<article class="meal">
+<header><strong>Кофе</strong><span class="rub">18 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>молоко 3,2% 200 мл за день</p><p class="kbju">120 ккал, Б 6, Ж 6, У 9</p></div>
+<div class="who"><em>Ильвина</em><p>—</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>—</td></tr>
+<tr><th>Железо</th><td>0%</td><td>—</td></tr>
+<tr><th>Кальций</th><td>24%</td><td>—</td></tr>
+<tr><th>Фолаты</th><td>2%</td><td>—</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>—</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>—</td></tr>
+<tr><th>Магний</th><td>6%</td><td>—</td></tr>
+<tr><th>Калий</th><td>9%</td><td>—</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>—</td></tr>
+<tr><th>B12</th><td>38%</td><td>—</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>—</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>—</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Завтрак</strong><span class="dish">Бутерброды с намазкой</span><span class="rub">78 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>1 кусок хлеба, намазка 45 г, помидор 80 г</p><p class="kbju">238 ккал, Б 13, Ж 9, У 25</p></div>
+<div class="who"><em>Ильвина</em><p>1 кусок хлеба, намазка 32 г, огурец 80 г</p><p class="kbju">206 ккал, Б 11, Ж 7, У 24</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>21%</td><td>9%</td></tr>
+<tr><th>Кальций</th><td>23%</td><td>18%</td></tr>
+<tr><th>Фолаты</th><td>10%</td><td>7%</td></tr>
+<tr><th>Цинк</th><td>15%</td><td>18%</td></tr>
+<tr><th>Витамин A</th><td>10%</td><td>6%</td></tr>
+<tr><th>Магний</th><td>13%</td><td>16%</td></tr>
+<tr><th>Калий</th><td>11%</td><td>11%</td></tr>
+<tr><th>Витамин C</th><td>13%</td><td>3%</td></tr>
+<tr><th>B12</th><td>20%</td><td>14%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>14%</td><td>17%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Обед</strong><span class="dish">Форель с рисом — готовили в вс</span><span class="rub">870 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>форель 250 г сырой → ≈200 г готовой, рис 65 г сухого → ≈195 г варёного; салат: огурец 100 г, помидор 100 г, перец 50 г, без масла</p><p class="kbju">678 ккал, Б 57, Ж 21, У 58</p></div>
+<div class="who"><em>Ильвина</em><p>форель 100 г сырой → ≈80 г готовой, рис 55 г сухого → ≈165 г варёного; полсалата: огурец 40 г, помидор 40 г, перец 25 г, масло 10 г</p><p class="kbju">464 ккал, Б 25, Ж 19, У 46</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>167%</td><td>67%</td></tr>
+<tr><th>Железо</th><td>26%</td><td>6%</td></tr>
+<tr><th>Кальций</th><td>10%</td><td>4%</td></tr>
+<tr><th>Фолаты</th><td>22%</td><td>10%</td></tr>
+<tr><th>Цинк</th><td>20%</td><td>15%</td></tr>
+<tr><th>Витамин A</th><td>31%</td><td>17%</td></tr>
+<tr><th>Магний</th><td>28%</td><td>17%</td></tr>
+<tr><th>Калий</th><td>45%</td><td>25%</td></tr>
+<tr><th>Витамин C</th><td>96%</td><td>54%</td></tr>
+<tr><th>B12</th><td>365%</td><td>146%</td></tr>
+<tr><th>Омега-3</th><td>900%</td><td>360%</td></tr>
+<tr><th>Клетчатка</th><td>13%</td><td>10%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Ужин</strong><span class="dish">Карри с курицей и горошком, рис — готовим сегодня</span><span class="rub">302 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>карри ≈445 г: курица ≈255 г готовой (340 г сырой) + соус с горошком ≈190 г; рис 65 г сухого → ≈195 г варёного</p><p class="kbju">867 ккал, Б 78, Ж 30, У 68</p></div>
+<div class="who"><em>Ильвина</em><p>карри ≈150 г: курица ≈45 г готовой (60 г сырой) + соус с горошком ≈105 г; рис 60 г сухого → ≈180 г варёного; полсалата: огурец 40 г, помидор 40 г, перец 25 г, масло 10 г</p><p class="kbju">512 ккал, Б 20, Ж 20, У 60</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>3%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>42%</td><td>10%</td></tr>
+<tr><th>Кальций</th><td>13%</td><td>8%</td></tr>
+<tr><th>Фолаты</th><td>15%</td><td>12%</td></tr>
+<tr><th>Цинк</th><td>37%</td><td>23%</td></tr>
+<tr><th>Витамин A</th><td>13%</td><td>16%</td></tr>
+<tr><th>Магний</th><td>36%</td><td>20%</td></tr>
+<tr><th>Калий</th><td>51%</td><td>29%</td></tr>
+<tr><th>Витамин C</th><td>17%</td><td>63%</td></tr>
+<tr><th>B12</th><td>37%</td><td>10%</td></tr>
+<tr><th>Омега-3</th><td>14%</td><td>2%</td></tr>
+<tr><th>Клетчатка</th><td>18%</td><td>21%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Перекус</strong><span class="rub">100 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>банан</p><p class="kbju">109 ккал, Б 1, Ж 0, У 24</p></div>
+<div class="who"><em>Ильвина</em><p>греческий йогурт 140 г, банан</p><p class="kbju">203 ккал, Б 12, Ж 3, У 30</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>4%</td><td>3%</td></tr>
+<tr><th>Кальций</th><td>1%</td><td>16%</td></tr>
+<tr><th>Фолаты</th><td>6%</td><td>8%</td></tr>
+<tr><th>Цинк</th><td>2%</td><td>11%</td></tr>
+<tr><th>Витамин A</th><td>0%</td><td>4%</td></tr>
+<tr><th>Магний</th><td>8%</td><td>15%</td></tr>
+<tr><th>Калий</th><td>12%</td><td>23%</td></tr>
+<tr><th>Витамин C</th><td>12%</td><td>15%</td></tr>
+<tr><th>B12</th><td>0%</td><td>35%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>11%</td><td>15%</td></tr>
+</tbody></table></div></details>
+</article>
+<div class="scroll"><table class="totals"><thead><tr><th>Итог дня</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody>
+<tr><th>Макс</th><td>2012</td><td>155</td><td>67</td><td>185</td></tr>
+<tr class="tgt"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr>
+<tr><th>Ильвина</th><td>1385</td><td>68</td><td>49</td><td>160</td></tr>
+<tr class="tgt"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr>
+</tbody></table></div>
+<p class="daycost">Еда на двоих за день: <b>1368 ₽</b></p>
+<details class="mic"><summary>Витамины и минералы за день, % нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>171%</td><td>68%</td></tr>
+<tr><th>Железо</th><td>94%</td><td>28%</td></tr>
+<tr><th>Кальций</th><td>71%</td><td>46%</td></tr>
+<tr><th>Фолаты</th><td>55%</td><td>38%</td></tr>
+<tr><th>Цинк</th><td>81%</td><td>67%</td></tr>
+<tr><th>Витамин A</th><td>60%</td><td>43%</td></tr>
+<tr><th>Магний</th><td>91%</td><td>68%</td></tr>
+<tr><th>Калий</th><td>127%</td><td>88%</td></tr>
+<tr><th>Витамин C</th><td>139%</td><td>136%</td></tr>
+<tr><th>B12</th><td>460%</td><td>205%</td></tr>
+<tr><th>Омега-3</th><td>914%</td><td>362%</td></tr>
+<tr><th>Клетчатка</th><td>56%</td><td>63%</td></tr>
+</tbody></table></div></details>
+</section>
+<section class="day" id="day-Вт" data-dish="shrimp" hidden>
+<h3 class="day-title">Вторник</h3>
+<p class="cook-today"><b>Готовим:</b> После обеда — паста с креветками (≈30 мин): на ужин и на обед среды. Вечером сварить Максу 8 яиц на ср, чт, пт и вс</p>
+<article class="meal">
+<header><strong>Кофе</strong><span class="rub">18 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>молоко 3,2% 200 мл за день</p><p class="kbju">120 ккал, Б 6, Ж 6, У 9</p></div>
+<div class="who"><em>Ильвина</em><p>—</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>—</td></tr>
+<tr><th>Железо</th><td>0%</td><td>—</td></tr>
+<tr><th>Кальций</th><td>24%</td><td>—</td></tr>
+<tr><th>Фолаты</th><td>2%</td><td>—</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>—</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>—</td></tr>
+<tr><th>Магний</th><td>6%</td><td>—</td></tr>
+<tr><th>Калий</th><td>9%</td><td>—</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>—</td></tr>
+<tr><th>B12</th><td>38%</td><td>—</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>—</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>—</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Завтрак</strong><span class="dish">Бутерброды с намазкой</span><span class="rub">75 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>1 кусок хлеба, намазка 40 г, помидор 80 г</p><p class="kbju">227 ккал, Б 12, Ж 8, У 25</p></div>
+<div class="who"><em>Ильвина</em><p>1 кусок хлеба, намазка 32 г, огурец 80 г</p><p class="kbju">206 ккал, Б 11, Ж 7, У 24</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>21%</td><td>9%</td></tr>
+<tr><th>Кальций</th><td>21%</td><td>18%</td></tr>
+<tr><th>Фолаты</th><td>9%</td><td>7%</td></tr>
+<tr><th>Цинк</th><td>15%</td><td>18%</td></tr>
+<tr><th>Витамин A</th><td>9%</td><td>6%</td></tr>
+<tr><th>Магний</th><td>12%</td><td>16%</td></tr>
+<tr><th>Калий</th><td>11%</td><td>11%</td></tr>
+<tr><th>Витамин C</th><td>13%</td><td>3%</td></tr>
+<tr><th>B12</th><td>18%</td><td>14%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>14%</td><td>17%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Обед</strong><span class="dish">Карри с курицей и горошком, рис — готовили в пн</span><span class="rub">333 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>карри ≈445 г: курица ≈255 г готовой (340 г сырой) + соус с горошком ≈190 г; рис 65 г сухого → ≈195 г варёного; салат: огурец 100 г, помидор 100 г, перец 50 г, без масла</p><p class="kbju">917 ккал, Б 80, Ж 31, У 77</p></div>
+<div class="who"><em>Ильвина</em><p>карри ≈150 г: курица ≈45 г готовой (60 г сырой) + соус с горошком ≈105 г; рис 60 г сухого → ≈180 г варёного; полсалата: огурец 40 г, помидор 40 г, перец 25 г, масло 10 г</p><p class="kbju">512 ккал, Б 20, Ж 20, У 60</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>3%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>52%</td><td>10%</td></tr>
+<tr><th>Кальций</th><td>16%</td><td>8%</td></tr>
+<tr><th>Фолаты</th><td>27%</td><td>12%</td></tr>
+<tr><th>Цинк</th><td>41%</td><td>23%</td></tr>
+<tr><th>Витамин A</th><td>27%</td><td>16%</td></tr>
+<tr><th>Магний</th><td>44%</td><td>20%</td></tr>
+<tr><th>Калий</th><td>65%</td><td>29%</td></tr>
+<tr><th>Витамин C</th><td>107%</td><td>63%</td></tr>
+<tr><th>B12</th><td>37%</td><td>10%</td></tr>
+<tr><th>Омега-3</th><td>14%</td><td>2%</td></tr>
+<tr><th>Клетчатка</th><td>28%</td><td>21%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Ужин</strong><span class="dish">Паста с креветками — готовим сегодня</span><span class="rub">621 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>креветки 225 г из пачки (≈170 г готовых) + соус ≈140 г; макароны 70 г сухих → ≈160 г варёных</p><p class="kbju">557 ккал, Б 46, Ж 15, У 58</p></div>
+<div class="who"><em>Ильвина</em><p>креветки 75 г из пачки (≈55 г готовых) + соус ≈75 г; макароны 65 г сухих → ≈150 г варёных; полсалата: огурец 40 г, помидор 40 г, перец 25 г, масло 10 г</p><p class="kbju">477 ккал, Б 22, Ж 18, У 54</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>28%</td><td>10%</td></tr>
+<tr><th>Кальций</th><td>20%</td><td>11%</td></tr>
+<tr><th>Фолаты</th><td>12%</td><td>12%</td></tr>
+<tr><th>Цинк</th><td>31%</td><td>26%</td></tr>
+<tr><th>Витамин A</th><td>11%</td><td>16%</td></tr>
+<tr><th>Магний</th><td>29%</td><td>25%</td></tr>
+<tr><th>Калий</th><td>25%</td><td>26%</td></tr>
+<tr><th>Витамин C</th><td>20%</td><td>64%</td></tr>
+<tr><th>B12</th><td>94%</td><td>33%</td></tr>
+<tr><th>Омега-3</th><td>180%</td><td>60%</td></tr>
+<tr><th>Клетчатка</th><td>13%</td><td>20%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Перекус</strong><span class="rub">146 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>греческий йогурт 140 г, яблоко</p><p class="kbju">161 ккал, Б 12, Ж 3, У 21</p></div>
+<div class="who"><em>Ильвина</em><p>греческий йогурт 140 г, банан</p><p class="kbju">203 ккал, Б 12, Ж 3, У 30</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>3%</td><td>3%</td></tr>
+<tr><th>Кальций</th><td>16%</td><td>16%</td></tr>
+<tr><th>Фолаты</th><td>3%</td><td>8%</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>11%</td></tr>
+<tr><th>Витамин A</th><td>4%</td><td>4%</td></tr>
+<tr><th>Магний</th><td>5%</td><td>15%</td></tr>
+<tr><th>Калий</th><td>10%</td><td>23%</td></tr>
+<tr><th>Витамин C</th><td>8%</td><td>15%</td></tr>
+<tr><th>B12</th><td>35%</td><td>35%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>11%</td><td>15%</td></tr>
+</tbody></table></div></details>
+</article>
+<div class="scroll"><table class="totals"><thead><tr><th>Итог дня</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody>
+<tr><th>Макс</th><td>1983</td><td>156</td><td>63</td><td>190</td></tr>
+<tr class="tgt"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr>
+<tr><th>Ильвина</th><td>1398</td><td>65</td><td>49</td><td>168</td></tr>
+<tr class="tgt"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr>
+</tbody></table></div>
+<p class="daycost">Еда на двоих за день: <b>1193 ₽</b></p>
+<details class="mic"><summary>Витамины и минералы за день, % нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>4%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>104%</td><td>32%</td></tr>
+<tr><th>Кальций</th><td>97%</td><td>52%</td></tr>
+<tr><th>Фолаты</th><td>54%</td><td>40%</td></tr>
+<tr><th>Цинк</th><td>101%</td><td>78%</td></tr>
+<tr><th>Витамин A</th><td>57%</td><td>42%</td></tr>
+<tr><th>Магний</th><td>96%</td><td>76%</td></tr>
+<tr><th>Калий</th><td>119%</td><td>88%</td></tr>
+<tr><th>Витамин C</th><td>150%</td><td>146%</td></tr>
+<tr><th>B12</th><td>221%</td><td>92%</td></tr>
+<tr><th>Омега-3</th><td>194%</td><td>62%</td></tr>
+<tr><th>Клетчатка</th><td>67%</td><td>74%</td></tr>
+</tbody></table></div></details>
+</section>
+<section class="day" id="day-Ср" data-dish="trout" hidden>
+<h3 class="day-title">Среда</h3>
+<p class="cook-today"><b>Готовим:</b> После обеда — форель с картофелем в духовке, горошек с кукурузой (≈40 мин): на ужин и на обед четверга</p>
+<article class="meal">
+<header><strong>Кофе</strong><span class="rub">18 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>молоко 3,2% 200 мл за день</p><p class="kbju">120 ккал, Б 6, Ж 6, У 9</p></div>
+<div class="who"><em>Ильвина</em><p>—</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>—</td></tr>
+<tr><th>Железо</th><td>0%</td><td>—</td></tr>
+<tr><th>Кальций</th><td>24%</td><td>—</td></tr>
+<tr><th>Фолаты</th><td>2%</td><td>—</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>—</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>—</td></tr>
+<tr><th>Магний</th><td>6%</td><td>—</td></tr>
+<tr><th>Калий</th><td>9%</td><td>—</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>—</td></tr>
+<tr><th>B12</th><td>38%</td><td>—</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>—</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>—</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Завтрак</strong><span class="dish">Бутерброды с намазкой</span><span class="rub">89 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>1 кусок хлеба, намазка 40 г, помидор 80 г, 2 варёных яйца</p><p class="kbju">385 ккал, Б 26, Ж 18, У 25</p></div>
+<div class="who"><em>Ильвина</em><p>1 кусок хлеба, намазка 32 г, огурец 80 г</p><p class="kbju">206 ккал, Б 11, Ж 7, У 24</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>15%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>45%</td><td>9%</td></tr>
+<tr><th>Кальций</th><td>27%</td><td>18%</td></tr>
+<tr><th>Фолаты</th><td>22%</td><td>7%</td></tr>
+<tr><th>Цинк</th><td>28%</td><td>18%</td></tr>
+<tr><th>Витамин A</th><td>29%</td><td>6%</td></tr>
+<tr><th>Магний</th><td>16%</td><td>16%</td></tr>
+<tr><th>Калий</th><td>15%</td><td>11%</td></tr>
+<tr><th>Витамин C</th><td>13%</td><td>3%</td></tr>
+<tr><th>B12</th><td>59%</td><td>14%</td></tr>
+<tr><th>Омега-3</th><td>31%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>14%</td><td>17%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Обед</strong><span class="dish">Паста с креветками — готовили в вт</span><span class="rub">633 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>креветки 225 г из пачки (≈170 г готовых) + соус ≈140 г; макароны 70 г сухих → ≈160 г варёных; салат: огурец 100 г, помидор 100 г, без масла</p><p class="kbju">592 ккал, Б 47, Ж 15, У 64</p></div>
+<div class="who"><em>Ильвина</em><p>креветки 75 г из пачки (≈55 г готовых) + соус ≈75 г; макароны 65 г сухих → ≈150 г варёных; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">469 ккал, Б 22, Ж 18, У 53</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>35%</td><td>9%</td></tr>
+<tr><th>Кальций</th><td>23%</td><td>10%</td></tr>
+<tr><th>Фолаты</th><td>18%</td><td>9%</td></tr>
+<tr><th>Цинк</th><td>34%</td><td>25%</td></tr>
+<tr><th>Витамин A</th><td>16%</td><td>10%</td></tr>
+<tr><th>Магний</th><td>35%</td><td>24%</td></tr>
+<tr><th>Калий</th><td>36%</td><td>24%</td></tr>
+<tr><th>Витамин C</th><td>39%</td><td>22%</td></tr>
+<tr><th>B12</th><td>94%</td><td>33%</td></tr>
+<tr><th>Омега-3</th><td>180%</td><td>60%</td></tr>
+<tr><th>Клетчатка</th><td>20%</td><td>18%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Ужин</strong><span class="dish">Форель с картофелем, горошек с кукурузой — готовим сегодня</span><span class="rub">1001 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>форель 250 г сырой → ≈200 г готовой, картофель 275 г сырого → ≈220 г запечённого, горошек 80 г, кукуруза 60 г</p><p class="kbju">706 ккал, Б 60, Ж 21, У 61</p></div>
+<div class="who"><em>Ильвина</em><p>форель 100 г сырой → ≈80 г готовой, картофель 175 г сырого → ≈140 г запечённого, горошек 80 г, кукуруза 60 г; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">493 ккал, Б 29, Ж 19, У 47</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>167%</td><td>67%</td></tr>
+<tr><th>Железо</th><td>51%</td><td>17%</td></tr>
+<tr><th>Кальций</th><td>11%</td><td>7%</td></tr>
+<tr><th>Фолаты</th><td>34%</td><td>27%</td></tr>
+<tr><th>Цинк</th><td>24%</td><td>23%</td></tr>
+<tr><th>Витамин A</th><td>20%</td><td>16%</td></tr>
+<tr><th>Магний</th><td>39%</td><td>33%</td></tr>
+<tr><th>Калий</th><td>68%</td><td>57%</td></tr>
+<tr><th>Витамин C</th><td>53%</td><td>52%</td></tr>
+<tr><th>B12</th><td>365%</td><td>146%</td></tr>
+<tr><th>Омега-3</th><td>900%</td><td>360%</td></tr>
+<tr><th>Клетчатка</th><td>37%</td><td>44%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Перекус</strong><span class="rub">135 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>греческий йогурт 2 × 140 г</p><p class="kbju">188 ккал, Б 22, Ж 6, У 12</p></div>
+<div class="who"><em>Ильвина</em><p>яблоко, сыр 20 г</p><p class="kbju">138 ккал, Б 5, Ж 6, У 15</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>4%</td><td>1%</td></tr>
+<tr><th>Кальций</th><td>31%</td><td>19%</td></tr>
+<tr><th>Фолаты</th><td>5%</td><td>2%</td></tr>
+<tr><th>Цинк</th><td>13%</td><td>10%</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>8%</td></tr>
+<tr><th>Магний</th><td>8%</td><td>4%</td></tr>
+<tr><th>Калий</th><td>12%</td><td>6%</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>9%</td></tr>
+<tr><th>B12</th><td>70%</td><td>12%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>16%</td></tr>
+</tbody></table></div></details>
+</article>
+<div class="scroll"><table class="totals"><thead><tr><th>Итог дня</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody>
+<tr><th>Макс</th><td>1990</td><td>162</td><td>67</td><td>172</td></tr>
+<tr class="tgt"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr>
+<tr><th>Ильвина</th><td>1306</td><td>66</td><td>50</td><td>139</td></tr>
+<tr class="tgt"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr>
+</tbody></table></div>
+<p class="daycost">Еда на двоих за день: <b>1876 ₽</b></p>
+<details class="mic"><summary>Витамины и минералы за день, % нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>183%</td><td>68%</td></tr>
+<tr><th>Железо</th><td>135%</td><td>37%</td></tr>
+<tr><th>Кальций</th><td>116%</td><td>54%</td></tr>
+<tr><th>Фолаты</th><td>82%</td><td>46%</td></tr>
+<tr><th>Цинк</th><td>106%</td><td>76%</td></tr>
+<tr><th>Витамин A</th><td>78%</td><td>40%</td></tr>
+<tr><th>Магний</th><td>103%</td><td>77%</td></tr>
+<tr><th>Калий</th><td>139%</td><td>97%</td></tr>
+<tr><th>Витамин C</th><td>108%</td><td>86%</td></tr>
+<tr><th>B12</th><td>625%</td><td>205%</td></tr>
+<tr><th>Омега-3</th><td>1111%</td><td>420%</td></tr>
+<tr><th>Клетчатка</th><td>70%</td><td>94%</td></tr>
+</tbody></table></div></details>
+</section>
+<section class="day" id="day-Чт" data-dish="ragu" hidden>
+<h3 class="day-title">Четверг</h3>
+<p class="cook-today"><b>Готовим:</b> После обеда — рагу (≈1 ч): на ужин, на пятницу и на обед субботы</p>
+<article class="meal">
+<header><strong>Кофе</strong><span class="rub">18 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>молоко 3,2% 200 мл за день</p><p class="kbju">120 ккал, Б 6, Ж 6, У 9</p></div>
+<div class="who"><em>Ильвина</em><p>—</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>—</td></tr>
+<tr><th>Железо</th><td>0%</td><td>—</td></tr>
+<tr><th>Кальций</th><td>24%</td><td>—</td></tr>
+<tr><th>Фолаты</th><td>2%</td><td>—</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>—</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>—</td></tr>
+<tr><th>Магний</th><td>6%</td><td>—</td></tr>
+<tr><th>Калий</th><td>9%</td><td>—</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>—</td></tr>
+<tr><th>B12</th><td>38%</td><td>—</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>—</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>—</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Завтрак</strong><span class="rub">120 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>2 варёных яйца, помидор 80 г</p><p class="kbju">173 ккал, Б 15, Ж 11, У 3</p></div>
+<div class="who"><em>Ильвина</em><p>овсянка 50 г на молоке 200 мл, вишня 100 г</p><p class="kbju">332 ккал, Б 13, Ж 8, У 50</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>15%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>27%</td><td>14%</td></tr>
+<tr><th>Кальций</th><td>7%</td><td>28%</td></tr>
+<tr><th>Фолаты</th><td>16%</td><td>8%</td></tr>
+<tr><th>Цинк</th><td>14%</td><td>34%</td></tr>
+<tr><th>Витамин A</th><td>23%</td><td>15%</td></tr>
+<tr><th>Магний</th><td>6%</td><td>33%</td></tr>
+<tr><th>Калий</th><td>10%</td><td>25%</td></tr>
+<tr><th>Витамин C</th><td>12%</td><td>12%</td></tr>
+<tr><th>B12</th><td>41%</td><td>38%</td></tr>
+<tr><th>Омега-3</th><td>31%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>3%</td><td>33%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Обед</strong><span class="dish">Форель с картофелем — готовили в ср</span><span class="rub">893 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>форель 250 г сырой → ≈200 г готовой, картофель 275 г сырого → ≈220 г запечённого; салат: огурец 100 г, помидор 100 г + кукуруза 50 г, без масла</p><p class="kbju">687 ккал, Б 58, Ж 21, У 58</p></div>
+<div class="who"><em>Ильвина</em><p>форель 100 г сырой → ≈80 г готовой, картофель 175 г сырого → ≈140 г запечённого; полсалата: огурец 40 г, помидор 40 г + кукуруза 12 г, масло 10 г</p><p class="kbju">408 ккал, Б 24, Ж 18, У 33</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>167%</td><td>67%</td></tr>
+<tr><th>Железо</th><td>48%</td><td>11%</td></tr>
+<tr><th>Кальций</th><td>12%</td><td>6%</td></tr>
+<tr><th>Фолаты</th><td>31%</td><td>14%</td></tr>
+<tr><th>Цинк</th><td>22%</td><td>14%</td></tr>
+<tr><th>Витамин A</th><td>22%</td><td>11%</td></tr>
+<tr><th>Магний</th><td>41%</td><td>26%</td></tr>
+<tr><th>Калий</th><td>76%</td><td>50%</td></tr>
+<tr><th>Витамин C</th><td>64%</td><td>41%</td></tr>
+<tr><th>B12</th><td>365%</td><td>146%</td></tr>
+<tr><th>Омега-3</th><td>900%</td><td>360%</td></tr>
+<tr><th>Клетчатка</th><td>30%</td><td>23%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Ужин</strong><span class="dish">Рагу с курицей — готовим сегодня</span><span class="rub">291 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>рагу ≈810 г: курица ≈270 г готовой (360 г сырой) + овощи с подливой ≈540 г</p><p class="kbju">820 ккал, Б 86, Ж 24, У 61</p></div>
+<div class="who"><em>Ильвина</em><p>рагу ≈470 г: курица ≈30 г готовой (40 г сырой) + овощи с подливой ≈440 г; полсалата: огурец 40 г, помидор 40 г + кукуруза 12 г, масло 10 г</p><p class="kbju">467 ккал, Б 20, Ж 18, У 54</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>4%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>60%</td><td>18%</td></tr>
+<tr><th>Кальций</th><td>12%</td><td>10%</td></tr>
+<tr><th>Фолаты</th><td>29%</td><td>24%</td></tr>
+<tr><th>Цинк</th><td>40%</td><td>25%</td></tr>
+<tr><th>Витамин A</th><td>106%</td><td>111%</td></tr>
+<tr><th>Магний</th><td>49%</td><td>32%</td></tr>
+<tr><th>Калий</th><td>92%</td><td>72%</td></tr>
+<tr><th>Витамин C</th><td>50%</td><td>59%</td></tr>
+<tr><th>B12</th><td>32%</td><td>5%</td></tr>
+<tr><th>Омега-3</th><td>14%</td><td>2%</td></tr>
+<tr><th>Клетчатка</th><td>47%</td><td>58%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Перекус</strong><span class="rub">100 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>банан</p><p class="kbju">109 ккал, Б 1, Ж 0, У 24</p></div>
+<div class="who"><em>Ильвина</em><p>греческий йогурт 140 г, банан</p><p class="kbju">203 ккал, Б 12, Ж 3, У 30</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>4%</td><td>3%</td></tr>
+<tr><th>Кальций</th><td>1%</td><td>16%</td></tr>
+<tr><th>Фолаты</th><td>6%</td><td>8%</td></tr>
+<tr><th>Цинк</th><td>2%</td><td>11%</td></tr>
+<tr><th>Витамин A</th><td>0%</td><td>4%</td></tr>
+<tr><th>Магний</th><td>8%</td><td>15%</td></tr>
+<tr><th>Калий</th><td>12%</td><td>23%</td></tr>
+<tr><th>Витамин C</th><td>12%</td><td>15%</td></tr>
+<tr><th>B12</th><td>0%</td><td>35%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>11%</td><td>15%</td></tr>
+</tbody></table></div></details>
+</article>
+<div class="scroll"><table class="totals"><thead><tr><th>Итог дня</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody>
+<tr><th>Макс</th><td>1910</td><td>166</td><td>63</td><td>156</td></tr>
+<tr class="tgt"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr>
+<tr><th>Ильвина</th><td>1409</td><td>70</td><td>47</td><td>167</td></tr>
+<tr class="tgt"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr>
+</tbody></table></div>
+<p class="daycost">Еда на двоих за день: <b>1423 ₽</b></p>
+<details class="mic"><summary>Витамины и минералы за день, % нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>186%</td><td>69%</td></tr>
+<tr><th>Железо</th><td>139%</td><td>45%</td></tr>
+<tr><th>Кальций</th><td>56%</td><td>59%</td></tr>
+<tr><th>Фолаты</th><td>84%</td><td>55%</td></tr>
+<tr><th>Цинк</th><td>86%</td><td>84%</td></tr>
+<tr><th>Витамин A</th><td>159%</td><td>143%</td></tr>
+<tr><th>Магний</th><td>109%</td><td>106%</td></tr>
+<tr><th>Калий</th><td>199%</td><td>170%</td></tr>
+<tr><th>Витамин C</th><td>140%</td><td>126%</td></tr>
+<tr><th>B12</th><td>475%</td><td>223%</td></tr>
+<tr><th>Омега-3</th><td>945%</td><td>362%</td></tr>
+<tr><th>Клетчатка</th><td>91%</td><td>129%</td></tr>
+</tbody></table></div></details>
+</section>
+<section class="day" id="day-Пт" data-dish="ragu" hidden>
+<h3 class="day-title">Пятница</h3>
+<p class="cook-today"><b>Готовим:</b> Ничего — рагу уже готово</p>
+<article class="meal">
+<header><strong>Кофе</strong><span class="rub">18 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>молоко 3,2% 200 мл за день</p><p class="kbju">120 ккал, Б 6, Ж 6, У 9</p></div>
+<div class="who"><em>Ильвина</em><p>—</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>—</td></tr>
+<tr><th>Железо</th><td>0%</td><td>—</td></tr>
+<tr><th>Кальций</th><td>24%</td><td>—</td></tr>
+<tr><th>Фолаты</th><td>2%</td><td>—</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>—</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>—</td></tr>
+<tr><th>Магний</th><td>6%</td><td>—</td></tr>
+<tr><th>Калий</th><td>9%</td><td>—</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>—</td></tr>
+<tr><th>B12</th><td>38%</td><td>—</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>—</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>—</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Завтрак</strong><span class="rub">120 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>2 варёных яйца, помидор 80 г</p><p class="kbju">173 ккал, Б 15, Ж 11, У 3</p></div>
+<div class="who"><em>Ильвина</em><p>овсянка 50 г на молоке 200 мл, вишня 100 г</p><p class="kbju">332 ккал, Б 13, Ж 8, У 50</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>15%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>27%</td><td>14%</td></tr>
+<tr><th>Кальций</th><td>7%</td><td>28%</td></tr>
+<tr><th>Фолаты</th><td>16%</td><td>8%</td></tr>
+<tr><th>Цинк</th><td>14%</td><td>34%</td></tr>
+<tr><th>Витамин A</th><td>23%</td><td>15%</td></tr>
+<tr><th>Магний</th><td>6%</td><td>33%</td></tr>
+<tr><th>Калий</th><td>10%</td><td>25%</td></tr>
+<tr><th>Витамин C</th><td>12%</td><td>12%</td></tr>
+<tr><th>B12</th><td>41%</td><td>38%</td></tr>
+<tr><th>Омега-3</th><td>31%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>3%</td><td>33%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Обед</strong><span class="dish">Рагу с курицей — готовили в чт</span><span class="rub">302 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>рагу ≈810 г: курица ≈270 г готовой (360 г сырой) + овощи с подливой ≈540 г; салат: огурец 100 г, помидор 100 г, без масла</p><p class="kbju">855 ккал, Б 87, Ж 25, У 67</p></div>
+<div class="who"><em>Ильвина</em><p>рагу ≈470 г: курица ≈30 г готовой (40 г сырой) + овощи с подливой ≈440 г; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">457 ккал, Б 20, Ж 17, У 52</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>4%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>67%</td><td>17%</td></tr>
+<tr><th>Кальций</th><td>15%</td><td>10%</td></tr>
+<tr><th>Фолаты</th><td>34%</td><td>23%</td></tr>
+<tr><th>Цинк</th><td>44%</td><td>25%</td></tr>
+<tr><th>Витамин A</th><td>111%</td><td>111%</td></tr>
+<tr><th>Магний</th><td>55%</td><td>31%</td></tr>
+<tr><th>Калий</th><td>103%</td><td>71%</td></tr>
+<tr><th>Витамин C</th><td>68%</td><td>58%</td></tr>
+<tr><th>B12</th><td>32%</td><td>5%</td></tr>
+<tr><th>Омега-3</th><td>14%</td><td>2%</td></tr>
+<tr><th>Клетчатка</th><td>53%</td><td>57%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Ужин</strong><span class="dish">Рагу с курицей — готовили в чт</span><span class="rub">283 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>рагу ≈810 г: курица ≈270 г готовой (360 г сырой) + овощи с подливой ≈540 г</p><p class="kbju">820 ккал, Б 86, Ж 24, У 61</p></div>
+<div class="who"><em>Ильвина</em><p>рагу ≈470 г: курица ≈30 г готовой (40 г сырой) + овощи с подливой ≈440 г; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">457 ккал, Б 20, Ж 17, У 52</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>4%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>60%</td><td>17%</td></tr>
+<tr><th>Кальций</th><td>12%</td><td>10%</td></tr>
+<tr><th>Фолаты</th><td>29%</td><td>23%</td></tr>
+<tr><th>Цинк</th><td>40%</td><td>25%</td></tr>
+<tr><th>Витамин A</th><td>106%</td><td>111%</td></tr>
+<tr><th>Магний</th><td>49%</td><td>31%</td></tr>
+<tr><th>Калий</th><td>92%</td><td>71%</td></tr>
+<tr><th>Витамин C</th><td>50%</td><td>58%</td></tr>
+<tr><th>B12</th><td>32%</td><td>5%</td></tr>
+<tr><th>Омега-3</th><td>14%</td><td>2%</td></tr>
+<tr><th>Клетчатка</th><td>47%</td><td>57%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Перекус</strong><span class="rub">102 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>банан</p><p class="kbju">109 ккал, Б 1, Ж 0, У 24</p></div>
+<div class="who"><em>Ильвина</em><p>греческий йогурт 140 г, яблоко, сыр 20 г</p><p class="kbju">231 ккал, Б 17, Ж 8, У 21</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>4%</td><td>2%</td></tr>
+<tr><th>Кальций</th><td>1%</td><td>34%</td></tr>
+<tr><th>Фолаты</th><td>6%</td><td>4%</td></tr>
+<tr><th>Цинк</th><td>2%</td><td>18%</td></tr>
+<tr><th>Витамин A</th><td>0%</td><td>12%</td></tr>
+<tr><th>Магний</th><td>8%</td><td>9%</td></tr>
+<tr><th>Калий</th><td>12%</td><td>14%</td></tr>
+<tr><th>Витамин C</th><td>12%</td><td>10%</td></tr>
+<tr><th>B12</th><td>0%</td><td>47%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>11%</td><td>16%</td></tr>
+</tbody></table></div></details>
+</article>
+<div class="scroll"><table class="totals"><thead><tr><th>Итог дня</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody>
+<tr><th>Макс</th><td>2079</td><td>195</td><td>67</td><td>165</td></tr>
+<tr class="tgt"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr>
+<tr><th>Ильвина</th><td>1477</td><td>69</td><td>52</td><td>176</td></tr>
+<tr class="tgt"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr>
+</tbody></table></div>
+<p class="daycost">Еда на двоих за день: <b>826 ₽</b></p>
+<details class="mic"><summary>Витамины и минералы за день, % нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>23%</td><td>4%</td></tr>
+<tr><th>Железо</th><td>159%</td><td>51%</td></tr>
+<tr><th>Кальций</th><td>59%</td><td>82%</td></tr>
+<tr><th>Фолаты</th><td>88%</td><td>58%</td></tr>
+<tr><th>Цинк</th><td>107%</td><td>101%</td></tr>
+<tr><th>Витамин A</th><td>248%</td><td>249%</td></tr>
+<tr><th>Магний</th><td>123%</td><td>105%</td></tr>
+<tr><th>Калий</th><td>226%</td><td>181%</td></tr>
+<tr><th>Витамин C</th><td>144%</td><td>137%</td></tr>
+<tr><th>B12</th><td>142%</td><td>94%</td></tr>
+<tr><th>Омега-3</th><td>60%</td><td>3%</td></tr>
+<tr><th>Клетчатка</th><td>114%</td><td>162%</td></tr>
+</tbody></table></div></details>
+</section>
+<section class="day" id="day-Сб" data-dish="beef" hidden>
+<h3 class="day-title">Суббота</h3>
+<p class="cook-today"><b>Готовим:</b> После обеда — тушёная говядина (20 мин работы, 1,5–2 ч тушится сама) и гречка: на ужин и на обед воскресенья</p>
+<article class="meal">
+<header><strong>Кофе</strong><span class="rub">18 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>молоко 3,2% 200 мл за день</p><p class="kbju">120 ккал, Б 6, Ж 6, У 9</p></div>
+<div class="who"><em>Ильвина</em><p>—</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>—</td></tr>
+<tr><th>Железо</th><td>0%</td><td>—</td></tr>
+<tr><th>Кальций</th><td>24%</td><td>—</td></tr>
+<tr><th>Фолаты</th><td>2%</td><td>—</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>—</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>—</td></tr>
+<tr><th>Магний</th><td>6%</td><td>—</td></tr>
+<tr><th>Калий</th><td>9%</td><td>—</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>—</td></tr>
+<tr><th>B12</th><td>38%</td><td>—</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>—</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>—</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Завтрак</strong><span class="rub">175 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>овсянка 40 г на воде, вишня 100 г</p><p class="kbju">192 ккал, Б 6, Ж 3, У 35</p></div>
+<div class="who"><em>Ильвина</em><p>овсянка 50 г на молоке 200 мл, вишня 100 г</p><p class="kbju">332 ккал, Б 13, Ж 8, У 50</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>25%</td><td>14%</td></tr>
+<tr><th>Кальций</th><td>3%</td><td>28%</td></tr>
+<tr><th>Фолаты</th><td>5%</td><td>8%</td></tr>
+<tr><th>Цинк</th><td>14%</td><td>34%</td></tr>
+<tr><th>Витамин A</th><td>7%</td><td>15%</td></tr>
+<tr><th>Магний</th><td>16%</td><td>33%</td></tr>
+<tr><th>Калий</th><td>9%</td><td>25%</td></tr>
+<tr><th>Витамин C</th><td>8%</td><td>12%</td></tr>
+<tr><th>B12</th><td>0%</td><td>38%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>20%</td><td>33%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Обед</strong><span class="dish">Рагу с курицей — готовили в чт</span><span class="rub">302 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>рагу ≈810 г: курица ≈270 г готовой (360 г сырой) + овощи с подливой ≈540 г; салат: огурец 100 г, помидор 100 г, без масла</p><p class="kbju">855 ккал, Б 87, Ж 25, У 67</p></div>
+<div class="who"><em>Ильвина</em><p>рагу ≈470 г: курица ≈30 г готовой (40 г сырой) + овощи с подливой ≈440 г; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">457 ккал, Б 20, Ж 17, У 52</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>4%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>67%</td><td>17%</td></tr>
+<tr><th>Кальций</th><td>15%</td><td>10%</td></tr>
+<tr><th>Фолаты</th><td>34%</td><td>23%</td></tr>
+<tr><th>Цинк</th><td>44%</td><td>25%</td></tr>
+<tr><th>Витамин A</th><td>111%</td><td>111%</td></tr>
+<tr><th>Магний</th><td>55%</td><td>31%</td></tr>
+<tr><th>Калий</th><td>103%</td><td>71%</td></tr>
+<tr><th>Витамин C</th><td>68%</td><td>58%</td></tr>
+<tr><th>B12</th><td>32%</td><td>5%</td></tr>
+<tr><th>Омега-3</th><td>14%</td><td>2%</td></tr>
+<tr><th>Клетчатка</th><td>53%</td><td>57%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Ужин</strong><span class="dish">Тушёная говядина, гречка — готовим сегодня</span><span class="rub">596 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>тушёное ≈455 г: говядина ≈210 г готовой (320 г сырой) + овощи с подливой ≈245 г; гречка 45 г сухой → ≈120 г варёной</p><p class="kbju">762 ккал, Б 73, Ж 30, У 47</p></div>
+<div class="who"><em>Ильвина</em><p>тушёное ≈295 г: говядина ≈50 г готовой (80 г сырой) + овощи с подливой ≈245 г; гречка 35 г сухой → ≈95 г варёной; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">468 ккал, Б 24, Ж 21, У 43</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>2%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>116%</td><td>22%</td></tr>
+<tr><th>Кальций</th><td>9%</td><td>8%</td></tr>
+<tr><th>Фолаты</th><td>26%</td><td>23%</td></tr>
+<tr><th>Цинк</th><td>155%</td><td>68%</td></tr>
+<tr><th>Витамин A</th><td>61%</td><td>81%</td></tr>
+<tr><th>Магний</th><td>49%</td><td>43%</td></tr>
+<tr><th>Калий</th><td>52%</td><td>42%</td></tr>
+<tr><th>Витамин C</th><td>120%</td><td>153%</td></tr>
+<tr><th>B12</th><td>333%</td><td>83%</td></tr>
+<tr><th>Омега-3</th><td>26%</td><td>6%</td></tr>
+<tr><th>Клетчатка</th><td>34%</td><td>46%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Перекус</strong><span class="rub">38 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>яблоко</p><p class="kbju">68 ккал, Б 0, Ж 0, У 15</p></div>
+<div class="who"><em>Ильвина</em><p>яблоко, сыр 20 г</p><p class="kbju">138 ккал, Б 5, Ж 6, У 15</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>2%</td><td>1%</td></tr>
+<tr><th>Кальций</th><td>1%</td><td>19%</td></tr>
+<tr><th>Фолаты</th><td>1%</td><td>2%</td></tr>
+<tr><th>Цинк</th><td>1%</td><td>10%</td></tr>
+<tr><th>Витамин A</th><td>0%</td><td>8%</td></tr>
+<tr><th>Магний</th><td>2%</td><td>4%</td></tr>
+<tr><th>Калий</th><td>4%</td><td>6%</td></tr>
+<tr><th>Витамин C</th><td>7%</td><td>9%</td></tr>
+<tr><th>B12</th><td>0%</td><td>12%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>11%</td><td>16%</td></tr>
+</tbody></table></div></details>
+</article>
+<div class="scroll"><table class="totals"><thead><tr><th>Итог дня</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody>
+<tr><th>Макс</th><td>1997</td><td>172</td><td>64</td><td>174</td></tr>
+<tr class="tgt"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr>
+<tr><th>Ильвина</th><td>1394</td><td>62</td><td>52</td><td>161</td></tr>
+<tr class="tgt"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr>
+</tbody></table></div>
+<p class="daycost">Еда на двоих за день: <b>1129 ₽</b></p>
+<details class="mic"><summary>Витамины и минералы за день, % нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>7%</td><td>3%</td></tr>
+<tr><th>Железо</th><td>210%</td><td>55%</td></tr>
+<tr><th>Кальций</th><td>52%</td><td>64%</td></tr>
+<tr><th>Фолаты</th><td>69%</td><td>56%</td></tr>
+<tr><th>Цинк</th><td>220%</td><td>136%</td></tr>
+<tr><th>Витамин A</th><td>186%</td><td>215%</td></tr>
+<tr><th>Магний</th><td>127%</td><td>112%</td></tr>
+<tr><th>Калий</th><td>178%</td><td>145%</td></tr>
+<tr><th>Витамин C</th><td>205%</td><td>231%</td></tr>
+<tr><th>B12</th><td>403%</td><td>137%</td></tr>
+<tr><th>Омега-3</th><td>40%</td><td>8%</td></tr>
+<tr><th>Клетчатка</th><td>118%</td><td>151%</td></tr>
+</tbody></table></div></details>
+</section>
+<section class="day" id="day-Вс" data-dish="trout" hidden>
+<h3 class="day-title">Воскресенье</h3>
+<p class="cook-today"><b>Готовим:</b> После обеда — форель с рисом (≈30 мин, в основном духовка): на ужин и на обед понедельника</p>
+<article class="meal">
+<header><strong>Кофе</strong><span class="rub">18 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>молоко 3,2% 200 мл за день</p><p class="kbju">120 ккал, Б 6, Ж 6, У 9</p></div>
+<div class="who"><em>Ильвина</em><p>—</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>1%</td><td>—</td></tr>
+<tr><th>Железо</th><td>0%</td><td>—</td></tr>
+<tr><th>Кальций</th><td>24%</td><td>—</td></tr>
+<tr><th>Фолаты</th><td>2%</td><td>—</td></tr>
+<tr><th>Цинк</th><td>7%</td><td>—</td></tr>
+<tr><th>Витамин A</th><td>6%</td><td>—</td></tr>
+<tr><th>Магний</th><td>6%</td><td>—</td></tr>
+<tr><th>Калий</th><td>9%</td><td>—</td></tr>
+<tr><th>Витамин C</th><td>2%</td><td>—</td></tr>
+<tr><th>B12</th><td>38%</td><td>—</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>—</td></tr>
+<tr><th>Клетчатка</th><td>0%</td><td>—</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Завтрак</strong><span class="rub">189 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>2 варёных яйца, овсянка 40 г на воде, вишня 100 г</p><p class="kbju">349 ккал, Б 20, Ж 13, У 36</p></div>
+<div class="who"><em>Ильвина</em><p>овсянка 50 г на молоке 200 мл, вишня 100 г</p><p class="kbju">332 ккал, Б 13, Ж 8, У 50</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>15%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>49%</td><td>14%</td></tr>
+<tr><th>Кальций</th><td>10%</td><td>28%</td></tr>
+<tr><th>Фолаты</th><td>18%</td><td>8%</td></tr>
+<tr><th>Цинк</th><td>27%</td><td>34%</td></tr>
+<tr><th>Витамин A</th><td>27%</td><td>15%</td></tr>
+<tr><th>Магний</th><td>19%</td><td>33%</td></tr>
+<tr><th>Калий</th><td>14%</td><td>25%</td></tr>
+<tr><th>Витамин C</th><td>8%</td><td>12%</td></tr>
+<tr><th>B12</th><td>41%</td><td>38%</td></tr>
+<tr><th>Омега-3</th><td>31%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>20%</td><td>33%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Обед</strong><span class="dish">Тушёная говядина, гречка — готовили в сб</span><span class="rub">615 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>тушёное ≈455 г: говядина ≈210 г готовой (320 г сырой) + овощи с подливой ≈245 г; гречка 45 г сухой → ≈120 г варёной; салат: огурец 100 г, помидор 100 г, без масла</p><p class="kbju">797 ккал, Б 75, Ж 30, У 53</p></div>
+<div class="who"><em>Ильвина</em><p>тушёное ≈295 г: говядина ≈50 г готовой (80 г сырой) + овощи с подливой ≈245 г; гречка 35 г сухой → ≈95 г варёной; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">468 ккал, Б 24, Ж 21, У 43</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>2%</td><td>1%</td></tr>
+<tr><th>Железо</th><td>123%</td><td>22%</td></tr>
+<tr><th>Кальций</th><td>12%</td><td>8%</td></tr>
+<tr><th>Фолаты</th><td>31%</td><td>23%</td></tr>
+<tr><th>Цинк</th><td>159%</td><td>68%</td></tr>
+<tr><th>Витамин A</th><td>66%</td><td>81%</td></tr>
+<tr><th>Магний</th><td>55%</td><td>43%</td></tr>
+<tr><th>Калий</th><td>63%</td><td>42%</td></tr>
+<tr><th>Витамин C</th><td>139%</td><td>153%</td></tr>
+<tr><th>B12</th><td>333%</td><td>83%</td></tr>
+<tr><th>Омега-3</th><td>26%</td><td>6%</td></tr>
+<tr><th>Клетчатка</th><td>40%</td><td>46%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Ужин</strong><span class="dish">Форель с рисом и горошком — готовим сегодня</span><span class="rub">922 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>форель 250 г сырой → ≈200 г готовой, рис 65 г сухого → ≈195 г варёного, горошек 80 г</p><p class="kbju">674 ккал, Б 57, Ж 21, У 58</p></div>
+<div class="who"><em>Ильвина</em><p>форель 100 г сырой → ≈80 г готовой, рис 55 г сухого → ≈165 г варёного, горошек 80 г; полсалата: огурец 40 г, помидор 40 г, масло 10 г</p><p class="kbju">503 ккал, Б 27, Ж 19, У 53</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>167%</td><td>67%</td></tr>
+<tr><th>Железо</th><td>26%</td><td>10%</td></tr>
+<tr><th>Кальций</th><td>8%</td><td>6%</td></tr>
+<tr><th>Фолаты</th><td>19%</td><td>15%</td></tr>
+<tr><th>Цинк</th><td>20%</td><td>21%</td></tr>
+<tr><th>Витамин A</th><td>19%</td><td>15%</td></tr>
+<tr><th>Магний</th><td>25%</td><td>21%</td></tr>
+<tr><th>Калий</th><td>33%</td><td>26%</td></tr>
+<tr><th>Витамин C</th><td>13%</td><td>20%</td></tr>
+<tr><th>B12</th><td>365%</td><td>146%</td></tr>
+<tr><th>Омега-3</th><td>900%</td><td>360%</td></tr>
+<tr><th>Клетчатка</th><td>15%</td><td>23%</td></tr>
+</tbody></table></div></details>
+</article>
+<article class="meal">
+<header><strong>Перекус</strong><span class="rub">46 ₽</span></header>
+<div class="two">
+<div class="who"><em>Макс</em><p>банан</p><p class="kbju">109 ккал, Б 1, Ж 0, У 24</p></div>
+<div class="who"><em>Ильвина</em><p>банан</p><p class="kbju">109 ккал, Б 1, Ж 0, У 24</p></div>
+</div>
+<details class="mic"><summary>Витамины и минералы, % дневной нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>0%</td><td>0%</td></tr>
+<tr><th>Железо</th><td>4%</td><td>2%</td></tr>
+<tr><th>Кальций</th><td>1%</td><td>1%</td></tr>
+<tr><th>Фолаты</th><td>6%</td><td>6%</td></tr>
+<tr><th>Цинк</th><td>2%</td><td>2%</td></tr>
+<tr><th>Витамин A</th><td>0%</td><td>0%</td></tr>
+<tr><th>Магний</th><td>8%</td><td>10%</td></tr>
+<tr><th>Калий</th><td>12%</td><td>16%</td></tr>
+<tr><th>Витамин C</th><td>12%</td><td>14%</td></tr>
+<tr><th>B12</th><td>0%</td><td>0%</td></tr>
+<tr><th>Омега-3</th><td>0%</td><td>0%</td></tr>
+<tr><th>Клетчатка</th><td>11%</td><td>15%</td></tr>
+</tbody></table></div></details>
+</article>
+<div class="scroll"><table class="totals"><thead><tr><th>Итог дня</th><th>ккал</th><th>Б</th><th>Ж</th><th>У</th></tr></thead><tbody>
+<tr><th>Макс</th><td>2049</td><td>159</td><td>71</td><td>180</td></tr>
+<tr class="tgt"><th>цель</th><td>≈2000</td><td>160</td><td>65</td><td>200</td></tr>
+<tr><th>Ильвина</th><td>1412</td><td>66</td><td>48</td><td>170</td></tr>
+<tr class="tgt"><th>цель</th><td>≈1400</td><td>60–70</td><td>45–50</td><td>150–180</td></tr>
+</tbody></table></div>
+<p class="daycost">Еда на двоих за день: <b>1790 ₽</b></p>
+<details class="mic"><summary>Витамины и минералы за день, % нормы</summary><div class="scroll"><table class="mt"><thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead><tbody>
+<tr><th>Витамин D</th><td>184%</td><td>68%</td></tr>
+<tr><th>Железо</th><td>203%</td><td>47%</td></tr>
+<tr><th>Кальций</th><td>54%</td><td>42%</td></tr>
+<tr><th>Фолаты</th><td>76%</td><td>52%</td></tr>
+<tr><th>Цинк</th><td>214%</td><td>125%</td></tr>
+<tr><th>Витамин A</th><td>118%</td><td>111%</td></tr>
+<tr><th>Магний</th><td>113%</td><td>107%</td></tr>
+<tr><th>Калий</th><td>131%</td><td>109%</td></tr>
+<tr><th>Витамин C</th><td>173%</td><td>199%</td></tr>
+<tr><th>B12</th><td>777%</td><td>267%</td></tr>
+<tr><th>Омега-3</th><td>956%</td><td>366%</td></tr>
+<tr><th>Клетчатка</th><td>85%</td><td>117%</td></tr>
+</tbody></table></div></details>
+</section>
+</section>
+
+<section class="block" id="cook">
+  <h2>Готовка</h2>
+
+  <details class="recipe curry">
+    <summary><span class="d">Пн</span><span class="t">Творожно-сырная намазка<small>5 минут утром, на 3 завтрака</small></span></summary>
+    <div class="body">
+      <ul><li>Творог со сметаной 7% — 130 г (1 пачка)</li><li>Сыр — 86 г, мелко натереть (остальной сыр — в перекусы Ильвины и на следующую неделю)</li><li>Чеснок — 1 зубчик</li></ul>
+      <p class="split">Ваша пропорция 3 к 2, выходит ≈220 г. Максу: пн 45 г, вт и ср по 40 г. Ильвине: по 32 г. Хранится 3 дня.</p>
+    </div>
+  </details>
+
+  <details class="recipe curry">
+    <summary><span class="d">Пн</span><span class="t">Карри с курицей и горошком, рис<small>≈45 минут после обеда: на ужин и на обед вторника</small></span></summary>
+    <div class="body">
+      <ul>
+        <li>Куриное филе — 800 г</li>
+        <li>Лук — 200 г (2 шт), чеснок — 3 зубчика</li>
+        <li>Томатная паста — 70 г</li>
+        <li>Сливки 10% — 225 г (половина пачки 450 г)</li>
+        <li>Горошек консервированный — 160 г без жидкости (⅔ банки), в конце, на 3 минуты</li>
+        <li>Масло — 15 г, карри, соль</li>
+        <li>Рис — 250 г сухого</li>
+      </ul>
+      <p class="split">Выйдет ≈1,2 кг карри. За приём: Максу ≈445 г — курица 255 г + соус с горошком 190 г; Ильвине ≈150 г — курица 45 г (1–2 кусочка) + соус 105 г. Рис по сухому весу: Максу 65 г (≈195 г варёного), Ильвине 60 г (≈180 г) за приём.</p>
+    </div>
+  </details>
+
+  <details class="recipe shrimp">
+    <summary><span class="d">Вт</span><span class="t">Паста с креветками<small>≈30 минут после обеда: на ужин и на обед среды</small></span></summary>
+    <div class="body">
+      <ul>
+        <li>Креветки — 3 пачки по 200 г</li>
+        <li>Помидоры — 300 г, томатная паста — 30 г</li>
+        <li>Сливки 10% — 225 г (вторая половина пачки)</li>
+        <li>Масло — 15 г, чеснок — 3 зубчика, специи</li>
+        <li>Макароны — 270 г сухих</li>
+      </ul>
+      <p class="split">Креветки делите сразу: Максу 450 г, Ильвине 150 г на два приёма. Соуса выйдет ≈430 г, за приём: Максу ≈140 г, Ильвине ≈75 г. Креветки после разморозки и жарки теряют около четверти веса: у Макса ≈170 г готовых за приём, у Ильвины ≈55 г. Макароны по сухому весу: Максу 70 г (≈160 г варёных), Ильвине 65 г (≈150 г) за приём.</p>
+      <p class="note">Вечером сварите Максу 8 яиц на среду, четверг, пятницу и воскресенье: в скорлупе в холодильнике они лежат неделю.</p>
+    </div>
+  </details>
+
+  <details class="recipe trout">
+    <summary><span class="d">Ср</span><span class="t">Форель с картофелем, горошек с кукурузой<small>≈40 минут после обеда, в основном духовка: на ужин и на обед четверга</small></span></summary>
+    <div class="body">
+      <ul>
+        <li>Форель — 700 г: Максу по 250 г (≈200 г готовой), Ильвине по 100 г (≈80 г) за приём</li>
+        <li>Картофель — 900 г: Максу по 275 г (≈220 г запечённого), Ильвине по 175 г (≈140 г) за приём</li>
+        <li>Соль, перец, специи для рыбы</li>
+        <li>К ужину: горошек 160 г и кукуруза 120 г без жидкости — прогреть 3 минуты</li>
+      </ul>
+      <ol>
+        <li>Картофель половинками на пергамент, 200 °C, 20 минут.</li>
+        <li>Добавить рыбу, ещё 15–20 минут.</li>
+      </ol>
+      <p class="note">На неделю нужно 1,4 кг форели: по 700 г на среду и воскресенье. Сырую рыбу удобнее сразу разрезать на порции по весу. Кусок на воскресенье сразу в морозилку, если форель привезли одним заказом. Остаток кукурузы — в салат в четверг.</p>
+    </div>
+  </details>
+
+  <details class="recipe ragu">
+    <summary><span class="d">Чт</span><span class="t">Рагу с курицей<small>≈1 час после обеда: ужин четверга, вся пятница, обед субботы — ваш рецепт без изменений</small></span></summary>
+    <div class="body">
+      <ul>
+        <li>Куриное филе — 1,6 кг</li>
+        <li>Картофель — 1,6 кг</li>
+        <li>Морковь — 800 г, шампиньоны — 800 г (можно все 900 г), лук — 800 г</li>
+        <li>Чеснок, мука — 3 ст. л. (≈60 г)</li>
+        <li>Бульон из 2 кубиков, соевый соус вместо соли (≈60 мл)</li>
+        <li>Томатная паста — 2 ложки (≈50 г), масло ≈30 г</li>
+      </ul>
+      <p class="split">Выйдет ≈5,1 кг рагу на 4 приёма. За приём: Максу ≈810 г — курица 270 г + овощи с подливой 540 г; Ильвине ≈470 г — курица 30 г (1–2 кусочка) + овощи с подливой 440 г.</p>
+      <p class="note">Вода при тушении уходит, белок остаётся: в порции Макса ≈72 г белка из курицы (20 г на 100 г сырого филе по этикетке) и ≈14 г из картошки, грибов, муки. </p>
+    </div>
+  </details>
+
+  <details class="recipe beef">
+    <summary><span class="d">Сб</span><span class="t">Тушёная говядина, гречка<small>после обеда: 20 минут работы, 1,5–2 часа тушится сама; на ужин субботы и обед воскресенья</small></span></summary>
+    <div class="body">
+      <ul>
+        <li>Говядина, тазобедренный отруб — 800 г, кубиками</li>
+        <li>Лук — 300 г, морковь — 200 г, перец — 300 г</li>
+        <li>Томатная паста — 50 г, мука — 20 г, масло — 10 г, чеснок</li>
+        <li>Паприка, лавровый лист, соль</li>
+        <li>Гречка — 160 г сухой</li>
+      </ul>
+      <ol>
+        <li>Срезать видимый жир, мясо обжарить, добавить лук и морковь.</li>
+        <li>Томатная паста, мука, паприка — минуту, затем воды, чтобы покрыть мясо.</li>
+        <li>Тушить под крышкой 1,5–2 часа, перец — за 20 минут до конца. Жир с поверхности снять ложкой.</li>
+      </ol>
+      <p class="split">Выйдет ≈1,5 кг. За приём: Максу ≈455 г — говядина 210 г + овощи с подливой 245 г; Ильвине ≈295 г — говядина 50 г + овощи с подливой 245 г. Гречка по сухому весу: Максу 45 г (≈120 г варёной), Ильвине 35 г (≈95 г) за приём.</p>
+      <p class="note">Говядину и форель считал по 20 г белка и 8 г жира на 100 г сырого веса — пришлите цифры с их этикеток, пересчитаю точно. Если у говядины на этикетке жира больше, каждый лишний грамм на 100 г — это ≈+3 г жира Максу за приём.</p>
+    </div>
+  </details>
+
+  <details class="recipe trout">
+    <summary><span class="d">Вс</span><span class="t">Форель с рисом<small>≈30 минут после обеда: на ужин и на обед понедельника</small></span></summary>
+    <div class="body">
+      <ul>
+        <li>Форель — 700 г: Максу по 250 г (≈200 г готовой), Ильвине по 100 г (≈80 г) за приём</li>
+        <li>Рис — 240 г сухого: Максу по 65 г (≈195 г варёного), Ильвине по 55 г (≈165 г) за приём</li>
+        <li>К ужину — горошек 160 г без жидкости (остаток второй банки)</li>
+      </ul>
+      <p class="note">Рыба при 200 °C 15–20 минут. Замороженный кусок переложите в холодильник в субботу вечером.</p>
+    </div>
+  </details>
+</section>
+
+<section class="block" id="shop">
+  <h2>Покупки: реальная цена недели</h2>
+  <div class="sum">
+    <p>Реально в неделю: <span class="big">≈9 605 ₽</span> — ≈1 372 ₽ в день на двоих</p>
+    <p>Номинально корзина: Монетка 3&nbsp;133 ₽ + Ашан 8&nbsp;216 ₽ + сыр 170 ₽ = <b>11 519 ₽</b>. Разница — продукты, которые берутся пачкой на несколько недель: крупы, мука, масло, соевый соус, кубики, чеснок.</p>
+    <p class="left">Где в корзине меньше, чем нужно по плану — курица и картофель, — недостающее посчитано по той же цене.</p>
+  </div>
+  <p class="note" style="margin-bottom:12px">Справа — сколько продукта уходит за неделю и сколько это стоит по цене из корзины. Ниже серым — номинальная цена: за всю пачку, как в чеке.</p>
+  <button class="reset" type="button" id="resetShop">Снять все отметки</button>
+<div class="shop-group"><h3>Мясо и рыба</h3><ul>
+<li><label><input type="checkbox" data-k="i1"><span class="n">Филе цыплёнка-бройлера охл.</span><span class="q">2,4 кг</span><span class="c">1 056 ₽</span><small>Номинально: 2 × 900 г — 792 ₽, Монетка. По плану нужно 2,4 кг — не хватает 600 г, докупаете по той же цене.</small></label></li>
+<li><label><input type="checkbox" data-k="i2"><span class="n">Говядина, тазобедренный отруб (внутр. часть)</span><span class="q">800 г</span><span class="c">1 040 ₽</span><small>Номинально: 800 г — 1 040 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i3"><span class="n">Форель охлаждённая, филе на коже</span><span class="q">1,4 кг</span><span class="c">3 220 ₽</span><small>Номинально: 2 кг — 4 600 ₽, Ашан. Фактический вес обычно меньше 2 кг: на неделю нужно 1,4 кг, по 700 г на среду и воскресенье.</small></label></li>
+<li><label><input type="checkbox" data-k="i4"><span class="n">Креветки «Бухта изобилия» очищенные</span><span class="q">600 г</span><span class="c">1 071 ₽</span><small>Номинально: 3 × 200 г — 1 071 ₽, Монетка.</small></label></li>
+</ul></div>
+<div class="shop-group"><h3>Молочное и яйца</h3><ul>
+<li><label><input type="checkbox" data-k="i5"><span class="n">Йогурт TEOS греческий 2%</span><span class="q">7 × 140 г</span><span class="c">385 ₽</span><small>Номинально: 7 × 140 г — 385 ₽, Монетка.</small></label></li>
+<li><label><input type="checkbox" data-k="i6"><span class="n">Творог «Первый вкус» со сметаной 7%</span><span class="q">130 г</span><span class="c">69 ₽</span><small>Номинально: 130 г — 69 ₽, Монетка.</small></label></li>
+<li><label><input type="checkbox" data-k="i7"><span class="n">Сыр</span><span class="q">146 г</span><span class="c">83 ₽</span><small>Номинально: 300 г — 170 ₽, другой магазин.</small></label></li>
+<li><label><input type="checkbox" data-k="i8"><span class="n">Сливки «Первый вкус» 10%</span><span class="q">450 г</span><span class="c">113 ₽</span><small>Номинально: 450 г — 113 ₽, Монетка.</small></label></li>
+<li><label><input type="checkbox" data-k="i9"><span class="n">Молоко «Первый вкус» 3,2%</span><span class="q">1,4 л</span><span class="c">129 ₽</span><small>Номинально: 1,5 л — 138 ₽, Монетка.</small></label></li>
+<li><label><input type="checkbox" data-k="i10"><span class="n">Молоко «Домик в деревне» 2,5%</span><span class="q">800 мл</span><span class="c">75 ₽</span><small>Номинально: 930 мл — 87 ₽, Монетка.</small></label></li>
+<li><label><input type="checkbox" data-k="i11"><span class="n">Яйца С1</span><span class="q">8 шт</span><span class="c">56 ₽</span><small>Номинально: 10 шт — 70 ₽, Монетка.</small></label></li>
+</ul></div>
+<div class="shop-group"><h3>Крупы и хлеб</h3><ul>
+<li><label><input type="checkbox" data-k="i12"><span class="n">Рис «Мистраль» круглозёрный</span><span class="q">490 г</span><span class="c">74 ₽</span><small>Номинально: 800 г — 120 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i13"><span class="n">Макароны Makfa спирали</span><span class="q">270 г</span><span class="c">36 ₽</span><small>Номинально: 450 г — 60 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i14"><span class="n">Гречка Makfa</span><span class="q">160 г</span><span class="c">18 ₽</span><small>Номинально: 800 г — 90 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i15"><span class="n">Овсяные хлопья «Ясно солнышко» №1</span><span class="q">280 г</span><span class="c">63 ₽</span><small>Номинально: 500 г — 113 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i16"><span class="n">Хлеб Ашан со злаками</span><span class="q">300 г</span><span class="c">63 ₽</span><small>Номинально: 300 г (6 кусков) — 63 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i17"><span class="n">Мука Makfa</span><span class="q">80 г</span><span class="c">5 ₽</span><small>Номинально: 2 кг — 120 ₽, Ашан.</small></label></li>
+</ul></div>
+<div class="shop-group"><h3>Овощи</h3><ul>
+<li><label><input type="checkbox" data-k="i18"><span class="n">Картофель</span><span class="q">2,5 кг</span><span class="c">112 ₽</span><small>Номинально: 2 кг — 90 ₽, Ашан. По плану нужно 2,5 кг — не хватает 500 г, докупаете по той же цене.</small></label></li>
+<li><label><input type="checkbox" data-k="i19"><span class="n">Лук репчатый</span><span class="q">1,3 кг</span><span class="c">44 ₽</span><small>Номинально: 1,5 кг — 51 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i20"><span class="n">Морковь</span><span class="q">1 кг</span><span class="c">30 ₽</span><small>Номинально: 1 кг — 30 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i21"><span class="n">Шампиньоны</span><span class="q">800 г</span><span class="c">216 ₽</span><small>Номинально: 900 г — 243 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i22"><span class="n">Томаты сливовидные</span><span class="q">1,96 кг</span><span class="c">196 ₽</span><small>Номинально: 2 кг — 200 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i23"><span class="n">Огурцы</span><span class="q">1,5 кг</span><span class="c">135 ₽</span><small>Номинально: 1,5 кг — 135 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i24"><span class="n">Перец красный</span><span class="q">500 г</span><span class="c">125 ₽</span><small>Номинально: 500 г — 125 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i25"><span class="n">Чеснок</span><span class="q">80 г</span><span class="c">23 ₽</span><small>Номинально: 200 г — 58 ₽, Ашан.</small></label></li>
+</ul></div>
+<div class="shop-group"><h3>Консервы и заморозка</h3><ul>
+<li><label><input type="checkbox" data-k="i26"><span class="n">Горошек «Бондюэль»</span><span class="q">480 г</span><span class="c">270 ₽</span><small>Номинально: 2 банки по 400 г — 270 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i27"><span class="n">Кукуруза «Бондюэль»</span><span class="q">194 г</span><span class="c">124 ₽</span><small>Номинально: 340 г — 135 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i28"><span class="n">Вишня O&#x27;green без косточки, заморозка</span><span class="q">600 г</span><span class="c">408 ₽</span><small>Номинально: 2 × 300 г — 408 ₽, Монетка.</small></label></li>
+<li><label><input type="checkbox" data-k="i29"><span class="n">Томатная паста</span><span class="q">200 г</span><span class="c">≈67 ₽</span><small>В корзине сейчас «Краснодарский» соус 460 г за 90 ₽ — в нём сахар и крахмал, карри и рагу с ним станут сладкими. Лучше заменить на пасту; её цена — оценка, ≈90 ₽ за 270 г</small></label></li>
+</ul></div>
+<div class="shop-group"><h3>Фрукты</h3><ul>
+<li><label><input type="checkbox" data-k="i30"><span class="n">Яблоки</span><span class="q">5 шт</span><span class="c">66 ₽</span><small>Номинально: 700 г (≈5 шт) — 66 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i31"><span class="n">Бананы</span><span class="q">8 шт</span><span class="c">182 ₽</span><small>Номинально: 1,4 кг (≈8 шт) — 182 ₽, Ашан.</small></label></li>
+</ul></div>
+<div class="shop-group"><h3>Прочее</h3><ul>
+<li><label><input type="checkbox" data-k="i32"><span class="n">Масло подсолнечное «Слобода»</span><span class="q">≈230 мл</span><span class="c">33 ₽</span><small>Номинально: 1 л — 145 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i33"><span class="n">Бульонные кубики Maggi</span><span class="q">2 шт</span><span class="c">10 ₽</span><small>Номинально: 8 шт — 40 ₽, Ашан.</small></label></li>
+<li><label><input type="checkbox" data-k="i34"><span class="n">Соевый соус «Сэн Сой»</span><span class="q">60 мл</span><span class="c">9 ₽</span><small>Номинально: 1 л — 150 ₽, Ашан.</small></label></li>
+</ul></div>
+</section>
+
+<section class="block" id="prot">
+  <h2>Сколько стоят 10 г белка</h2>
+  <p class="lead">По ценам из корзины. Дороже всего обходятся среда и воскресенье, когда запекается форель (по ≈1 830 ₽), дешевле всего — пятница на рагу (≈830 ₽).</p>
+  <div class="scroll"><table class="prot"><tbody>
+<tr><th>Яйца</th><td>10 ₽</td><td></td></tr>
+<tr><th>Куриное филе</th><td>22 ₽</td><td></td></tr>
+<tr><th>Сыр</th><td>23 ₽</td><td>но на 10 г белка — 11 г жира</td></tr>
+<tr><th>Творог со сметаной</th><td>38 ₽</td><td>состав по пачке не сверял — оценка</td></tr>
+<tr><th>Греческий йогурт</th><td>49 ₽</td><td></td></tr>
+<tr><th>Говядина</th><td>65 ₽</td><td></td></tr>
+<tr><th>Форель</th><td>115 ₽</td><td>зато почти весь витамин D и омега-3 недели</td></tr>
+<tr><th>Креветки</th><td>119 ₽</td><td>с учётом глазури: белка ≈15 г на 100 г пачки</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="block" id="micro">
+  <h2>Витамины и минералы</h2>
+  <p class="lead">В среднем за день по неделе, в процентах от нормы. Только еда, без добавок. Разбивка по приёмам пищи — в каждом дне, под каждым блюдом.</p>
+  <div class="scroll">
+  <table class="micro">
+    <thead><tr><th></th><th>Макс</th><th>Ильвина</th></tr></thead>
+    <tbody>
+<tr><th>Витамин D</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>108%</b><small>16,2 из 15,0 мкг</small></td><td class="low"><div class="bar"><span style="width:40%"></span></div><b>40%</b><small>6,0 из 15,0 мкг</small></td></tr>
+<tr><th>Железо</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>149%</b><small>11,9 из 8,0 мг</small></td><td class="low"><div class="bar"><span style="width:42%"></span></div><b>42%</b><small>7,6 из 18,0 мг</small></td></tr>
+<tr><th>Кальций</th><td class="mid"><div class="bar"><span style="width:72%"></span></div><b>72%</b><small>722 из 1000 мг</small></td><td class="low"><div class="bar"><span style="width:57%"></span></div><b>57%</b><small>571 из 1000 мг</small></td></tr>
+<tr><th>Фолаты</th><td class="mid"><div class="bar"><span style="width:73%"></span></div><b>73%</b><small>290 из 400 мкг</small></td><td class="low"><div class="bar"><span style="width:49%"></span></div><b>49%</b><small>196 из 400 мкг</small></td></tr>
+<tr><th>Цинк</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>131%</b><small>14,4 из 11,0 мг</small></td><td class="ok"><div class="bar"><span style="width:95%"></span></div><b>95%</b><small>7,6 из 8,0 мг</small></td></tr>
+<tr><th>Витамин A</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>129%</b><small>1163 из 900 мкг</small></td><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>121%</b><small>844 из 700 мкг</small></td></tr>
+<tr><th>Магний</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>109%</b><small>436 из 400 мг</small></td><td class="ok"><div class="bar"><span style="width:93%"></span></div><b>93%</b><small>288 из 310 мг</small></td></tr>
+<tr><th>Калий</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>160%</b><small>5433 из 3400 мг</small></td><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>125%</b><small>3263 из 2600 мг</small></td></tr>
+<tr><th>Витамин C</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>151%</b><small>136 из 90 мг</small></td><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>151%</b><small>114 из 75 мг</small></td></tr>
+<tr><th>B12</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>443%</b><small>10,6 из 2,4 мкг</small></td><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>175%</b><small>4,2 из 2,4 мкг</small></td></tr>
+<tr><th>Омега-3</th><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>603%</b><small>1,5 из 0,25 г</small></td><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>226%</b><small>0,6 из 0,25 г</small></td></tr>
+<tr><th>Клетчатка</th><td class="mid"><div class="bar"><span style="width:86%"></span></div><b>86%</b><small>24 из 28 г</small></td><td class="ok"><div class="bar"><span style="width:100%"></span></div><b>113%</b><small>23 из 20 г</small></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="src">Нормы — DRI (NIH) для мужчины и женщины 19–30 лет; клетчатка — 14 г на 1000 ккал; омега-3 — 250 мг EPA+DHA (EFSA). Йод не посчитан: он зависит от соли.</p>
+
+  <h2 style="margin-top:22px">Добавки</h2>
+  <ul class="supp">
+    <li><b>Железо — у Ильвины закрыто</b>Ильвина пьёт 100 мг железа в день (сульфат с витамином C), таблица выше считает только еду. Не вместе с молочным (каша на молоке, йогурт, намазка), кальцием, магнием, чаем и кофе — разносить на 2 часа; по этому плану удобно за час до обеда. 100 мг — лечебная доза: курсом, с контролем ферритина.</li>
+    <li><b>Витамин D3 — Ильвине 1000–2000 МЕ в день с едой</b>Едой у Ильвины ≈40% нормы. Максу по расчёту хватает двух рыбных дней, но витамина D в выращенной форели бывает в разы меньше, чем я заложил (10 мкг на 100 г). Точный ответ даст анализ на 25(OH)D.</li>
+    <li><b>Фолаты — Ильвине</b>≈49%: фолиевая кислота 400 мкг в день, с железом не конфликтует. У Макса ≈73%.</li>
+    <li><b>Кальций</b>У Ильвины ≈57% — 500 мг вечером, через 2 часа после железа. У Макса ≈72%: хватит ещё 2 стаканчиков йогурта в неделю.</li>
+    <li><b>Магний — у Ильвины закрыт</b>Едой ≈93%, её 300 мг курсами — сверху, тоже отдельно от железа.</li>
+    <li><b>Йод — соль только йодированная</b>Соевый соус в рагу йода не даёт.</li>
+    <li><b>Омега-3 закрыта с запасом</b>Два рыбных дня дают обоим больше нормы.</li>
+  </ul>
+</section>
+
+</main>
+
+<footer class="wrap">
+  КБЖУ считаются по сырому или сухому весу: при готовке уходит вода, а белок, жир и углеводы остаются, поэтому 100 г сырой курицы (Б 20, Ж 5 по этикетке) — это ≈75 г готовой с тем же белком. Вес после стрелки — примерный: курица ×0,75, форель ×0,8, тушёная говядина ×0,65, запечённый картофель ×0,8, рис ×3, макароны ×2,3, гречка ×2,7. Зависит от плиты и времени — один раз взвесьте готовое у себя. Остальное КБЖУ — по таблицам состава и этикеткам похожих товаров; реальные продукты расходятся с этим примерно на 10% по КБЖУ и на 20–30% по витаминам. Как накладывать карри, рагу и говядину: сначала выберите мясо и взвесьте его, потом доложите овощи с подливой до веса порции. Мясо взвешивайте точно — в нём почти весь белок. Вес овощей с подливой — оценка: он зависит от того, сколько воды выкипело; если готового вышло больше, просто разделите остаток поровну, КБЖУ от этого почти не изменится. Фрукты и консервы посчитаны по съедобной части: яблоко ≈130 г, банан ≈115 г без кожуры, горошек ≈240 г и кукуруза ≈210 г в банке без жидкости.
+</footer>
+
+<script>
+(function(){
+  var btns=[].slice.call(document.querySelectorAll('.dbtn'));
+  var order=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  function show(d){
+    btns.forEach(function(b){b.setAttribute('aria-pressed', b.dataset.day===d?'true':'false');});
+    [].forEach.call(document.querySelectorAll('.day'),function(s){s.hidden = s.id!=='day-'+d;});
+    try{localStorage.setItem('menu-day',d);}catch(e){}
+  }
+  btns.forEach(function(b){b.addEventListener('click',function(){show(b.dataset.day);});});
+  var start=order[new Date().getDay()];
+  show(start);
+
+  var boxes=[].slice.call(document.querySelectorAll('.shop-group input[type=checkbox]'));
+  var state={};
+  try{state=JSON.parse(localStorage.getItem('menu-shop-v6')||'{}')||{};}catch(e){state={};}
+  boxes.forEach(function(c){
+    if(state[c.dataset.k]) c.checked=true;
+    c.addEventListener('change',function(){
+      state[c.dataset.k]=c.checked;
+      try{localStorage.setItem('menu-shop-v6',JSON.stringify(state));}catch(e){}
+    });
+  });
+  document.getElementById('resetShop').addEventListener('click',function(){
+    boxes.forEach(function(c){c.checked=false;}); state={};
+    try{localStorage.removeItem('menu-shop-v6');}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>

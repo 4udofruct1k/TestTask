@@ -63,7 +63,11 @@ export function HomeScreen(): JSX.Element {
 
   return (
     <section className="pane">
-      <TopBar title={monthTitle(month)} sub={month === currentMonth ? dayTitle(today) : undefined} />
+      <TopBar
+        title={monthTitle(month)}
+        sub={month === currentMonth ? dayTitle(today) : undefined}
+        onBack={() => go('hub')}
+      />
       <div className="scroll" {...swipe}>
         <div className="body">
           {/* 1. Бюджет месяца. Крупно — свободные деньги сейчас: свободное к началу
