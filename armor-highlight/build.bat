@@ -1,11 +1,13 @@
 @echo off
-rem Builds max.armor-highlight_<version>.mtmod.
+rem Builds max.armor-highlight_<version>.mtmod (Lesta) or, with -wg, max.armor-highlight_<version>.wotmod (WG).
 rem
 rem Usage:
-rem   build.bat -v 0.14.0                          build only
-rem   build.bat -v 0.14.0 -i "D:\Games\Tanki"      build and copy to <game>\mods\<client version>\
-rem   build.bat -v 0.14.0 -i "D:\Games\Tanki" -m 1.45.0.0
+rem   build.bat -v 0.15.0                          build only
+rem   build.bat -v 0.15.0 -i "D:\Games\Tanki"      build and copy to <game>\mods\<client version>\
+rem   build.bat -v 0.15.0 -i "D:\Games\Tanki" -m 1.45.0.0
 rem                                               same, with explicit mods subfolder
+rem   build.bat -wg -v 0.15.0 -i "D:\Games\World_of_Tanks_EU"
+rem                                               WG build: shared modules from res + wg\res, meta from wg\meta.xml
 rem
 rem Python 2.7: set PYTHON27=C:\Python27\python.exe, otherwise "py -2.7" or "python" is used.
 rem 7-Zip: 7z in PATH or the default install folder.
@@ -19,6 +21,7 @@ set "VERSION="
 set "INSTALL="
 set "GAME_DIR="
 set "MODS_VER="
+set "WG="
 
 :parse
 if "%~1"=="" goto parsed
@@ -32,6 +35,11 @@ if /i "%~1"=="-i" (
   set "INSTALL=1"
   set "GAME_DIR=%~2"
   shift
+  shift
+  goto parse
+)
+if /i "%~1"=="-wg" (
+  set "WG=1"
   shift
   goto parse
 )
@@ -50,6 +58,10 @@ if defined INSTALL if not defined GAME_DIR (
   echo ERROR: -i needs the game folder, e.g. -i "D:\Games\Tanki"
   exit /b 1
 )
+set "MOD_EXT=mtmod"
+set "META=%ROOT%\meta.xml"
+if defined WG set "MOD_EXT=wotmod"
+if defined WG set "META=%ROOT%\wg\meta.xml"
 
 rem --- Python 2.7 ---
 set "PY="
@@ -81,12 +93,33 @@ rem --- 1. Fresh build folder with a copy of res ---
 set "BUILD=%ROOT%\build"
 if exist "%BUILD%" rmdir /s /q "%BUILD%"
 mkdir "%BUILD%"
+if defined WG goto copy_wg
 xcopy "%ROOT%\res" "%BUILD%\res\" /E /I /Q /Y >nul
 if errorlevel 1 (
   echo ERROR: failed to copy res
   exit /b 1
 )
-copy /y "%ROOT%\meta.xml" "%BUILD%\meta.xml" >nul
+goto copied
+
+:copy_wg
+rem WG: only the modules shared with the Lesta build, then wg\res on top (entry point and WG modules).
+set "PKG_SRC=%ROOT%\res\scripts\client\gui\mods\armor_highlight"
+set "PKG_DST=%BUILD%\res\scripts\client\gui\mods\armor_highlight"
+mkdir "%PKG_DST%"
+for %%F in (__init__.py penetration.py palette.py aimpanel.py settings_base.py) do (
+  copy /y "%PKG_SRC%\%%F" "%PKG_DST%\%%F" >nul || (
+    echo ERROR: failed to copy %%F
+    exit /b 1
+  )
+)
+xcopy "%ROOT%\wg\res" "%BUILD%\res\" /E /I /Q /Y >nul
+if errorlevel 1 (
+  echo ERROR: failed to copy wg\res
+  exit /b 1
+)
+
+:copied
+copy /y "%META%" "%BUILD%\meta.xml" >nul
 
 rem --- 2. Version substitution ---
 set "PKG_INIT=%BUILD%\res\scripts\client\gui\mods\armor_highlight\__init__.py"
@@ -116,7 +149,7 @@ if errorlevel 1 (
 )
 
 rem --- 4. Pack: stored zip, meta.xml + res\... ---
-set "OUT=%ROOT%\%MOD_ID%_%VERSION%.mtmod"
+set "OUT=%ROOT%\%MOD_ID%_%VERSION%.%MOD_EXT%"
 if exist "%OUT%" del /q "%OUT%"
 pushd "%BUILD%"
 "%SEVENZIP%" a -tzip -mx=0 "%OUT%" meta.xml res >nul
@@ -147,7 +180,7 @@ for /d %%D in ("%GAME_DIR%\mods\*") do (
 if "%COUNT%"=="1" goto install_copy
 echo ERROR: cannot pick the client version folder in %GAME_DIR%\mods automatically. Found:
 dir /b /ad "%GAME_DIR%\mods"
-echo Pass it explicitly with -m, e.g. -m 1.45.0.0
+echo Pass it explicitly with -m, e.g. -m 1.45.0.0 ^(Lesta^) or -m 2.4.0.2 ^(WG^)
 exit /b 1
 
 :install_copy
@@ -156,21 +189,21 @@ if not exist "%TARGET%\" (
   echo ERROR: folder not found: "%TARGET%"
   exit /b 1
 )
-if exist "%TARGET%\%MOD_ID%_*.mtmod" (
+if exist "%TARGET%\%MOD_ID%_*.%MOD_EXT%" (
   echo Removing previous builds of %MOD_ID% from "%TARGET%"
-  del /q "%TARGET%\%MOD_ID%_*.mtmod"
+  del /q "%TARGET%\%MOD_ID%_*.%MOD_EXT%"
 )
 copy /y "%OUT%" "%TARGET%\" >nul
 if errorlevel 1 (
   echo ERROR: failed to copy to "%TARGET%"
   exit /b 1
 )
-echo Installed: %TARGET%\%MOD_ID%_%VERSION%.mtmod
+echo Installed: %TARGET%\%MOD_ID%_%VERSION%.%MOD_EXT%
 
 :done
 endlocal
 exit /b 0
 
 :usage
-echo Usage: build.bat -v ^<version^> [-i ^<game folder^>] [-m ^<mods subfolder^>]
+echo Usage: build.bat [-wg] -v ^<version^> [-i ^<game folder^>] [-m ^<mods subfolder^>]
 exit /b 1

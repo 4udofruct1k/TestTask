@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # Бой: подписки, выбор цели, условия показа, тик каждый кадр, клавиша вкл/выкл.
 import BigWorld
-import Keys
 import Math
 import aih_constants
 from AvatarInputHandler import aih_global_binding
@@ -13,8 +12,8 @@ from helpers import dependency
 from messenger import MessengerEntry
 from skeletons.gui.battle_session import IBattleSessionProvider
 
-from gui.mods.armor_highlight import config, log, logException, penetration
-from gui.mods.armor_highlight.aimpanel import AimPanel, Row
+from gui.mods.armor_highlight import config, log, logException
+from gui.mods.armor_highlight.aimpanel import AimPanel, allShellsKey, buildRows
 from gui.mods.armor_highlight.highlighter import Highlighter, timer
 from gui.mods.armor_highlight.sampler import BattleSampler
 
@@ -23,46 +22,6 @@ _MARKER_TYPE = aih_constants.GUN_MARKER_TYPE
 _MARKER_FLAG = aih_constants.GUN_MARKER_FLAG
 _SNIPER_MODES = frozenset((_CTRL_MODE.SNIPER, _CTRL_MODE.DUAL_GUN))
 _ARCADE_MODES = frozenset((_CTRL_MODE.ARCADE,))
-# Фугас с новой механикой: ванильный результат по урону -> (заполнение полоски, подпись).
-_MODERN_HE = {penetration.GREAT_PIERCED: (1.0, u'100%'),
- penetration.LITTLE_PIERCED: (0.5, u'урон'),
- penetration.NOT_PIERCED: (0.0, u'0%')}
-_shellIcons = {}
-
-
-def _resultBar(result, prob):
-    # (заполнение полоски 0..1 или None, подпись) для слота; None — нет данных о броне.
-    if result == penetration.UNDEFINED:
-        return None
-    if prob is None:
-        return _MODERN_HE.get(result, (0.0, u'0%'))
-    return (prob, u'%d%%' % int(prob * 100.0 + 0.5))
-
-
-def _shellIcon(shell):
-    # Иконка снаряда, как на панели расходников (consumables_panel._addShellSlot): battle_ammo/<iconName>.
-    # backport.image отдаёт 'img://...' или '../maps/...'; в путь ресурса — как web_client_api/common.sanitizeResPath.
-    name = getattr(shell, 'iconName', None)
-    if not name:
-        return None
-    if name not in _shellIcons:
-        path = None
-        try:
-            from gui.impl import backport
-            from gui.impl.gen import R
-            path = backport.image(R.images.gui.maps.icons.ammopanel.battle_ammo.dyn(name)())
-            if path.startswith('img://'):
-                path = path[len('img://'):]
-            if path.startswith('..'):
-                path = 'gui' + path[2:]
-        except Exception:
-            logException('shell icon %s' % name)
-
-        _shellIcons[name] = path or None
-        log('shell icon %s: %s', name, _shellIcons[name])
-    return _shellIcons[name]
-
-
 class ArmorHighlightController(object):
     __gunMarkersFlags = aih_global_binding.bindRO(aih_global_binding.BINDING_ID.GUN_MARKERS_FLAGS)
     __sessionProvider = dependency.descriptor(IBattleSessionProvider)
@@ -215,22 +174,13 @@ class ArmorHighlightController(object):
             panel.hide()
             return
         vDesc = player.getVehicleDescriptor()
-        allShells = BigWorld.isKeyDown(Keys.KEY_LALT) or BigWorld.isKeyDown(Keys.KEY_RALT)
+        allShells = allShellsKey()
         shots = vDesc.gun.shots if allShells else (vDesc.shot,)
         results = self.__sampler.resultsAt(aimWorld, shots)
         if results is None:
             panel.hide()
             return
-        current = vDesc.activeGunShotIndex
-        rows = []
-        for idx, (shot, result) in enumerate(zip(shots, results)):
-            bar = _resultBar(*result)
-            if bar is None and not allShells:
-                break
-            fill, text = bar if bar is not None else (None, u'—')
-            shell = shot.shell
-            rows.append(Row(u'%d' % (idx + 1) if allShells else None, _shellIcon(shell), penetration.SHELL_KINDS.get(shell.kind, unicode(shell.kind)), fill, text, allShells and idx == current))
-
+        rows = buildRows(shots, results, vDesc.activeGunShotIndex, allShells)
         if not rows:
             panel.hide()
             return

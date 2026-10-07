@@ -5,9 +5,11 @@
 # текущий в рамке.
 # Всё из GUI.Simple в CLIP-координатах (как квадраты подсветки) и GUI.Text; цвет — текстуры палитры: colour в этом
 # клиенте ненадёжен. Квадрат на пару (место, текстура): текстуру у готового квадрата не меняем, лишние прячутся.
+import BigWorld
 import GUI
+import Keys
 
-from gui.mods.armor_highlight import logException, palette
+from gui.mods.armor_highlight import log, logException, palette, penetration
 
 # Глубина: перед квадратами подсветки (config.overlayDepth = 0.7), за интерфейсом боя.
 _DEPTH_FRAME = 0.56
@@ -32,6 +34,65 @@ _FRAME = 2
 _PLATE = palette.texturePath((0, 0, 0), 60)
 _BAR_BACK = palette.texturePath((43, 43, 43), 80)
 _FRAME_TEXTURE = palette.texturePath((255, 213, 43), 100)
+
+
+# Фугас с новой механикой: ванильный результат по урону -> (заполнение полоски, подпись).
+_MODERN_HE = {penetration.GREAT_PIERCED: (1.0, u'100%'),
+ penetration.LITTLE_PIERCED: (0.5, u'урон'),
+ penetration.NOT_PIERCED: (0.0, u'0%')}
+_shellIcons = {}
+
+
+def resultBar(result, prob):
+    # (заполнение полоски 0..1 или None, подпись) для слота; None — нет данных о броне.
+    if result == penetration.UNDEFINED:
+        return None
+    if prob is None:
+        return _MODERN_HE.get(result, (0.0, u'0%'))
+    return (prob, u'%d%%' % int(prob * 100.0 + 0.5))
+
+
+def shellIcon(shell):
+    # Иконка снаряда, как на панели расходников (consumables_panel._addShellSlot): battle_ammo/<iconName>.
+    # backport.image отдаёт 'img://...' или '../maps/...'; в путь ресурса — как web_client_api/common.sanitizeResPath.
+    name = getattr(shell, 'iconName', None)
+    if not name:
+        return None
+    if name not in _shellIcons:
+        path = None
+        try:
+            from gui.impl import backport
+            from gui.impl.gen import R
+            path = backport.image(R.images.gui.maps.icons.ammopanel.battle_ammo.dyn(name)())
+            if path.startswith('img://'):
+                path = path[len('img://'):]
+            if path.startswith('..'):
+                path = 'gui' + path[2:]
+        except Exception:
+            logException('shell icon %s' % name)
+
+        _shellIcons[name] = path or None
+        log('shell icon %s: %s', name, _shellIcons[name])
+    return _shellIcons[name]
+
+
+def allShellsKey():
+    # Пока зажат Alt — слоты всех снарядов орудия.
+    return BigWorld.isKeyDown(Keys.KEY_LALT) or BigWorld.isKeyDown(Keys.KEY_RALT)
+
+
+def buildRows(shots, results, current, allShells):
+    # Строки панели: без Alt — текущий снаряд (нет данных о броне — пусто), с Alt — все, текущий в рамке.
+    rows = []
+    for idx, (shot, result) in enumerate(zip(shots, results)):
+        bar = resultBar(*result)
+        if bar is None and not allShells:
+            break
+        fill, text = bar if bar is not None else (None, u'—')
+        shell = shot.shell
+        rows.append(Row(u'%d' % (idx + 1) if allShells else None, shellIcon(shell), penetration.SHELL_KINDS.get(shell.kind, unicode(shell.kind)), fill, text, allShells and idx == current))
+
+    return rows
 
 
 class Row(object):

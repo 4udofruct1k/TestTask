@@ -90,6 +90,15 @@ class EvaluateTest(unittest.TestCase):
     def test_power_exhausted(self):
         self.assertEqual(run([Detail(1.0, 1.0, Mat(300, damage=0.0), 1), Detail(1.1, 1.0, Mat(1), 1)]), (pen.NOT_PIERCED, 0.0))
 
+    def test_jet_flag_without_loss(self):
+        # WG: струя по флагу снаряда (hasPenetrationLoss), даже с нулевой потерей. После первого слоя рикошета нет.
+        spaced = Mat(10, damage=0.0, kind=2)
+        layers = [Detail(1.0, 1.0, spaced, 1), Detail(1.5, 0.1, Mat(10), 1)]
+        always = lambda shell, cos, matInfo: cos < 0.5
+        self.assertEqual(pen.evaluate(layers, 200.0, SHELL, MIN_PP, MAX_PP, always, PLAIN_ARMOR, 0.0)[0], pen.NOT_PIERCED)
+        result, prob, _ = pen.evaluate(layers, 200.0, SHELL, MIN_PP, MAX_PP, always, PLAIN_ARMOR, 0.0, jet=True)
+        self.assertEqual((result, prob), (pen.GREAT_PIERCED, 1.0))
+
     def test_jet_loss(self):
         # Кумулятив: 50% пробития теряется на 1 м после первого слоя
         spaced = Mat(20, damage=0.0, kind=2)

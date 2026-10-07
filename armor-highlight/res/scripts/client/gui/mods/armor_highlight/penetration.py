@@ -33,9 +33,13 @@ def probability(piercingPercent, randomization):
     return max(0.0, min(1.0, prob))
 
 
-def evaluate(details, fullPiercingPower, shell, minPP, maxPP, shouldRicochet, penetrationArmor, jetLossPPByDist):
+def evaluate(details, fullPiercingPower, shell, minPP, maxPP, shouldRicochet, penetrationArmor, jetLossPPByDist, jet=None):
     # details — слои по ходу снаряда (dist, hitAngleCos, matInfo, compName) из collideSegmentExt.
     # Возвращает (SHOT_RESULT, вероятность пробития 0..1, piercingPercent последнего посчитанного листа или None).
+    # jet — снаряд со струёй (после первого слоя рикошета нет, пробитие теряется с расстоянием). У Лесты это
+    # jetLossPPByDist > 0 (по умолчанию), у WG — флаг hasPenetrationLoss в _CrosshairShotResults._SHELL_EXTRA_DATA.
+    if jet is None:
+        jet = jetLossPPByDist > 0.0
     result = NOT_PIERCED
     prob = 0.0
     lastPercent = None
@@ -81,7 +85,7 @@ def evaluate(details, fullPiercingPower, shell, minPP, maxPP, shouldRicochet, pe
                 ignoredMaterials.add((cDetails.compName, matInfo.kind))
         if piercingPower <= 0.0:
             break
-        if jetLossPPByDist > 0.0:
+        if jet:
             isJet = True
             armor = matInfo.armor if matInfo is not None else 0.0
             jetStartDist = cDetails.dist + armor * 0.001

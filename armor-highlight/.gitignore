@@ -2,3 +2,4 @@ wot-src/
 build/
 *.mtmod
 *.pyc
+*.wotmod

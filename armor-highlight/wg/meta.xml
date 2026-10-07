@@ -1,0 +1,6 @@
+<root>
+  <id>max.armor-highlight</id>
+  <version>{{VERSION}}</version>
+  <name>max.armor-highlight</name>
+  <description>Armor flashlight colours, spot size and fade; penetration chance at the aim point</description>
+</root>
