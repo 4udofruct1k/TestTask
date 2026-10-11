@@ -26,6 +26,7 @@ import { useBudget } from '../../store/budget';
 import { useUi } from '../../store/ui';
 import { dayTitle, dayShort, days as daysWord, monthTitle, purchases, positions, spendings } from '../format';
 import { TopBar } from '../components/TopBar';
+import { useSwipe } from '../swipe';
 import { ExpandableRow } from '../components/ExpandableRow';
 import { IncomeSheet } from './IncomeSheet';
 import { QuickEntrySheet } from './QuickEntrySheet';
@@ -53,6 +54,7 @@ export function HomeScreen(): JSX.Element {
 
   const canGoBack = compareMonth(addMonths(month, -1), doc.settings.firstMonth) >= 0;
   const canGoForward = compareMonth(month, currentMonth) < 0;
+  // Месяц листается свайпом (3.2)
   const swipe = useSwipe(
     () => canGoForward && setMonth(addMonths(month, 1)),
     () => canGoBack && setMonth(addMonths(month, -1)),
@@ -430,19 +432,4 @@ function categoryName(doc: BudgetDocument, categoryId: string): string {
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(100, value));
-}
-
-/** Месяц листается свайпом (3.2). */
-function useSwipe(onLeft: () => void, onRight: () => void) {
-  const [start, setStart] = useState<number | null>(null);
-  return {
-    onTouchStart: (e: React.TouchEvent) => setStart(e.touches[0]?.clientX ?? null),
-    onTouchEnd: (e: React.TouchEvent) => {
-      if (start === null) return;
-      const delta = (e.changedTouches[0]?.clientX ?? start) - start;
-      setStart(null);
-      if (delta < -60) onLeft();
-      if (delta > 60) onRight();
-    },
-  };
 }

@@ -11,6 +11,7 @@ import { connectionCode, makeKey, parseConnection } from '../../household/sync';
 import { PEOPLE } from '../../household/types';
 import { copyText, shareText } from '../../platform';
 import { useHousehold } from '../../store/household';
+import { APP_VERSION } from '../../version';
 import { HBar, useSyncText } from './parts';
 
 const GUIDE_URL = 'https://github.com/4udofruct1k/TestTask/blob/claude/repo-cleanup-hnmqr8/cloud/README.md';
@@ -204,6 +205,7 @@ export function HouseholdSettings(): JSX.Element {
             Бюджет в облако не уходит: он у каждого свой и хранится только в его телефоне. Общие здесь только покупки,
             готовка и остатки продуктов.
           </p>
+          <p className="h-note pad">Версия {APP_VERSION}</p>
         </div>
       </div>
     </section>

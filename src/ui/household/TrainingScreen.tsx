@@ -14,7 +14,8 @@ import { plannedKcal, TRAINING, trainingDay, type Slot } from '../../personal/tr
 import { useHousehold } from '../../store/household';
 import { usePersonal } from '../../store/personal';
 import { DAY_NAMES, num, relativeDay } from './format';
-import { DayStrip, dishStyle, HBar, QtyEditor } from './parts';
+import { DayStrip, dishStyle, HBar, neighbour, QtyEditor } from './parts';
+import { useSwipe } from '../swipe';
 
 const genitive = (person: Person): string => (person === 'max' ? 'Макса' : 'Ильвины');
 const capital = (text: string): string => text[0]!.toUpperCase() + text.slice(1);
@@ -77,11 +78,15 @@ export function TrainingScreen(): JSX.Element {
     setDate(d);
     setEditingDone(false);
   };
+  const swipe = useSwipe(
+    () => select(neighbour(week, date, 1)),
+    () => select(neighbour(week, date, -1)),
+  );
 
   return (
     <section className="pane h-pane">
       <HBar title="Тренировка" sub={DAY_NAMES[weekdayOf(date)]} />
-      <div className="scroll">
+      <div className="scroll" {...swipe}>
         <div className="h-body">
           <div className="h-seg" role="group" aria-label="Чья тренировка">
             {PEOPLE.map((p) => (

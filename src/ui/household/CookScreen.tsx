@@ -12,7 +12,8 @@ import { weekdayOf, weekKeyOf, weekOf, type DateStr } from '../../household/days
 import { dayOf, needsOf, PLAN } from '../../household/plan';
 import { useHousehold } from '../../store/household';
 import { amount, DAY_NAMES, parseQty, relativeDay } from './format';
-import { ChipView, DayStrip, dishStyle, HBar } from './parts';
+import { ChipView, DayStrip, dishStyle, HBar, neighbour } from './parts';
+import { useSwipe } from '../swipe';
 
 export function CookScreen(): JSX.Element {
   const today = useHousehold((s) => s.today);
@@ -21,6 +22,16 @@ export function CookScreen(): JSX.Element {
   const [date, setDate] = useState<DateStr>(today);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
+
+  const week = weekOf(today);
+  const select = (d: DateStr): void => {
+    setDate(d);
+    setEditing(false);
+  };
+  const swipe = useSwipe(
+    () => select(neighbour(week, date, 1)),
+    () => select(neighbour(week, date, -1)),
+  );
 
   const cooking = cookingFor(PLAN, view, date);
   const day = dayOf(PLAN, weekKeyOf(date));
@@ -50,16 +61,13 @@ export function CookScreen(): JSX.Element {
   return (
     <section className="pane h-pane">
       <HBar title="Готовка" sub={DAY_NAMES[weekdayOf(date)]} />
-      <div className="scroll">
+      <div className="scroll" {...swipe}>
         <div className="h-body">
           <DayStrip
-            week={weekOf(today)}
+            week={week}
             selected={date}
             today={today}
-            onSelect={(d) => {
-              setDate(d);
-              setEditing(false);
-            }}
+            onSelect={select}
             dishOf={(d) => dayOf(PLAN, weekKeyOf(d)).dish}
             off={(d) => Object.keys(needsOf(PLAN, weekKeyOf(d))).length === 0}
           />

@@ -11,7 +11,8 @@ import { dayOf, needsOf, PLAN } from '../../household/plan';
 import { PEOPLE, type Person } from '../../household/types';
 import { useHousehold } from '../../store/household';
 import { DAY_NAMES, num } from './format';
-import { ChipView, DayStrip, dishStyle, HBar } from './parts';
+import { ChipView, DayStrip, dishStyle, HBar, neighbour } from './parts';
+import { useSwipe } from '../swipe';
 
 function Bar({ label, value, goal }: { label: string; value: number; goal: number }): JSX.Element {
   return (
@@ -33,6 +34,12 @@ export function FoodScreen(): JSX.Element {
   const [person, setPerson] = useState<Person>(me ?? 'max');
   const [date, setDate] = useState<DateStr>(today);
 
+  const week = weekOf(today);
+  const swipe = useSwipe(
+    () => setDate(neighbour(week, date, 1)),
+    () => setDate(neighbour(week, date, -1)),
+  );
+
   const day = dayOf(PLAN, weekKeyOf(date));
   const goal = PLAN.people[person];
   const meals = day.meals.filter((m) => (m.who[person]?.groups ?? []).length > 0);
@@ -53,7 +60,7 @@ export function FoodScreen(): JSX.Element {
   return (
     <section className="pane h-pane">
       <HBar title="Питание" sub={DAY_NAMES[weekdayOf(date)]} />
-      <div className="scroll">
+      <div className="scroll" {...swipe}>
         <div className="h-body" style={dishStyle(day.dish)}>
           <div className="h-seg" role="group" aria-label="Чьё питание">
             {PEOPLE.map((p) => (
@@ -64,7 +71,7 @@ export function FoodScreen(): JSX.Element {
           </div>
 
           <DayStrip
-            week={weekOf(today)}
+            week={week}
             selected={date}
             today={today}
             onSelect={setDate}

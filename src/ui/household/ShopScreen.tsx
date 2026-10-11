@@ -14,7 +14,8 @@ import { shoppingFor, type ShopRow } from '../../household/shopping';
 import { PEOPLE } from '../../household/types';
 import { useHousehold } from '../../store/household';
 import { amount, DAY_NAMES, packLabel, relativeDay, rub, stepOf } from './format';
-import { ChipView, DayStrip, HBar, QtyEditor, SyncLine } from './parts';
+import { ChipView, DayStrip, HBar, neighbour, QtyEditor, SyncLine } from './parts';
+import { useSwipe } from '../swipe';
 
 const dishName = (title: string): string => title.split(',')[0]!.toLowerCase();
 const capital = (text: string): string => text[0]!.toUpperCase() + text.slice(1);
@@ -37,6 +38,16 @@ export function ShopScreen(): JSX.Element {
   const isToday = date === today;
   const when = relativeDay(date, today);
   const next = addDays(date, 1);
+
+  const pick = (d: DateStr): void => {
+    setPicked(d);
+    setEditing(null);
+  };
+  // Свайп по списку листает дни так же, как нажатие на полосу
+  const swipe = useSwipe(
+    () => pick(neighbour(days, date, 1)),
+    () => pick(neighbour(days, date, -1)),
+  );
 
   const shop = shoppingFor(PLAN, view, date, me, today);
   const recipes = recipesOf(PLAN, weekKeyOf(date));
@@ -112,16 +123,13 @@ export function ShopScreen(): JSX.Element {
   return (
     <section className="pane h-pane">
       <HBar title="Покупки" sub={DAY_NAMES[weekdayOf(date)]} />
-      <div className="scroll">
+      <div className="scroll" {...swipe}>
         <div className="h-body">
           <DayStrip
             week={days}
             selected={date}
             today={today}
-            onSelect={(d) => {
-              setPicked(d);
-              setEditing(null);
-            }}
+            onSelect={pick}
             dishOf={(d) => dayOf(PLAN, weekKeyOf(d)).dish}
             off={(d) => Object.keys(needsOf(PLAN, weekKeyOf(d))).length === 0}
           />

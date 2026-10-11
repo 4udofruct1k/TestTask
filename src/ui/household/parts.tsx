@@ -25,6 +25,12 @@ export function HBar({ title, sub, to = 'hub' }: { title: string; sub?: ReactNod
   );
 }
 
+/** Соседний день в полосе: шаг +1 — следующий, −1 — предыдущий; за край не уходит. */
+export function neighbour(days: DateStr[], current: DateStr, step: 1 | -1): DateStr {
+  const i = days.indexOf(current);
+  return days[Math.min(days.length - 1, Math.max(0, (i < 0 ? 0 : i) + step))]!;
+}
+
 /** Цвет блюда дня — переменная из household.css. */
 export const dishStyle = (dish: string): CSSProperties => ({ '--dish': `var(--dish-${dish})` }) as CSSProperties;
 
