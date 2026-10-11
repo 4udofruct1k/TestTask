@@ -7,6 +7,11 @@
  *
  * Купленное хранится по людям: каждый правит только свои покупки, а строка
  * показывает общий итог.
+ *
+ * Список можно открыть на любой из ближайших дней. Для будущего дня «дома»
+ * — это прогноз: нынешний остаток минус то, что до этого дня уйдёт
+ * в готовку по плану и ещё не записано. Курица, купленная сегодня, сначала
+ * покрывает сегодняшнее блюдо и только остатком — четверговое.
  */
 
 import { addDays, weekKeyOf, type DateStr } from './days';
@@ -55,11 +60,41 @@ export function roundToPack(short: number, p: Product): number {
   return p.pack ? Math.ceil(short / p.pack) * p.pack : Math.ceil(short);
 }
 
-export function shoppingFor(plan: Plan, state: HouseholdState, date: DateStr, me: Person): Shopping {
-  const today = needsOf(plan, weekKeyOf(date));
+/** Сколько продукта ещё уйдёт в готовку в этот день: план минус записанное. */
+function pendingUse(plan: Plan, state: HouseholdState, date: DateStr): Record<string, number> {
+  const planned = needsOf(plan, weekKeyOf(date));
+  const cooked = state.cooking[date] ?? {};
+  const out: Record<string, number> = {};
+  for (const [id, qty] of Object.entries(planned)) out[id] = Math.max(0, qty - (cooked[id] ?? 0));
+  return out;
+}
+
+/**
+ * Что будет дома к началу дня date: нынешний остаток, из которого по очереди
+ * вычитается расход дней с today по вчерашний для date. Для сегодня — остаток как есть.
+ */
+export function stockOn(plan: Plan, state: HouseholdState, date: DateStr, today: DateStr): Record<string, number> {
+  const stock: Record<string, number> = { ...state.stock };
+  for (let d = today; d < date; d = addDays(d, 1)) {
+    for (const [id, qty] of Object.entries(pendingUse(plan, state, d))) {
+      stock[id] = Math.max(0, (stock[id] ?? 0) - qty);
+    }
+  }
+  return stock;
+}
+
+export function shoppingFor(
+  plan: Plan,
+  state: HouseholdState,
+  date: DateStr,
+  me: Person,
+  today: DateStr = date,
+): Shopping {
+  const dayNeeds = needsOf(plan, weekKeyOf(date));
   const tomorrow = needsOf(plan, weekKeyOf(addDays(date, 1)));
+  const have = stockOn(plan, state, date, today);
   const want = new Map<string, { qty: number; forTomorrow: boolean }>();
-  for (const [id, qty] of Object.entries(today)) want.set(id, { qty, forTomorrow: false });
+  for (const [id, qty] of Object.entries(dayNeeds)) want.set(id, { qty, forTomorrow: false });
   for (const [id, qty] of Object.entries(tomorrow)) {
     if (plan.catalog[id]?.lead !== 'eve') continue;
     const has = want.get(id);
@@ -74,7 +109,7 @@ export function shoppingFor(plan: Plan, state: HouseholdState, date: DateStr, me
     const byPerson = bought[product] ?? {};
     const got = Object.values(byPerson).reduce((s, v) => s + (v ?? 0), 0);
     const mine = byPerson[me] ?? 0;
-    const stock = state.stock[product] ?? 0;
+    const stock = have[product] ?? 0;
     const haveBefore = Math.max(0, stock - got);
     const shortBefore = Math.max(0, w.qty - haveBefore);
     const short = Math.max(0, w.qty - stock);

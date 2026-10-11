@@ -9,8 +9,9 @@
 import { useEffect, useState, type JSX } from 'react';
 import { useBudget } from '../store/budget';
 import { useHousehold } from '../store/household';
+import { usePersonal } from '../store/personal';
 import { applyTheme, isBudgetScreen, useUi } from '../store/ui';
-import { BudgetRepository, HouseholdFiles } from '../storage';
+import { BudgetRepository, HouseholdFiles, PersonalFiles } from '../storage';
 import { applyStatusBar, onBackButton, onResume, postJson } from '../platform';
 import { Drawer } from './components/Drawer';
 import { UndoBar } from './components/UndoBar';
@@ -24,16 +25,19 @@ import { OnboardingScreen } from './screens/OnboardingScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { CookScreen } from './household/CookScreen';
 import { FoodScreen } from './household/FoodScreen';
+import { HealthScreen } from './household/HealthScreen';
 import { HouseholdSettings } from './household/HouseholdSettings';
 import { HubScreen } from './household/HubScreen';
 import { ShopScreen } from './household/ShopScreen';
+import { TrainingScreen } from './household/TrainingScreen';
 
 interface Props {
   repository: BudgetRepository;
   household: HouseholdFiles;
+  personal: PersonalFiles;
 }
 
-export function App({ repository, household }: Props): JSX.Element {
+export function App({ repository, household, personal }: Props): JSX.Element {
   const status = useBudget((s) => s.status);
   // «Заполнить заново» — только поверх настоящих данных. После сброса
   // документ пустой, и это обычный первый запуск
@@ -46,6 +50,8 @@ export function App({ repository, household }: Props): JSX.Element {
   const init = useBudget((s) => s.init);
   const initHousehold = useHousehold((s) => s.init);
   const householdReady = useHousehold((s) => s.ready);
+  const initPersonal = usePersonal((s) => s.init);
+  const personalReady = usePersonal((s) => s.ready);
   const { screen, theme, onboarding, setOnboarding, go } = useUi();
 
   const [journalShown, setJournalShown] = useState(true);
@@ -68,6 +74,10 @@ export function App({ repository, household }: Props): JSX.Element {
     void initHousehold(household, postJson);
   }, [initHousehold, household]);
 
+  useEffect(() => {
+    void initPersonal(personal);
+  }, [initPersonal, personal]);
+
   // Вернулись в приложение — новый день и, если пора, ночная сводка
   useEffect(
     () =>
@@ -84,7 +94,7 @@ export function App({ repository, household }: Props): JSX.Element {
 
   const inBudget = isBudgetScreen(screen);
 
-  if (!householdReady || (inBudget && status === 'loading')) {
+  if (!householdReady || !personalReady || (inBudget && status === 'loading')) {
     return (
       <div className="app">
         <div className="empty">Читаем файл…</div>
@@ -145,6 +155,8 @@ export function App({ repository, household }: Props): JSX.Element {
       {screen === 'shop' && <ShopScreen />}
       {screen === 'cook' && <CookScreen />}
       {screen === 'food' && <FoodScreen />}
+      {screen === 'training' && <TrainingScreen />}
+      {screen === 'health' && <HealthScreen />}
       {screen === 'household' && <HouseholdSettings />}
       {screen === 'home' && <HomeScreen />}
       {screen === 'expenses' && <ExpensesScreen />}

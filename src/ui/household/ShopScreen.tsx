@@ -1,21 +1,25 @@
 /**
- * Покупки на сегодня. HOUSEHOLD_SPEC, раздел 4.
+ * Покупки по дням. HOUSEHOLD_SPEC, раздел 4.
  *
- * Список считается из готовки: что нужно на сегодняшние блюда и на
- * завтрашние мясо и рыбу, минус то, что уже есть дома. «Купил» записывает,
- * сколько куплено на самом деле, — больше или меньше подсказки.
+ * Список считается из готовки: что нужно на блюда дня и на мясо и рыбу
+ * следующего, минус то, что дома. Полоса дней — сегодня и шесть следующих:
+ * на будущий день «дома» — прогноз после готовки предыдущих дней.
+ * «Купил» записывает, сколько куплено на самом деле.
  */
 
 import { useState, type JSX } from 'react';
-import { addDays, weekdayOf, weekKeyOf } from '../../household/days';
-import { PLAN, recipesOf } from '../../household/plan';
+import { addDays, WEEK_KEYS, weekdayOf, weekKeyOf, type DateStr } from '../../household/days';
+import { dayOf, needsOf, PLAN, recipesOf } from '../../household/plan';
 import { shoppingFor, type ShopRow } from '../../household/shopping';
 import { PEOPLE } from '../../household/types';
 import { useHousehold } from '../../store/household';
-import { amount, DAY_NAMES, packLabel, rub, stepOf } from './format';
-import { ChipView, HBar, QtyEditor, SyncLine } from './parts';
+import { amount, DAY_NAMES, packLabel, relativeDay, rub, stepOf } from './format';
+import { ChipView, DayStrip, HBar, QtyEditor, SyncLine } from './parts';
 
 const dishName = (title: string): string => title.split(',')[0]!.toLowerCase();
+const capital = (text: string): string => text[0]!.toUpperCase() + text.slice(1);
+/** Сегодня и шесть дней вперёд: на прошлое покупки не планируют. */
+const DAYS_AHEAD = 7;
 
 export function ShopScreen(): JSX.Element {
   const today = useHousehold((s) => s.today);
@@ -25,10 +29,18 @@ export function ShopScreen(): JSX.Element {
   const setStock = useHousehold((s) => s.setStock);
   const [editing, setEditing] = useState<string | null>(null);
   const [stockEditing, setStockEditing] = useState<string | null>(null);
+  const [picked, setPicked] = useState<DateStr | null>(null);
 
-  const shop = shoppingFor(PLAN, view, today, me);
-  const recipes = recipesOf(PLAN, weekKeyOf(today));
-  const tomorrow = recipesOf(PLAN, weekKeyOf(addDays(today, 1)));
+  const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(today, i));
+  // Выбранный день уехал в прошлое, пока экран был открыт, — вернуться к сегодня
+  const date = picked && picked >= today ? picked : today;
+  const isToday = date === today;
+  const when = relativeDay(date, today);
+  const next = addDays(date, 1);
+
+  const shop = shoppingFor(PLAN, view, date, me, today);
+  const recipes = recipesOf(PLAN, weekKeyOf(date));
+  const following = recipesOf(PLAN, weekKeyOf(next));
   const partner = PEOPLE.find((p) => p.id !== me)!;
 
   const rowView = (r: ShopRow): JSX.Element => {
@@ -42,7 +54,7 @@ export function ShopScreen(): JSX.Element {
           : '';
     const why =
       r.status === 'todo'
-        ? `нужно ${amount(r.need, u)} · дома ${amount(r.haveBefore, u)}${r.cost ? ` · ≈${rub(r.cost)}` : ''}`
+        ? `нужно ${amount(r.need, u)} · ${isToday ? 'дома' : 'будет дома'} ${amount(r.haveBefore, u)}${r.cost ? ` · ≈${rub(r.cost)}` : ''}`
         : r.status === 'partial'
           ? `куплено ${amount(r.got, u)}${whoBought} · не хватает ${amount(r.short, u)}`
           : `куплено ${amount(r.got, u)}${whoBought}${r.got > r.shortBefore ? ` · с запасом ${amount(r.got - r.shortBefore, u)}` : ''}`;
@@ -58,7 +70,9 @@ export function ShopScreen(): JSX.Element {
         </span>
         <span className="nm">
           {r.p.name}
-          {r.forTomorrow && <span className="h-tag">на завтра</span>}
+          {r.forTomorrow && (
+            <span className="h-tag">{isToday ? 'на завтра' : `на ${WEEK_KEYS[weekdayOf(next)]!.toLowerCase()}`}</span>
+          )}
         </span>
         <span className="qty">{qty}</span>
         <span className="why">{why}</span>
@@ -66,7 +80,7 @@ export function ShopScreen(): JSX.Element {
         {isEditing && (
           <QtyEditor
             id={`buy-${r.product}`}
-            label="Сколько купили вы за сегодня"
+            label={isToday ? 'Сколько купили вы за сегодня' : `Сколько купили вы на ${when.replace(/^во? /, '')}`}
             initial={prefill}
             unit={u}
             step={stepOf(r.p)}
@@ -78,7 +92,7 @@ export function ShopScreen(): JSX.Element {
               </>
             }
             onSave={(value) => {
-              setPurchase(today, r.product, value);
+              setPurchase(date, r.product, value);
               setEditing(null);
             }}
             onCancel={() => setEditing(null)}
@@ -88,29 +102,49 @@ export function ShopScreen(): JSX.Element {
     );
   };
 
-  const cooking = recipes.length ? `сегодня готовим: ${recipes.map((r) => dishName(r.title)).join(' и ')}` : 'сегодня не готовим';
-  const next = tomorrow.length ? `; завтра — ${dishName(tomorrow[tomorrow.length - 1]!.title)}` : '';
+  const cooking = recipes.length
+    ? `${when} готовим: ${recipes.map((r) => dishName(r.title)).join(' и ')}`
+    : `${when} не готовим`;
+  const then = following.length
+    ? `; ${isToday ? 'завтра' : relativeDay(next, today)} — ${dishName(following[following.length - 1]!.title)}`
+    : '';
 
   return (
     <section className="pane h-pane">
-      <HBar title="Покупки" sub={DAY_NAMES[weekdayOf(today)]} />
+      <HBar title="Покупки" sub={DAY_NAMES[weekdayOf(date)]} />
       <div className="scroll">
         <div className="h-body">
+          <DayStrip
+            week={days}
+            selected={date}
+            today={today}
+            onSelect={(d) => {
+              setPicked(d);
+              setEditing(null);
+            }}
+            dishOf={(d) => dayOf(PLAN, weekKeyOf(d)).dish}
+            off={(d) => Object.keys(needsOf(PLAN, weekKeyOf(d))).length === 0}
+          />
+
           <div className="h-card h-stack">
             <div className="h-shophead">
               <b>{shop.open ? `≈${rub(shop.cost)}` : 'Всё куплено'}</b>
               <span>
-                {cooking}
-                {next}
+                {capital(cooking)}
+                {then}
               </span>
             </div>
             <SyncLine />
           </div>
 
           <div className="h-card">
-            <div className="h-label">Купить сегодня</div>
+            <div className="h-label">Купить {when}</div>
             <div className="h-rows">
-              {shop.must.length ? shop.must.map(rowView) : <p className="h-note pad">Всё нужное для готовки уже дома.</p>}
+              {shop.must.length ? (
+                shop.must.map(rowView)
+              ) : (
+                <p className="h-note pad">{isToday ? 'Всё нужное для готовки уже дома.' : 'К этому дню всё нужное будет дома.'}</p>
+              )}
             </div>
           </div>
 
@@ -123,7 +157,7 @@ export function ShopScreen(): JSX.Element {
 
           {shop.enough.length > 0 && (
             <div className="h-card">
-              <div className="h-label">Уже есть дома</div>
+              <div className="h-label">{isToday ? 'Уже есть дома' : 'Будет дома'}</div>
               <div className="h-chips top">
                 {shop.enough.map((r) => (
                   <ChipView

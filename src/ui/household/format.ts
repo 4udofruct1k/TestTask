@@ -76,3 +76,30 @@ export function syncedAt(iso: string, now: Date): string {
   const sameDay = t.toDateString() === now.toDateString();
   return sameDay ? `сегодня в ${hm}` : `${t.getDate()} ${MONTHS[t.getMonth()]} в ${hm}`;
 }
+
+const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+/** «5 окт» */
+export function shortDate(date: DateStr): string {
+  return `${Number(date.slice(8, 10))} ${MONTHS_SHORT[Number(date.slice(5, 7)) - 1]}`;
+}
+
+/** Дробь с запятой: 82,4. digits — знаков после запятой, лишние нули не пишутся. */
+export function dec(value: number, digits = 1): string {
+  const f = 10 ** digits;
+  return String(Math.round(value * f) / f).replace('.', ',');
+}
+
+/** Со знаком: «+0,4», «−1,2», «0». */
+export function signedDec(value: number, digits = 1): string {
+  const text = dec(Math.abs(value), digits);
+  if (text === '0') return '0';
+  return `${value > 0 ? '+' : '−'}${text}`;
+}
+
+/** Ккал со знаком: «−420», «+150». */
+export function signedKcal(value: number): string {
+  const rounded = Math.round(value);
+  if (rounded === 0) return '0';
+  return `${rounded > 0 ? '+' : '−'}${num(Math.abs(rounded))}`;
+}

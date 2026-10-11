@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './ui/App';
-import { BudgetRepository, HouseholdFiles, systemClock } from './storage';
+import { BudgetRepository, HouseholdFiles, PersonalFiles, systemClock } from './storage';
 import { createFiles, isNative, lifecycle } from './platform';
 import { APP_VERSION } from './version';
 import { applyPalette, loadPalette } from './ui/palette';
@@ -20,6 +20,8 @@ const repository = new BudgetRepository({
 
 // Общие данные дома — отдельный файл рядом с бюджетом
 const household = new HouseholdFiles(files);
+// Тренировки, вес и замеры — свой файл, только в этом телефоне
+const personal = new PersonalFiles(files);
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Нет корневого элемента');
@@ -47,7 +49,7 @@ async function start(): Promise<void> {
   registerServiceWorker();
   createRoot(root!).render(
     <StrictMode>
-      <App repository={repository} household={household} />
+      <App repository={repository} household={household} personal={personal} />
     </StrictMode>,
   );
 }

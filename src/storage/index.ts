@@ -7,4 +7,6 @@ export * from './migrations';
 export * from './repository';
 export * from './browser-files';
 export * from './capacitor-files';
+export * from './local-doc-file';
 export * from './household-files';
+export * from './personal-files';

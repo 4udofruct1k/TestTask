@@ -131,8 +131,8 @@ describe('закрытые шторки не показываются краем
  * Общие данные считаются одним и тем же кодом в телефоне и в облачной
  * функции. Поэтому в src/household нет ни часов, ни файлов, ни экрана.
  */
-describe('правило 5 — общие данные собираются и для облака', () => {
-  const files = sources('src/household');
+describe('правило 5 — общие данные собираются и для облака, личные расчёты без часов', () => {
+  const files = [...sources('src/household'), ...sources('src/personal')];
 
   it('файлы найдены', () => {
     expect(files.length).toBeGreaterThan(0);

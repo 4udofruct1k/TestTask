@@ -9,7 +9,7 @@ import { cookingFor } from '../src/household/cooking';
 import { addDays, weekdayOf, weekKeyOf, weekOf } from '../src/household/days';
 import { emptyLocal, parseLocal, viewOf } from '../src/household/local';
 import { needsOf, PLAN } from '../src/household/plan';
-import { roundToPack, shoppingFor } from '../src/household/shopping';
+import { roundToPack, shoppingFor, stockOn } from '../src/household/shopping';
 import {
   connectionCode,
   makeKey,
@@ -199,6 +199,33 @@ describe('покупки', () => {
     const shop = shoppingFor(PLAN, s, MON, 'max');
     expect(shop.enough.map((r) => r.product)).toContain('cream');
     expect(shop.must.map((r) => r.product)).not.toContain('cream');
+  });
+
+  it('будущий день: остаток — после готовки предыдущих дней', () => {
+    // Понедельник, дома 900 г курицы. В понедельник карри берёт 800 г,
+    // к четвергу остаётся 100 г, а рагу нужно 1,6 кг
+    const s = applyEvent(emptyState(), stock('chicken', 900));
+    expect(stockOn(PLAN, s, '2026-10-08', MON)['chicken']).toBe(100);
+    const thu = shoppingFor(PLAN, s, '2026-10-08', 'max', MON).must.find((r) => r.product === 'chicken')!;
+    expect(thu.haveBefore).toBe(100);
+    expect(thu.short).toBe(1500);
+    expect(thu.suggest).toBe(1800);
+    // Сегодняшний список видит весь остаток
+    expect(shoppingFor(PLAN, s, MON, 'max', MON).enough.map((r) => r.product)).toContain('chicken');
+  });
+
+  it('записанная готовка в прогнозе не вычитается второй раз', () => {
+    let s = applyEvent(emptyState(), stock('chicken', 900));
+    s = applyEvent(s, cook(MON, 'chicken', 800));
+    expect(s.stock['chicken']).toBe(100);
+    expect(stockOn(PLAN, s, '2026-10-08', MON)['chicken']).toBe(100);
+  });
+
+  it('покупка на будущий день записывается этим днём', () => {
+    const s = applyEvent(emptyState(), buy('2026-10-08', 'mushroom', 900));
+    const thu = shoppingFor(PLAN, s, '2026-10-08', 'max', MON).must.find((r) => r.product === 'mushroom')!;
+    expect(thu.got).toBe(900);
+    expect(thu.status).toBe('done');
   });
 
   it('итог «купить сегодня» считает только незакрытое', () => {

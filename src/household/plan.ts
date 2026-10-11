@@ -114,3 +114,8 @@ export function needsOf(plan: Plan, key: WeekKey): Record<string, number> {
   }
   return out;
 }
+
+/** Сколько ккал за день у человека по рациону: сумма приёмов пищи. */
+export function kcalOf(plan: Plan, person: Person, key: WeekKey): number {
+  return dayOf(plan, key).meals.reduce((s, m) => s + (m.who[person]?.kbju?.kcal ?? 0), 0);
+}

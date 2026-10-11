@@ -2,8 +2,8 @@
  * Главная с плитками. HOUSEHOLD_SPEC, раздел 8.
  *
  * Сверху большая «Покупки» — то, за чем открывают приложение днём.
- * Под ней разделы поменьше: «Бюджет», «Готовка», «Питание». Новые
- * разделы встают сюда же плитками.
+ * Под ней разделы поменьше: «Бюджет», «Готовка», «Питание»,
+ * «Тренировка» и широкая «Здоровье». Новые разделы встают сюда же плитками.
  */
 
 import type { JSX } from 'react';
@@ -11,19 +11,18 @@ import { monthKeyOf } from '../../domain/dates';
 import { formatAmount } from '../../domain/money';
 import { budgetGauge } from '../../engine';
 import { weekKeyOf } from '../../household/days';
-import { dayOf, PLAN, recipesOf } from '../../household/plan';
+import { kcalOf, PLAN, recipesOf } from '../../household/plan';
 import { shoppingFor } from '../../household/shopping';
-import { PEOPLE, type Person } from '../../household/types';
+import { PEOPLE } from '../../household/types';
+import { dayRow } from '../../personal/energy';
+import { plannedKcal, trainingDay } from '../../personal/training';
 import { useBudget } from '../../store/budget';
 import { useHousehold } from '../../store/household';
+import { usePersonal } from '../../store/personal';
 import { useUi } from '../../store/ui';
 import { IconMoon, IconSettings, IconSun } from '../icons';
-import { longDate, num, positionsWord, rub } from './format';
+import { dec, longDate, num, positionsWord, rub, signedKcal } from './format';
 import { useSyncText } from './parts';
-
-function kcalOf(person: Person, key: ReturnType<typeof weekKeyOf>): number {
-  return dayOf(PLAN, key).meals.reduce((s, m) => s + (m.who[person]?.kbju?.kcal ?? 0), 0);
-}
 
 export function HubScreen(): JSX.Element {
   const { go, theme, toggleTheme } = useUi();
@@ -35,6 +34,7 @@ export function HubScreen(): JSX.Element {
   const saveError = useHousehold((s) => s.saveError);
   const budgetDoc = useBudget((s) => s.doc);
   const budgetToday = useBudget((s) => s.today);
+  const personal = usePersonal((s) => s.doc);
   const sync = useSyncText();
 
   const key = weekKeyOf(today);
@@ -42,6 +42,13 @@ export function HubScreen(): JSX.Element {
   const open = shop.must.filter((r) => r.status !== 'done');
   const recipes = recipesOf(PLAN, key);
   const left = budgetDoc ? budgetGauge(budgetDoc, monthKeyOf(budgetToday), budgetToday).left : null;
+
+  const who = me ?? 'max';
+  const mine = personal.people[who];
+  const workout = trainingDay(who, key);
+  const workoutDone = mine.done[today];
+  const health = dayRow(PLAN, who, mine, today, today);
+  const lastWeight = [...mine.measurements].reverse().find((m) => m.weight !== undefined)?.weight;
 
   return (
     <section className="pane h-pane">
@@ -135,12 +142,51 @@ export function HubScreen(): JSX.Element {
                 ккал сегодня
                 {PEOPLE.map((p) => (
                   <span key={p.id} className="line">
-                    {p.name} {num(kcalOf(p.id, key))}
+                    {p.name} {num(kcalOf(PLAN, p.id, key))}
                   </span>
                 ))}
               </span>
               <span className="pic" aria-hidden="true">
                 🥗
+              </span>
+            </button>
+
+            <button className="h-tile train" onClick={() => go('training')}>
+              <span className="t">Тренировка</span>
+              <span className="s">
+                {workout ? (
+                  <>
+                    {workout.title.toLowerCase()}
+                    <span className="line">
+                      {workoutDone !== undefined ? `✓ ${num(workoutDone)} ккал` : `≈${num(plannedKcal(who, key, mine.kcal))} ккал`}
+                    </span>
+                  </>
+                ) : (
+                  'план появится позже'
+                )}
+              </span>
+              <span className="pic" aria-hidden="true">
+                {workout?.emoji ?? '🏃'}
+              </span>
+            </button>
+
+            <button className="h-tile health" onClick={() => go('health')}>
+              <span className="t">Здоровье</span>
+              <span className="s">
+                {health.energy ? (
+                  <>
+                    сегодня {signedKcal(health.energy.balance)} ккал
+                    <span className="line">
+                      {lastWeight !== undefined && `вес ${dec(lastWeight)} кг · `}
+                      расход {num(health.energy.total)}
+                    </span>
+                  </>
+                ) : (
+                  'впишите вес и жир — посчитаю расход'
+                )}
+              </span>
+              <span className="pic" aria-hidden="true">
+                ⚖️
               </span>
             </button>
           </div>

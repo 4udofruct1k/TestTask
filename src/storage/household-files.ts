@@ -8,40 +8,36 @@
  */
 
 import { emptyLocal, parseLocal, type HouseholdLocal } from '../household/local';
-import { atomicWrite, dropStaleTmp, type WriteResult } from './atomic';
+import type { WriteResult } from './atomic';
 import type { FileAccess } from './files';
+import { LocalDocFile } from './local-doc-file';
 import { HOUSEHOLD_FILE, HOUSEHOLD_TMP } from './paths';
-
-const TARGET = { file: HOUSEHOLD_FILE, tmp: HOUSEHOLD_TMP };
 
 export type HouseholdLoad = { local: HouseholdLocal; note: string | null };
 
 export class HouseholdFiles {
-  private chain: Promise<unknown> = Promise.resolve();
+  private readonly file: LocalDocFile<HouseholdLocal>;
 
-  constructor(private readonly files: FileAccess) {}
+  constructor(files: FileAccess) {
+    this.file = new LocalDocFile(files, {
+      target: { file: HOUSEHOLD_FILE, tmp: HOUSEHOLD_TMP },
+      brokenPrefix: 'household-broken',
+      brokenNote: 'Файл общих данных не прочитался. Свежая копия придёт из облака при сводке',
+      parse: parseLocal,
+      empty: emptyLocal,
+    });
+  }
 
   async load(): Promise<HouseholdLoad> {
-    await dropStaleTmp(this.files, HOUSEHOLD_TMP);
-    const text = await this.files.read(HOUSEHOLD_FILE);
-    if (text === null) return { local: emptyLocal(), note: null };
-    const local = parseLocal(text);
-    if (local) return { local, note: null };
-    // Нечитаемый файл не стирается молча: откладывается рядом, чтобы его
-    // можно было достать, а работа начинается с чистого листа
-    await this.files.rename(HOUSEHOLD_FILE, `household-broken-${Date.now()}.json`).catch(() => undefined);
-    return { local: emptyLocal(), note: 'Файл общих данных не прочитался. Свежая копия придёт из облака при сводке' };
+    const { doc, note } = await this.file.load();
+    return { local: doc, note };
   }
 
-  /** Дождаться, пока лягут все начатые записи. */
-  async idle(): Promise<void> {
-    await this.chain;
+  idle(): Promise<void> {
+    return this.file.idle();
   }
 
-  /** Записи идут строго друг за другом: две сразу затёрли бы общий временный файл. */
   save(local: HouseholdLocal): Promise<WriteResult> {
-    const next = this.chain.then(() => atomicWrite(this.files, JSON.stringify(local), TARGET));
-    this.chain = next.catch(() => undefined);
-    return next;
+    return this.file.save(local);
   }
 }

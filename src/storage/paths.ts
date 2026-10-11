@@ -8,6 +8,10 @@ export const BACKUP_DIR = 'backups';
 export const HOUSEHOLD_FILE = 'household.json';
 export const HOUSEHOLD_TMP = 'household.tmp';
 
+/** Личное: отметки тренировок, вес и замеры. Только в этом телефоне. */
+export const PERSONAL_FILE = 'personal.json';
+export const PERSONAL_TMP = 'personal.tmp';
+
 /** Суточный снимок. Участвует в ротации семи. */
 export const dailyBackupPath = (day: string): string => `${BACKUP_DIR}/${day}.json`;
 

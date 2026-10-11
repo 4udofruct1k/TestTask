@@ -9,7 +9,7 @@ import { applyPalette, DEFAULT_PALETTE, loadPalette, savePalette, type Palette, 
 
 /** Разделы бюджета. Остальные экраны — общие разделы дома и главная с плитками */
 export type BudgetScreen = 'home' | 'expenses' | 'savings' | 'dashboards' | 'dashboard' | 'calendar' | 'settings';
-export type Screen = 'hub' | 'shop' | 'cook' | 'food' | 'household' | BudgetScreen;
+export type Screen = 'hub' | 'shop' | 'cook' | 'food' | 'training' | 'health' | 'household' | BudgetScreen;
 
 const BUDGET_SCREENS: readonly Screen[] = ['home', 'expenses', 'savings', 'dashboards', 'dashboard', 'calendar', 'settings'];
 export const isBudgetScreen = (screen: Screen): screen is BudgetScreen => BUDGET_SCREENS.includes(screen);
