@@ -10,7 +10,7 @@
 import { useState, type JSX } from 'react';
 import { addDays, WEEK_KEYS, weekdayOf, weekOf, type DateStr } from '../../household/days';
 import { PLAN } from '../../household/plan';
-import { MEASURE_FIELDS, type Measurement, type MeasureField } from '../../personal/doc';
+import { MEASURE_FIELDS, type Measurement, type MeasureField, type MeasureSpec } from '../../personal/doc';
 import {
   bodyOn,
   calibrate,
@@ -67,6 +67,38 @@ function MeasureForm({ initial, today, onSave, onCancel }: FormProps): JSX.Eleme
   });
   const valid = parsed.every((p) => p.ok) && /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= today;
   const empty = parsed.every((p) => p.value === undefined);
+  // Бицепс и бедро — по желанию: раскрыты, только если уже вписаны
+  const [extraOpen, setExtraOpen] = useState(() =>
+    MEASURE_FIELDS.some((f) => f.group === 'extra' && initial[f.key] !== undefined),
+  );
+
+  const input = ({ f, ok }: { f: MeasureSpec; ok: boolean }): JSX.Element => (
+    <span className="m-input">
+      <input
+        inputMode="decimal"
+        autoComplete="off"
+        value={text[f.key]}
+        aria-invalid={!ok}
+        aria-label={f.label}
+        placeholder="—"
+        onChange={(e) => setText({ ...text, [f.key]: e.target.value })}
+      />
+      <i>{f.unit}</i>
+    </span>
+  );
+
+  const girthRows = (group: 'main' | 'extra'): JSX.Element[] =>
+    parsed
+      .filter((p) => p.f.group === group)
+      .map((p) => (
+        <label key={p.f.key} className="m-row">
+          <span className="m-name">
+            <b>{p.f.label}</b>
+            {p.f.hint && <small>{p.f.hint}</small>}
+          </span>
+          {input(p)}
+        </label>
+      ));
 
   const save = (): void => {
     if (!valid || empty) return;
@@ -83,26 +115,29 @@ function MeasureForm({ initial, today, onSave, onCancel }: FormProps): JSX.Eleme
         <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} />
       </label>
       <div className="m-grid">
-        {parsed.map(({ f, ok }) => (
-          <label key={f.key} className="m-field">
-            <span>{f.label}</span>
-            <span className="m-input">
-              <input
-                inputMode="decimal"
-                autoComplete="off"
-                value={text[f.key]}
-                aria-invalid={!ok}
-                placeholder="—"
-                onChange={(e) => setText({ ...text, [f.key]: e.target.value })}
-              />
-              <i>{f.unit}</i>
-            </span>
-          </label>
-        ))}
+        {parsed
+          .filter((p) => p.f.group === 'body')
+          .map((p) => (
+            <label key={p.f.key} className="m-field">
+              <span>{p.f.label}</span>
+              {input(p)}
+            </label>
+          ))}
+      </div>
+      <div className="m-girths">
+        <div className="m-sub">Обхваты</div>
+        {girthRows('main')}
+        {extraOpen ? (
+          girthRows('extra')
+        ) : (
+          <button className="t-link m-more" onClick={() => setExtraOpen(true)}>
+            Ещё замеры: бицепс, бедро
+          </button>
+        )}
       </div>
       <p className="h-note">
         Любое поле можно оставить пустым. Вес и жир — для расчёта расхода; жир можно вписывать реже, берётся
-        последний. Взвешивайтесь утром, натощак, раз в неделю в один и тот же день.
+        последний. Мерьте утром, натощак, раз в неделю в один и тот же день; лента лежит ровно, не пережимает.
       </p>
       <div className="h-editline">
         <button className="h-save" disabled={!valid || empty} onClick={save}>

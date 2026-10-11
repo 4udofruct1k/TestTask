@@ -19,7 +19,10 @@ export interface Measurement {
   fat?: number;
   /** обхваты, см */
   waist?: number;
+  /** живот: самое широкое место, через пупок и бока */
+  belly?: number;
   chest?: number;
+  /** попа: по самым выступающим точкам ягодиц */
   hips?: number;
   bicep?: number;
   thigh?: number;
@@ -27,14 +30,28 @@ export interface Measurement {
 
 export type MeasureField = Exclude<keyof Measurement, 'date'>;
 
-export const MEASURE_FIELDS: { key: MeasureField; label: string; unit: string; min: number; max: number }[] = [
-  { key: 'weight', label: 'Вес', unit: 'кг', min: 30, max: 250 },
-  { key: 'fat', label: 'Жир', unit: '%', min: 3, max: 60 },
-  { key: 'waist', label: 'Талия', unit: 'см', min: 40, max: 200 },
-  { key: 'chest', label: 'Грудь', unit: 'см', min: 50, max: 200 },
-  { key: 'hips', label: 'Бёдра', unit: 'см', min: 50, max: 200 },
-  { key: 'bicep', label: 'Бицепс', unit: 'см', min: 15, max: 70 },
-  { key: 'thigh', label: 'Бедро', unit: 'см', min: 30, max: 100 },
+export interface MeasureSpec {
+  key: MeasureField;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  /** Где мерить */
+  hint?: string;
+  /** body — вес и жир; main — основные обхваты; extra — по желанию, под «Ещё замеры» */
+  group: 'body' | 'main' | 'extra';
+}
+
+/** Порядок — как на экране: сначала вес и жир, потом основные обхваты. */
+export const MEASURE_FIELDS: MeasureSpec[] = [
+  { key: 'weight', label: 'Вес', unit: 'кг', min: 30, max: 250, group: 'body' },
+  { key: 'fat', label: 'Жир', unit: '%', min: 3, max: 60, group: 'body' },
+  { key: 'waist', label: 'Талия', unit: 'см', min: 40, max: 200, hint: 'самое узкое место, на выдохе', group: 'main' },
+  { key: 'belly', label: 'Живот', unit: 'см', min: 40, max: 220, hint: 'самое широкое место, через пупок и бока', group: 'main' },
+  { key: 'chest', label: 'Грудь', unit: 'см', min: 50, max: 200, hint: 'по самым выступающим точкам, под мышками', group: 'main' },
+  { key: 'hips', label: 'Попа', unit: 'см', min: 50, max: 200, hint: 'по самым выступающим точкам ягодиц', group: 'main' },
+  { key: 'bicep', label: 'Бицепс', unit: 'см', min: 15, max: 70, hint: 'напряжённый, в самом толстом месте', group: 'extra' },
+  { key: 'thigh', label: 'Бедро', unit: 'см', min: 30, max: 100, hint: 'под ягодицей, в самом толстом месте', group: 'extra' },
 ];
 
 export interface PersonData {

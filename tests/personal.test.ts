@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { kcalOf, PLAN } from '../src/household/plan';
 import {
   emptyPersonal,
+  MEASURE_FIELDS,
   markDone,
   parsePersonal,
   removeMeasurement,
@@ -83,6 +84,14 @@ describe('личные данные', () => {
     expect(doc.people.max.measurements).toEqual([]);
     doc = saveMeasurement(doc, 'max', { date: MON, fat: 17 });
     expect(removeMeasurement(doc, 'max', MON).people.max.measurements).toEqual([]);
+  });
+
+  it('основные обхваты — талия, живот, грудь, попа; живот сохраняется', () => {
+    expect(MEASURE_FIELDS.filter((f) => f.group === 'main').map((f) => f.label)).toEqual(['Талия', 'Живот', 'Грудь', 'Попа']);
+    const doc = saveMeasurement(emptyPersonal(), 'max', { date: MON, waist: 84, belly: 92, chest: 104, hips: 99 });
+    expect(parsePersonal(JSON.stringify(doc))!.people.max.measurements).toEqual([
+      { date: MON, waist: 84, belly: 92, chest: 104, hips: 99 },
+    ]);
   });
 
   it('мусор в файле пропускается, годное остаётся', () => {
