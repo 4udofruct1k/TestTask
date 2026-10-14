@@ -366,7 +366,7 @@ details.h-more[open] summary::after { content: '−'; }
 .t-plan { display: flex; flex-direction: column; }
 .t-plan .h-label { margin-bottom: 8px; }
 .t-slot { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 0 12px; }
-.t-time { font-size: 13px; font-weight: 800; padding-top: 9px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.t-time { font-size: 13px; font-weight: 800; padding-top: 9px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .t-what {
   position: relative; padding: 8px 0 10px 16px; border-left: 2px solid var(--line);
   display: flex; flex-direction: column; gap: 5px; min-width: 0;

@@ -44,6 +44,21 @@ describe('план тренировок', () => {
     expect(week.every((d) => d.slots.length > 0)).toBe(true);
   });
 
+  it('время в расписании короткое — влезает в колонку и не наезжает на линию дня', () => {
+    for (const day of TRAINING.max) {
+      for (const slot of day.slots) expect(slot.time, `${day.key}: ${slot.title}`).toMatch(/^(\d{1,2}:\d{2}|\d{1,2}–\d{1,2}|~\d+\u00a0ч|)$/);
+    }
+  });
+
+  it('среда: шпагаты и складка — по два подхода, голеностоп и вечер — каждые 15 минут', () => {
+    const wed = TRAINING.max.find((d) => d.key === 'Ср')!;
+    const marks = Object.fromEntries(wed.slots.map((s) => [s.title, s.marks?.length ?? 0]));
+    expect(marks['Поперечный шпагат']).toBe(2);
+    expect(marks['Складка вперёд']).toBe(2);
+    expect(marks['Голеностоп ЗПБ']).toBe(4);
+    expect(marks['Шпагат и складка']).toBe(4);
+  });
+
   it('у Ильвины плана пока нет', () => {
     expect(TRAINING.ilvina).toEqual([]);
     expect(plannedKcal('ilvina', 'Пн', {})).toBe(0);
