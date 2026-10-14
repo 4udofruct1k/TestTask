@@ -41,6 +41,11 @@ function SlotRow({ slot }: { slot: Slot }): JSX.Element {
             ))}
           </span>
         )}
+        {slot.until && (
+          <span className="t-marks">
+            <i>до {slot.until}</i>
+          </span>
+        )}
         {slot.note && <small>{slot.note}</small>}
       </div>
     </div>
